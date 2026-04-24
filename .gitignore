@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# 배포 빌드 산출물
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# 로컬 환경
+.env
+.env.local
+*.local
+
+# OS
+.DS_Store

@@ -1,0 +1,9 @@
+# 로컬 개발·스크립트 실행용 의존성.
+# requirements.txt (Lambda 번들) 에 더해 로컬에서만 필요한 패키지.
+#
+# 사용:
+#   pip install -r requirements.txt -r requirements-dev.txt
+
+# Lambda 런타임이 기본 제공하므로 번들하지 않음 (zip 크기 절약).
+# 로컬 스크립트(scripts/backfill_ohlcv.py) 는 boto3 직접 호출.
+boto3>=1.34,<2.0
