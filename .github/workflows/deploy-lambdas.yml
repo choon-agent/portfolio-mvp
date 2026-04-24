@@ -22,6 +22,7 @@ on:
       - 'src/lambdas/**'
       - 'src/common/**'
       - 'src/screening/**'
+      - 'requirements.txt'
       - 'scripts/deploy_lambda.sh'
       - '.github/workflows/deploy-lambdas.yml'
   workflow_dispatch:
@@ -80,8 +81,8 @@ jobs:
             echo "변경된 파일:"
             echo "$changed" | sed 's/^/  /'
 
-            if echo "$changed" | grep -Eq '^(src/common/|src/screening/|scripts/deploy_lambda\.sh$|\.github/workflows/deploy-lambdas\.yml$)'; then
-              echo "공용 코드/배포 스크립트 변경 → 모든 Lambda 재배포"
+            if echo "$changed" | grep -Eq '^(src/common/|src/screening/|requirements\.txt$|scripts/deploy_lambda\.sh$|\.github/workflows/deploy-lambdas\.yml$)'; then
+              echo "공용 코드/의존성/배포 스크립트 변경 → 모든 Lambda 재배포"
               targets=$(all_lambdas)
             else
               targets=$(echo "$changed" | awk -F/ '/^src\/lambdas\/[^\/]+\//{print $3}' | sort -u)
