@@ -1,0 +1,133 @@
+name: Deploy Lambdas
+
+# 전략:
+#   1. detect 잡이 변경된 파일을 보고 배포 대상 Lambda 목록을 계산
+#      - src/lambdas/<name>/** 만 바뀜        → 해당 Lambda 만
+#      - src/common/** 또는 src/screening/**  → 의존하는 모든 Lambda 재배포
+#      - 배포 스크립트 자체/이 워크플로 변경   → 모든 Lambda 재배포
+#      - 초기 푸시(before SHA 없음)           → 모든 Lambda
+#   2. deploy 잡이 matrix 로 병렬 배포
+#
+# 필요한 GitHub secrets / variables:
+#   secrets.AWS_DEPLOY_ROLE_ARN   — OIDC 로 assume 할 IAM Role ARN (lambda:UpdateFunctionCode 권한)
+#   vars.LAMBDA_NAME_PREFIX       — (선택) AWS 함수 이름 접두사. 기본 "portfolio-mvp"
+#
+# AWS 함수 이름 규칙: <prefix>-<src/lambdas 하위 디렉토리 이름>
+#   예: src/lambdas/update_constituents → portfolio-mvp-update_constituents
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/lambdas/**'
+      - 'src/common/**'
+      - 'src/screening/**'
+      - 'scripts/deploy_lambda.sh'
+      - '.github/workflows/deploy-lambdas.yml'
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: '배포할 Lambda 이름(쉼표 구분). 비우면 전체 배포.'
+        required: false
+        default: ''
+
+permissions:
+  id-token: write   # OIDC 용
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  detect:
+    name: 변경된 Lambda 탐지
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # git diff BEFORE..AFTER 를 위해 전체 히스토리 필요
+
+      - id: plan
+        name: 배포 대상 계산
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+          INPUT_TARGETS: ${{ github.event.inputs.targets }}
+        run: |
+          set -euo pipefail
+
+          all_lambdas() {
+            if [ -d src/lambdas ]; then
+              find src/lambdas -mindepth 2 -maxdepth 2 -name handler.py -printf '%h\n' \
+                | awk -F/ '{print $NF}' \
+                | sort -u
+            fi
+          }
+
+          targets=""
+
+          if [ -n "${INPUT_TARGETS:-}" ]; then
+            echo "수동 실행 대상: $INPUT_TARGETS"
+            targets=$(echo "$INPUT_TARGETS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort -u)
+          elif [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "초기 푸시 감지 → 모든 Lambda 배포"
+            targets=$(all_lambdas)
+          else
+            changed=$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" || true)
+            echo "변경된 파일:"
+            echo "$changed" | sed 's/^/  /'
+
+            if echo "$changed" | grep -Eq '^(src/common/|src/screening/|scripts/deploy_lambda\.sh$|\.github/workflows/deploy-lambdas\.yml$)'; then
+              echo "공용 코드/배포 스크립트 변경 → 모든 Lambda 재배포"
+              targets=$(all_lambdas)
+            else
+              targets=$(echo "$changed" | awk -F/ '/^src\/lambdas\/[^\/]+\//{print $3}' | sort -u)
+            fi
+          fi
+
+          targets=$(echo "${targets:-}" | grep -v '^$' || true)
+
+          if [ -z "$targets" ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "targets=[]" >> "$GITHUB_OUTPUT"
+            echo "배포할 Lambda 없음 — 종료"
+            exit 0
+          fi
+
+          json=$(echo "$targets" | jq -R . | jq -sc .)
+          echo "any=true" >> "$GITHUB_OUTPUT"
+          echo "targets=$json" >> "$GITHUB_OUTPUT"
+          echo "배포 대상: $json"
+
+  deploy:
+    name: 배포 ${{ matrix.lambda }}
+    needs: detect
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lambda: ${{ fromJson(needs.detect.outputs.targets) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: AWS 자격증명 설정 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 패키징 및 배포
+        env:
+          LAMBDA_DIR: ${{ matrix.lambda }}
+          LAMBDA_NAME_PREFIX: ${{ vars.LAMBDA_NAME_PREFIX || 'portfolio-mvp' }}
+        run: |
+          chmod +x scripts/deploy_lambda.sh
+          scripts/deploy_lambda.sh "$LAMBDA_DIR" "${LAMBDA_NAME_PREFIX}-${LAMBDA_DIR}"
