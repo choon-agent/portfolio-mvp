@@ -66,21 +66,6 @@ class FMPClient:
 
         raise FMPError(f"FMP 요청이 {self._max_retries}회 시도 후 실패: {last_exc}")
 
-    def get_current_sp500(self) -> list[dict[str, Any]]:
-        """현재 S&P 500 구성종목 조회.
-
-        반환 값: symbol, name, sector, subSector, dateFirstAdded, cik 등의 키를 가진 dict 리스트.
-        """
-        return self._get("sp500-constituent")
-
-    def get_historical_sp500(self) -> list[dict[str, Any]]:
-        """S&P 500 편입/편출 이력 이벤트 조회.
-
-        반환 값: dateAdded, addedSecurity, removedTicker, removedSecurity, symbol, reason
-        등의 키를 가진 dict 리스트.
-        """
-        return self._get("historical-sp500-constituent")
-
     def get_historical_price(self, symbol: str) -> list[dict[str, Any]]:
         """단일 종목의 전체 일별 OHLCV 이력 조회.
 

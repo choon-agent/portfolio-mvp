@@ -33,10 +33,12 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+import requests
+
 # Lambda 가 /src 를 루트로 번들링하면 같은 레벨 패키지를 import 가능하도록 경로 추가
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from common.fmp_client import FMPClient, FMPError  # noqa: E402
+from common.fmp_client import FMPClient  # noqa: E402
 from common.ohlcv import fetch_and_store_ohlcv  # noqa: E402
 from common.s3_io import (  # noqa: E402
     append_parquet,
@@ -44,6 +46,7 @@ from common.s3_io import (  # noqa: E402
     read_parquet,
     write_parquet_atomic,
 )
+from common.sp500_wikipedia import WikipediaSourceError, fetch_both  # noqa: E402
 from screening.constituents import (  # noqa: E402
     arrow_to_constituents,
     build_constituents,
@@ -81,16 +84,16 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     cfg = _cfg()
     run_date = datetime.now(timezone.utc).date()
 
-    # 1. 시크릿 & 클라이언트
+    # 1. 시크릿 & 클라이언트 (FMP 는 OHLCV 수집용으로만 사용)
     fmp_api_key = get_secret(cfg["secret_id"])
     fmp = FMPClient(api_key=fmp_api_key)
 
-    # 2. 데이터 조회
+    # 2. 데이터 조회 — 구성종목·이력은 Wikipedia 에서 (FMP 구독이 sp500-constituent
+    #    엔드포인트를 커버하지 않는 플랜이라 공개 데이터 소스로 대체)
     try:
-        current_raw = fmp.get_current_sp500()
-        historical_raw = fmp.get_historical_sp500()
-    except FMPError as exc:
-        logger.exception("FMP 조회 실패; 실행 중단")
+        current_raw, historical_raw = fetch_both()
+    except (requests.RequestException, WikipediaSourceError) as exc:
+        logger.exception("Wikipedia 조회 실패; 실행 중단")
         return {"status": "error", "stage": "fetch", "message": str(exc)}
 
     new_state = build_constituents(current_raw, historical_raw)
