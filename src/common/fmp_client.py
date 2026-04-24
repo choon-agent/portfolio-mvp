@@ -15,7 +15,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
+FMP_BASE_URL = "https://financialmodelingprep.com/stable"
 DEFAULT_TIMEOUT = 30
 DEFAULT_MAX_RETRIES = 3
 
@@ -71,7 +71,7 @@ class FMPClient:
 
         반환 값: symbol, name, sector, subSector, dateFirstAdded, cik 등의 키를 가진 dict 리스트.
         """
-        return self._get("sp500_constituent")
+        return self._get("sp500-constituent")
 
     def get_historical_sp500(self) -> list[dict[str, Any]]:
         """S&P 500 편입/편출 이력 이벤트 조회.
@@ -79,15 +79,19 @@ class FMPClient:
         반환 값: dateAdded, addedSecurity, removedTicker, removedSecurity, symbol, reason
         등의 키를 가진 dict 리스트.
         """
-        return self._get("historical/sp500_constituent")
+        return self._get("historical-sp500-constituent")
 
     def get_historical_price(self, symbol: str) -> list[dict[str, Any]]:
         """단일 종목의 전체 일별 OHLCV 이력 조회.
 
         반환 값: date, open, high, low, close, adjClose, volume 등의 키를 가진 dict 리스트.
+        Stable API 는 flat array 로 반환. 과거 v3 의 {"symbol", "historical": [...]} 구조도
+        안전하게 처리.
         """
-        data = self._get(f"historical-price-full/{symbol}")
-        if not isinstance(data, dict) or "historical" not in data:
-            logger.warning("%s 에 대한 historical-price-full 응답이 예상과 다름: %s", symbol, data)
-            return []
-        return data["historical"]
+        data = self._get("historical-price-eod/full", params={"symbol": symbol})
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and "historical" in data:
+            return data["historical"]
+        logger.warning("%s 에 대한 historical-price 응답이 예상과 다름: %s", symbol, data)
+        return []
