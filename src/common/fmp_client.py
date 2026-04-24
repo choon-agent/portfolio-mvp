@@ -72,8 +72,12 @@ class FMPClient:
         반환 값: date, open, high, low, close, adjClose, volume 등의 키를 가진 dict 리스트.
         Stable API 는 flat array 로 반환. 과거 v3 의 {"symbol", "historical": [...]} 구조도
         안전하게 처리.
+
+        Dual-class 주식(BRK.B, BF.B)의 경우 FMP 는 하이픈 표기(BRK-B, BF-B)를 사용.
+        Wikipedia 및 일반 표기(dot form)를 입력으로 받아 자동 변환.
         """
-        data = self._get("historical-price-eod/full", params={"symbol": symbol})
+        fmp_symbol = symbol.replace(".", "-")
+        data = self._get("historical-price-eod/full", params={"symbol": fmp_symbol})
         if isinstance(data, list):
             return data
         if isinstance(data, dict) and "historical" in data:

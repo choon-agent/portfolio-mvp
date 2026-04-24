@@ -73,10 +73,13 @@ portfolio-mvp/
 │   ├── screening/             # 1단계: 코드 기반 스크리닝
 │   │   └── constituents.py    # 구성종목 diff 로직
 │   └── lambdas/
-│       └── update_constituents/
-│           └── handler.py     # 주 1회 S&P 500 업데이트 Lambda
+│       ├── update_constituents/
+│       │   └── handler.py     # 주 1회 S&P 500 구성종목 업데이트
+│       └── update_ohlcv/
+│           └── handler.py     # 매 거래일 OHLCV 증분 업데이트
 ├── scripts/
-│   └── deploy_lambda.sh       # Lambda 패키징·배포 스크립트
+│   ├── deploy_lambda.sh       # Lambda 패키징·배포 스크립트
+│   └── backfill_ohlcv.py      # OHLCV 초기 백필 (로컬 일회성)
 └── .github/
     └── workflows/
         └── deploy-lambdas.yml # CI/CD: 변경 Lambda 자동 배포
@@ -106,6 +109,20 @@ portfolio-mvp/
 - `update_constituents` Lambda 동작 확인 (bootstrap 실행 성공, 503 종목 `current.parquet` 저장)
 - 구성종목 diff 로직: added/removed/metadata_changed 분리, 재편입 케이스 지원
 
+### ✅ 1단계 스크리닝 — OHLCV 수집
+- **초기 백필**: `scripts/backfill_ohlcv.py` 로 현재 구성종목 503개의 5년치 OHLCV 적재 완료 (로컬 일회성 실행, 약 7분 소요)
+  - S3: `ohlcv/ticker={SYMBOL}/data.parquet` 구조
+  - 실패·재시도·진행률 추정·resume 지원
+- **Dual-class 티커 정규화**: `BRK.B` 같은 점 포함 티커는 FMP 호출 시 자동으로 하이픈(`BRK-B`)으로 변환, 저장은 점 유지
+- **일일 증분 업데이트 Lambda** (`update_ohlcv`): 매 거래일 종료 후 실행
+  - 각 심볼의 기존 parquet 마지막 날짜 이후 행만 append (덮어쓰기 X)
+  - **FMP 의 5년 롤링 윈도우 밖 과거 데이터를 S3 에 영구 보존**하기 위한 설계
+  - 개별 심볼 실패가 전체 실행을 중단시키지 않음 (로깅 + 계속 진행)
+
+### ✅ EventBridge 스케줄
+- `update_constituents` — 매주 월요일 ET 09:00 (프리마켓). 구성종목 diff 및 변경 이벤트 로깅
+- `update_ohlcv` — 매 평일 ET 22:00 (장 마감 후 FMP EOD 반영 완료 시점). *스케줄은 콘솔 수동 설정*
+
 ### ✅ 문서화
 - CHARTER (헌장): 우선순위·제약·성공 기준 확정
 - CLAUDE.md (개발 규칙): 코딩 규칙, 커밋 컨벤션, 비용 상한
@@ -116,25 +133,80 @@ portfolio-mvp/
 
 ### 다음 단계 (즉시 착수)
 
-1. **S&P 500 전체 OHLCV 백필** (로컬 일회성 작업)
-   - `scripts/backfill_ohlcv.py` 작성 — `common/` 모듈 재사용
-   - S3 `current.parquet` 에서 503 심볼 읽어 FMP `/stable/historical-price-eod/full` 호출
-   - S3 `ohlcv/<symbol>.parquet` 에 저장
-   - Lambda 15분 타임아웃 회피 목적으로 로컬 실행
-   - FMP `historical-price-eod/full` 엔드포인트는 현 구독 플랜으로 사용 가능 확인 완료
-
-2. **EventBridge 스케줄 연결**
-   - `update_constituents` Lambda 를 매주 월요일 프리마켓 시간에 자동 실행
-   - 두번째 실행부터는 bootstrap 대신 실제 diff 기반 동작
+1. **`update_ohlcv` Lambda 의 EventBridge 스케줄 연결**
+   - 매 평일 ET 22:00 트리거 (cron: `0 22 ? * MON-FRI *`, timezone: `America/New_York`)
+   - 콘솔에서 수동 설정 (Scheduler role 재사용 가능)
 
 ### M1 (1개월차 마지막까지 목표)
 
-3. **2단계 Bull/Bear 에이전트 MVP** — CHARTER 의 핵심 학습 포인트
+2. **2단계 Bull/Bear 에이전트 MVP** — CHARTER 의 핵심 학습 포인트
    - 종목당 Bull 1 + Bear 1 에이전트 (총 2개)
    - 프롬프트는 `src/agents/prompts/` 에 분리
    - Pydantic 모델로 출력 검증 (JSON mode)
    - 비용 로깅: `timestamp, model, input_tokens, output_tokens, cost_usd, purpose`
    - 대상 종목: 1단계 스크리닝 통과 15~20개
+
+---
+
+## 주의사항 및 제약
+
+운영·데이터 레이어에 알려진 제약과 그 의미. 새 기능 설계 시 이 목록을 먼저 확인.
+
+### 데이터 관련
+
+- **FMP 이력 윈도우는 5년 롤링**
+  - 현 구독 플랜이 `historical-price-eod/full` 호출 시 최근 ~1255 거래일만 반환
+  - `update_ohlcv` 를 증분 append 방식으로 설계한 이유 — 매일 돌면서 S3 에 쌓이는 데이터는 롤링 창 밖으로도 영구 보존됨
+  - 단, **최초 백필 시점 이전의 과거 데이터는 복구 불가능**. MVP 첫 백필(2026-04-24) 기준 약 2021-04 이후만 보유
+
+- **증분 업데이트는 과거 행을 갱신하지 않음**
+  - FMP 가 분할·배당으로 과거 `adjClose` 를 소급 수정해도 이미 저장된 행은 그대로 유지됨
+  - 엄격한 시계열 정합이 필요한 백테스트 단계에서는 주기적 재백필(`fetch_and_store_ohlcv` 사용)로 보완 필요
+  - MVP 의 Bull/Bear 에이전트는 추세·수준 판단이 주 용도라 이 편차는 허용 범위
+
+- **생존 편향 (Survivorship Bias)**
+  - `update_ohlcv` 는 **현재** 구성종목만 갱신. 편출된 종목의 OHLCV 는 더 이상 업데이트되지 않음
+  - 긴 기간의 백테스트 시 생존 편향 주의. 편출 이력은 `metadata/constituents_changes.parquet` 에 남아있어 명시적 재현 가능
+
+- **Wikipedia 스크래핑 의존**
+  - S&P 500 구성종목 소스가 Wikipedia HTML 구조에 의존. 테이블 구조 변경 시 `sp500_wikipedia.py` 업데이트 필요
+  - 정상 실행 기준: `fetched` 로그의 `current_members` 가 500~505 범위
+
+- **Dual-class 티커 표기 혼선**
+  - Wikipedia/일반 표기: `BRK.B`, `BF.B` (점)
+  - FMP 표기: `BRK-B`, `BF-B` (하이픈)
+  - FMP 클라이언트 레벨에서 자동 변환 중 ([fmp_client.py](src/common/fmp_client.py)). 다른 데이터 소스 추가 시 같은 규약 적용 확인 필요
+
+### 인프라·비용 관련
+
+- **Lambda zip 크기 한계 (50MB 직접 업로드)**
+  - 현재 zip 크기 ~50MB 근접 (pyarrow + pydantic + lxml + bs4)
+  - 추가 의존성을 도입하려면 먼저 가능한 제거(boto3 는 런타임 기본) 또는 Layer 분리 검토
+  - S3 경유 업로드로 전환 시 zipped 250MB 까지 가능
+
+- **Lambda 실행 시간 예산**
+  - `update_ohlcv`: 503 심볼 처리에 ~6~8분. 15분 타임아웃 여유 있지만 FMP 지연·재시도 누적 시 빠듯
+  - 백필·재적재 같은 대량 작업은 로컬 스크립트로 분리 유지
+
+- **LLM 비용 상한 월 $200** ([CHARTER §2.2](CHARTER.md))
+  - LLM 호출 추가 시 커밋 메시지에 예상 월 비용 영향 기재 필수 (CLAUDE.md 규칙)
+  - Sonnet 4.6 기본, Opus 는 이유 없이 금지
+
+### 운영 관련
+
+- **주말 실행 불필요**
+  - `update_ohlcv` cron 은 `MON-FRI` 로 제한. 주말 실행은 FMP 에 직전 금요일 데이터만 반복 반환 → 호출 낭비
+  - 미국 공휴일(추수감사절, 크리스마스 등)은 cron 으로 거를 수 없음. no-op 로 허용 (새 데이터가 없으면 자동으로 `n_updated=0`)
+
+- **구성종목 업데이트와 OHLCV 업데이트의 순서 의존**
+  - `update_ohlcv` 는 `current.parquet` 을 읽어 심볼 목록을 만듦
+  - 신규 편입 종목은 주간 `update_constituents` 실행 시점에 최초 OHLCV 적재까지 수행 ([handler.py 의 ohlcv_fetched 경로](src/lambdas/update_constituents/handler.py))
+  - 즉 편입 → 다음 평일 `update_ohlcv` 실행 → 이후 정상 증분. 이 흐름이 깨지면 신규 종목 데이터 공백 발생 가능
+
+- **AWS 자격증명 범위**
+  - GitHub Actions 배포 role: `lambda:UpdateFunctionCode` 등 코드 업데이트 권한만 보유
+  - Lambda 함수 생성·설정·EventBridge·IAM 은 **콘솔 수동 작업** (IaC 미도입 상태)
+  - 새 Lambda 추가 시 동일 패턴: 콘솔 생성 → 환경변수·IAM role 설정 → GitHub Actions 가 자동 배포
 
 ### M2 (2개월차)
 
@@ -222,6 +294,8 @@ git push origin main
 | 2026-04-20 | CHARTER v0.1 확정, repo 초기화 |
 | 2026-04-24 | `update_constituents` Lambda bootstrap 실행 성공 |
 | 2026-04-24 | S&P 500 데이터 소스 Wikipedia 로 전환 |
-| — | EventBridge 스케줄 연결 (예정) |
-| — | OHLCV 백필 (예정) |
+| 2026-04-24 | 503 종목 5년치 OHLCV 로컬 백필 완료 |
+| 2026-04-24 | `update_constituents` EventBridge 주간 스케줄 연결 |
+| 2026-04-24 | `update_ohlcv` Lambda 작성 (일일 증분 업데이트) |
+| — | `update_ohlcv` EventBridge 일일 스케줄 연결 (예정) |
 | — | Bull/Bear 에이전트 MVP (예정) |
