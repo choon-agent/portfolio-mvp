@@ -121,7 +121,9 @@ portfolio-mvp/
 
 ### ✅ EventBridge 스케줄
 - `update_constituents` — 매주 월요일 ET 09:00 (프리마켓). 구성종목 diff 및 변경 이벤트 로깅
-- `update_ohlcv` — 매 평일 ET 22:00 (장 마감 후 FMP EOD 반영 완료 시점). *스케줄은 콘솔 수동 설정*
+- `update_ohlcv` — 매 평일 ET 22:00 (장 마감 후 FMP EOD 반영 완료 시점)
+- 두 스케줄 모두 Scheduler 테스트 트리거 → CloudWatch Logs 정상 확인 완료
+- Scheduler 공용 role: `portfolio-mvp-scheduler-role` (`lambda:InvokeFunction` on `portfolio-mvp-*`)
 
 ### ✅ 문서화
 - CHARTER (헌장): 우선순위·제약·성공 기준 확정
@@ -131,15 +133,10 @@ portfolio-mvp/
 
 ## 앞으로 진행할 작업
 
-### 다음 단계 (즉시 착수)
-
-1. **`update_ohlcv` Lambda 의 EventBridge 스케줄 연결**
-   - 매 평일 ET 22:00 트리거 (cron: `0 22 ? * MON-FRI *`, timezone: `America/New_York`)
-   - 콘솔에서 수동 설정 (Scheduler role 재사용 가능)
-
 ### M1 (1개월차 마지막까지 목표)
 
-2. **2단계 Bull/Bear 에이전트 MVP** — CHARTER 의 핵심 학습 포인트
+1. **2단계 Bull/Bear 에이전트 MVP** — CHARTER 의 핵심 학습 포인트
+   - 설계 문서 `docs/02-bull-bear.md` 작성: 프롬프트 구조, 모델 선택, 비용 추정, 출력 스키마
    - 종목당 Bull 1 + Bear 1 에이전트 (총 2개)
    - 프롬프트는 `src/agents/prompts/` 에 분리
    - Pydantic 모델로 출력 검증 (JSON mode)
@@ -297,5 +294,5 @@ git push origin main
 | 2026-04-24 | 503 종목 5년치 OHLCV 로컬 백필 완료 |
 | 2026-04-24 | `update_constituents` EventBridge 주간 스케줄 연결 |
 | 2026-04-24 | `update_ohlcv` Lambda 작성 (일일 증분 업데이트) |
-| — | `update_ohlcv` EventBridge 일일 스케줄 연결 (예정) |
+| 2026-04-26 | `update_ohlcv` EventBridge 일일 스케줄 연결 — Scheduler 트리거·로그 확인 완료 |
 | — | Bull/Bear 에이전트 MVP (예정) |
