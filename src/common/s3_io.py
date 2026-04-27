@@ -10,6 +10,7 @@ LLM 사용: 없음.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import uuid
 from typing import Any
@@ -80,6 +81,37 @@ def object_exists(bucket: str, key: str) -> bool:
         if exc.response["Error"]["Code"] in ("NoSuchKey", "404"):
             return False
         raise
+
+
+def read_json(bucket: str, key: str) -> Any | None:
+    """JSON 객체 읽기. 키가 없거나 JSON 파싱 실패면 None."""
+    try:
+        resp = _s3.get_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] in ("NoSuchKey", "404"):
+            return None
+        raise
+    try:
+        return json.loads(resp["Body"].read())
+    except json.JSONDecodeError:
+        logger.warning("JSON 파싱 실패: s3://%s/%s", bucket, key)
+        return None
+
+
+def write_json(bucket: str, key: str, data: Any, *, indent: int | None = 2) -> None:
+    """JSON 객체 쓰기 (UTF-8). dict/list/str 모두 허용."""
+    body = json.dumps(data, indent=indent, ensure_ascii=False).encode("utf-8")
+    _s3.put_object(Bucket=bucket, Key=key, Body=body, ContentType="application/json")
+
+
+def write_text(bucket: str, key: str, text: str, *, content_type: str = "application/json") -> None:
+    """이미 직렬화된 텍스트 쓰기 (예: Pydantic model_dump_json 결과)."""
+    _s3.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=text.encode("utf-8"),
+        ContentType=content_type,
+    )
 
 
 def get_secret(secret_id: str, region_name: str | None = None) -> str:

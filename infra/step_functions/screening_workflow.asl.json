@@ -1,0 +1,31 @@
+{
+  "Comment": "Weekly screening workflow (M1) — docs/01-screening.md §4.1. M2 에 Bull/Bear Map state 추가 예정.",
+  "StartAt": "RunScreening",
+  "States": {
+    "RunScreening": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "<<LAMBDA_NAME>>",
+        "Payload.$": "$"
+      },
+      "ResultSelector": {
+        "result.$": "$.Payload"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "End": true
+    }
+  }
+}

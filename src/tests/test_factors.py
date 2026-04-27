@@ -11,9 +11,9 @@ import pytest
 
 from common.ohlcv import OHLCV_SCHEMA
 from screening.factors import (
+    FMP_FIELD_EARNINGS_YIELD_TTM,
     FMP_FIELD_EV_EBITDA_TTM,
     FMP_FIELD_FCF_YIELD_TTM,
-    FMP_FIELD_PE_TTM,
     compute_factor_scores,
     compute_momentum,
     extract_value_factors,
@@ -118,48 +118,57 @@ def test_momentum_handles_zero_or_negative_price_as_missing():
 
 
 def test_value_factors_extracts_all_present():
+    """P/E 는 earningsYieldTTM 의 역수로 도출."""
     pe, ev, fcf = extract_value_factors(
-        {FMP_FIELD_PE_TTM: 25.3},
-        {FMP_FIELD_EV_EBITDA_TTM: 15.2, FMP_FIELD_FCF_YIELD_TTM: 0.04},
+        {
+            FMP_FIELD_EARNINGS_YIELD_TTM: 1.0 / 25.3,  # P/E TTM = 25.3
+            FMP_FIELD_EV_EBITDA_TTM: 15.2,
+            FMP_FIELD_FCF_YIELD_TTM: 0.04,
+        },
     )
-    assert pe == 25.3
+    assert pe == pytest.approx(25.3)
     assert ev == 15.2
     assert fcf == 0.04
 
 
-def test_value_factors_negative_pe_becomes_none():
-    pe, _, _ = extract_value_factors({FMP_FIELD_PE_TTM: -10.0}, None)
+def test_value_factors_negative_earnings_yield_becomes_none():
+    """음수 earnings yield → 음수 P/E → None (적자기업 멀티플 의미 없음)."""
+    pe, _, _ = extract_value_factors({FMP_FIELD_EARNINGS_YIELD_TTM: -0.05})
     assert pe is None
 
 
-def test_value_factors_zero_pe_becomes_none():
-    pe, _, _ = extract_value_factors({FMP_FIELD_PE_TTM: 0.0}, None)
+def test_value_factors_zero_earnings_yield_becomes_none():
+    """0 yield → 1/0 안전하게 None."""
+    pe, _, _ = extract_value_factors({FMP_FIELD_EARNINGS_YIELD_TTM: 0.0})
     assert pe is None
 
 
 def test_value_factors_negative_ev_ebitda_becomes_none():
-    _, ev, _ = extract_value_factors(None, {FMP_FIELD_EV_EBITDA_TTM: -5.0})
+    _, ev, _ = extract_value_factors({FMP_FIELD_EV_EBITDA_TTM: -5.0})
     assert ev is None
 
 
 def test_value_factors_negative_fcf_yield_preserved():
     """음의 FCF yield 는 정당한 부정 시그널 — 보존."""
-    _, _, fcf = extract_value_factors(None, {FMP_FIELD_FCF_YIELD_TTM: -0.02})
+    _, _, fcf = extract_value_factors({FMP_FIELD_FCF_YIELD_TTM: -0.02})
     assert fcf == -0.02
 
 
-def test_value_factors_handles_none_inputs():
-    assert extract_value_factors(None, None) == (None, None, None)
+def test_value_factors_handles_none_input():
+    assert extract_value_factors(None) == (None, None, None)
 
 
-def test_value_factors_handles_empty_dicts():
-    assert extract_value_factors({}, {}) == (None, None, None)
+def test_value_factors_handles_empty_dict():
+    assert extract_value_factors({}) == (None, None, None)
 
 
 def test_value_factors_handles_non_numeric_values():
     pe, ev, fcf = extract_value_factors(
-        {FMP_FIELD_PE_TTM: "not-a-number"},
-        {FMP_FIELD_EV_EBITDA_TTM: None, FMP_FIELD_FCF_YIELD_TTM: "abc"},
+        {
+            FMP_FIELD_EARNINGS_YIELD_TTM: "not-a-number",
+            FMP_FIELD_EV_EBITDA_TTM: None,
+            FMP_FIELD_FCF_YIELD_TTM: "abc",
+        },
     )
     assert pe is None
     assert ev is None
@@ -177,14 +186,17 @@ def test_compute_factor_scores_composes_momentum_and_value():
 
     scores = compute_factor_scores(
         price_history=history,
-        ratios_ttm={FMP_FIELD_PE_TTM: 20.0},
-        key_metrics_ttm={FMP_FIELD_EV_EBITDA_TTM: 12.0, FMP_FIELD_FCF_YIELD_TTM: 0.05},
+        key_metrics_ttm={
+            FMP_FIELD_EARNINGS_YIELD_TTM: 1.0 / 20.0,  # P/E TTM = 20
+            FMP_FIELD_EV_EBITDA_TTM: 12.0,
+            FMP_FIELD_FCF_YIELD_TTM: 0.05,
+        },
         as_of_date=AS_OF,
     )
 
     assert scores.momentum_12_1m == pytest.approx(0.30)
     assert scores.momentum_6m == pytest.approx(130 / 110 - 1.0)
-    assert scores.pe_ttm == 20.0
+    assert scores.pe_ttm == pytest.approx(20.0)
     assert scores.ev_ebitda == 12.0
     assert scores.fcf_yield == 0.05
     # z-score 는 normalize.py 책임 → 여기서는 None
@@ -195,7 +207,6 @@ def test_compute_factor_scores_composes_momentum_and_value():
 def test_compute_factor_scores_with_all_data_missing():
     scores = compute_factor_scores(
         price_history=None,
-        ratios_ttm=None,
         key_metrics_ttm=None,
         as_of_date=AS_OF,
     )

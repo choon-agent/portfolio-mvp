@@ -66,6 +66,23 @@ class FMPClient:
 
         raise FMPError(f"FMP 요청이 {self._max_retries}회 시도 후 실패: {last_exc}")
 
+    def get_key_metrics_ttm(self, symbol: str) -> list[dict[str, Any]]:
+        """단일 종목의 TTM key metrics 조회.
+
+        스크리닝의 밸류 팩터(P/E TTM, EV/EBITDA TTM, FCF Yield TTM) + 시총
+        을 단일 호출로 제공. P/E 는 응답의 `earningsYieldTTM` 의 역수로 도출
+        (FMP 가 직접 `peRatioTTM` 을 제공하지 않음 — 2026-04 검증).
+
+        반환은 list (FMP 의 일관된 형식). 보통 length 1, 빈 list 면 데이터 없음.
+        Dual-class 종목(BRK.B)은 자동으로 하이픈 표기로 변환.
+        """
+        fmp_symbol = symbol.replace(".", "-")
+        data = self._get("key-metrics-ttm", params={"symbol": fmp_symbol})
+        if isinstance(data, list):
+            return data
+        logger.warning("%s key-metrics-ttm 응답이 예상과 다름: %s", symbol, data)
+        return []
+
     def get_historical_price(self, symbol: str) -> list[dict[str, Any]]:
         """단일 종목의 전체 일별 OHLCV 이력 조회.
 

@@ -87,10 +87,11 @@ def compute_momentum(
 
 # ---------- 밸류 ----------
 
-# FMP TTM 응답 필드명 (docs §10 미해결 항목 — 응답 실측 후 확정 필요).
-# 변경 시 caller(pipeline.py)와 함께 검토.
-FMP_FIELD_PE_TTM = "peRatioTTM"
-FMP_FIELD_EV_EBITDA_TTM = "enterpriseValueOverEBITDATTM"
+# FMP key-metrics-ttm 응답 필드명 (실측 검증 — 2026-04 기준).
+# 단일 엔드포인트(key-metrics-ttm) 가 세 필드 모두 제공하므로 ratios-ttm 별도 호출 불필요.
+# P/E TTM 은 earningsYieldTTM 의 역수로 도출 (FMP 가 직접 peRatioTTM 을 제공하지 않음).
+FMP_FIELD_EARNINGS_YIELD_TTM = "earningsYieldTTM"  # 1/peRatioTTM
+FMP_FIELD_EV_EBITDA_TTM = "evToEBITDATTM"
 FMP_FIELD_FCF_YIELD_TTM = "freeCashFlowYieldTTM"
 
 
@@ -110,27 +111,30 @@ def _positive_or_none(value: Any) -> float | None:
 
 
 def extract_value_factors(
-    ratios_ttm: dict[str, Any] | None,
     key_metrics_ttm: dict[str, Any] | None,
 ) -> tuple[float | None, float | None, float | None]:
-    """FMP TTM 응답에서 (pe_ttm, ev_ebitda, fcf_yield) 추출.
+    """FMP key-metrics-ttm 응답에서 (pe_ttm, ev_ebitda, fcf_yield) 추출.
 
-    P/E, EV/EBITDA: 양수만 유효 (음수는 None — 설계 §3.2).
-    FCF yield: 음수도 보존 (음의 FCF 는 정당한 부정 시그널).
+    P/E TTM 은 earningsYieldTTM 의 역수로 도출 (양수 yield 일 때만):
+        peRatioTTM = 1 / earningsYieldTTM
+    음수/0 yield 는 None — '음수 P/E 는 의미 없음' 정책 (§3.2) 과 정합.
+
+    EV/EBITDA: 양수만 유효 (음수는 None — 적자 EBITDA 시 멀티플 의미 없음)
+    FCF yield: 음수도 보존 (음의 FCF 는 정당한 부정 시그널)
 
     응답 dict 가 None 이거나 키가 없으면 해당 컴포넌트만 None.
     """
-    pe = _positive_or_none(ratios_ttm.get(FMP_FIELD_PE_TTM)) if ratios_ttm else None
-    ev_ebitda = (
-        _positive_or_none(key_metrics_ttm.get(FMP_FIELD_EV_EBITDA_TTM))
-        if key_metrics_ttm
+    if not key_metrics_ttm:
+        return (None, None, None)
+
+    earnings_yield = _to_float(key_metrics_ttm.get(FMP_FIELD_EARNINGS_YIELD_TTM))
+    pe = (
+        1.0 / earnings_yield
+        if earnings_yield is not None and earnings_yield > 0
         else None
     )
-    fcf_y = (
-        _to_float(key_metrics_ttm.get(FMP_FIELD_FCF_YIELD_TTM))
-        if key_metrics_ttm
-        else None
-    )
+    ev_ebitda = _positive_or_none(key_metrics_ttm.get(FMP_FIELD_EV_EBITDA_TTM))
+    fcf_y = _to_float(key_metrics_ttm.get(FMP_FIELD_FCF_YIELD_TTM))
     return (pe, ev_ebitda, fcf_y)
 
 
@@ -139,16 +143,16 @@ def extract_value_factors(
 
 def compute_factor_scores(
     price_history: pa.Table | None,
-    ratios_ttm: dict[str, Any] | None,
     key_metrics_ttm: dict[str, Any] | None,
     as_of_date: date,
 ) -> FactorScores:
     """단일 종목의 raw FactorScores 반환.
 
-    z-score 필드(momentum_z, value_z)는 None 으로 둠 — normalize.py 가 단면 단위로 채움.
+    입력은 OHLCV 와 FMP key-metrics-ttm 응답만 — 단일 엔드포인트로 모든 밸류 컴포넌트 산출.
+    z-score 필드(momentum_z, value_z) 는 None 으로 둠 — normalize.py 가 단면 단위로 채움.
     """
     mom_12_1m, mom_6m = compute_momentum(price_history, as_of_date)
-    pe, ev_ebitda, fcf_y = extract_value_factors(ratios_ttm, key_metrics_ttm)
+    pe, ev_ebitda, fcf_y = extract_value_factors(key_metrics_ttm)
     return FactorScores(
         momentum_12_1m=mom_12_1m,
         momentum_6m=mom_6m,

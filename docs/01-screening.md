@@ -56,9 +56,8 @@ S&P 500 종목에 팩터 기반 점수(모멘텀·밸류)를 매겨 상위 **15~
 |---|---|---|
 | S&P 500 구성종목 | [`common/models.py:Constituent`](../src/common/models.py) | `is_current==True`만 사용 |
 | 일별 OHLCV | `s3://{bucket}/ohlcv/ticker={SYM}/data.parquet` (스키마는 [`ohlcv.py:OHLCV_SCHEMA`](../src/common/ohlcv.py)) | adj_close 사용 |
-| 분기 재무제표 | FMP `income-statement`, `cash-flow-statement` (캐시 90일) | TTM 계산용 |
-| 밸류에이션 비율 | FMP `ratios-ttm`, `key-metrics-ttm` (캐시 90일) | P/E, EV/EBITDA, FCF yield |
-| 시총·유동성 | FMP `quote` (캐시 1일) | marketCap, avgVolume |
+| **TTM 펀더멘털** | FMP `key-metrics-ttm` (캐시 90일) | 단일 엔드포인트가 P/E(`1/earningsYieldTTM`), `evToEBITDATTM`, `freeCashFlowYieldTTM`, `marketCap` 제공 — 실측 검증 (`scripts/probe_fmp_fundamentals.py`) |
+| 시총 (선택) | FMP `quote` (캐시 1일) | `key-metrics-ttm.marketCap` 으로 대체 가능 — 호출 측 결정 |
 
 **원칙**: FMP 직접 호출 금지 — [`common/fmp_client.py`](../src/common/fmp_client.py) 캐싱 계층 경유 (CLAUDE.md 규칙).
 
@@ -133,10 +132,10 @@ class ScreeningResult(BaseModel):
 - `momentum_6m` = `(price_t-21 / price_t-126) - 1` (보조)
 - 결합: 0.7 × `momentum_12_1m` + 0.3 × `momentum_6m`
 
-**밸류**:
-- `pe_ttm`: 양수만 (음수 EPS는 결측 처리)
-- `ev_ebitda`: 양수만
-- `fcf_yield` = `FCF_TTM / EnterpriseValue`
+**밸류** (모두 FMP `key-metrics-ttm` 단일 엔드포인트에서 도출):
+- `pe_ttm` = `1 / earningsYieldTTM` (양수 yield 일 때만 — 음수면 None)
+- `ev_ebitda` = `evToEBITDATTM` (양수만)
+- `fcf_yield` = `freeCashFlowYieldTTM` (음수도 보존 — 정당한 부정 시그널)
 - 결합: 세 컴포넌트를 각각 z-score 후 단순 평균 (P/E·EV/EBITDA는 부호 반전 — 낮을수록 좋음)
 
 **MVP에서 의도적으로 제외**:
@@ -239,18 +238,27 @@ ScreeningResult JSON → S3
 
 ## 4. 오케스트레이션
 
-### 4.1 실행 패턴
+### 4.1 실행 패턴 — 데이터 레이어와 워크플로우 레이어 분리
 
-주 1회, 월요일 프리마켓:
+주 1회, 월요일 프리마켓. **데이터 갱신은 독립 EventBridge 스케줄로 분리**, Step Functions
+는 스크리닝 이후 워크플로우만 담당.
 
 ```
+[데이터 레이어 — 독립 EventBridge 스케줄, 기존 자산 그대로]
+  ├─ update_constituents      (예: 토요일, 주 1회)
+  ├─ update_ohlcv_incremental (매일 또는 주말)
+  └─ refresh_fundamentals     (분기 시작 주 — 신규, M1 후반)
+       │
+       ▼
+   S3 캐시
+       │
+       ▼
+[스크리닝 워크플로우 — 단일 EventBridge → Step Functions]
+
 EventBridge (Mon 06:00 ET, CHARTER §2.4)
         │
         ▼
 [Step Functions]
-  ├─ Lambda: refresh_constituents (기존 자산 재사용)
-  ├─ Lambda: refresh_ohlcv_incremental (기존 자산 재사용)
-  ├─ Lambda: refresh_fundamentals_cache (신규 — ratios-ttm 등)
   └─ Lambda: run_screening
         │
         ▼
@@ -258,13 +266,27 @@ EventBridge (Mon 06:00 ET, CHARTER §2.4)
    S3: screening/dt={yyyy-mm-dd}/factors.parquet (Athena 분석용)
         │
         ▼
-   다음 단계: Bull/Bear Map state 입력 (docs/02-bull-bear.md §4.1)
+   다음 state: Bull/Bear Map → 시나리오 → 최적화 → 리밸런서
+   (docs/02-bull-bear.md §4.1)
 ```
 
+**왜 분리인가**:
+- **결합도 ↓ — 견고성 ↑**: OHLCV 갱신이 실패해도 어제 캐시로 스크리닝 진행 가능. CHARTER §4.1
+  실전 전환 기준 "주간 리밸런싱 성공률 ≥90%" 달성에 유리.
+- **기존 자산 재사용**: `update_constituents`, `update_ohlcv` Lambda 가 이미 EventBridge 스케줄로
+  운영 중 — 새 작업 없음.
+- **갱신 주기 최적화**: OHLCV 매일, 구성종목 주 1회, 펀더멘털 분기 — 각자 적합한 주기 유지.
+- **재실행/디버깅 단순화**: 스크리닝 워크플로우만 단독 재실행 가능 (데이터 갱신 재호출 불필요).
+- 주 1회 배치라 데이터 lag(최대 ~12시간) 무의미.
+
+**트레이드오프**: 스크리닝 시점에 갱신 실패가 누적되면 데이터가 낡을 수 있음 → 6.1 로깅으로
+캐시 스냅샷 시점을 기록해 사후 추적.
+
 ### 4.2 구성 요소 매핑 (CHARTER §3.4 기존 자산 재사용)
-- **EventBridge**: Bull/Bear와 동일 트리거 체인의 첫 작업
-- **Step Functions**: 데이터 갱신 → 스크리닝 → Bull/Bear 의 직렬 흐름. 데이터 갱신은 병렬 Branch
-- **Lambda**: 단일 인스턴스로 충분 (S&P 500 한 번 처리는 < 60초 예상)
+- **EventBridge — 데이터 레이어**: 각 update Lambda 별 독립 스케줄
+- **EventBridge — 워크플로우 레이어**: Mon 06:00 ET, Step Functions 트리거 (단일)
+- **Step Functions**: 스크리닝 → Bull/Bear → 시나리오 → 최적화 → 리밸런서 (직렬 + Map 병렬)
+- **Lambda (run_screening)**: 단일 인스턴스로 충분 (S&P 500 한 번 처리는 < 60초 예상)
 - **S3 레이아웃**:
   - `s3://{bucket}/screening/dt={yyyy-mm-dd}/result.json` — Bull/Bear 입력
   - `s3://{bucket}/screening/dt={yyyy-mm-dd}/factors.parquet` — 사후 분석
@@ -388,8 +410,8 @@ LLM 미사용이므로 비용 계산은 인프라 한정.
 5. **score.py** — 결합 점수, 랭킹, 동점 처리
 6. **peer_context.py** — sub_sector 상위 5개 조립
 7. **pipeline.py** — 위 모듈 합성, `ScreeningResult` 반환 (FakeFMPClient 주입식)
-8. **Lambda 핸들러** — `src/lambdas/run_screening/handler.py` (S3 쓰기)
-9. **EventBridge + Step Functions 연결** — 5종목으로 dry run
+8. **Lambda 핸들러** — `src/lambdas/run_screening/handler.py`. S3 캐시 읽기(constituents, OHLCV) + FMP 호출(ratios-ttm, key-metrics-ttm) + `pipeline.run_screening` + S3 쓰기 (result.json, factors.parquet)
+9. **EventBridge + Step Functions 연결** — Mon 06:00 ET 단일 트리거 → Step Functions → run_screening (다음 단계 Bull/Bear Map 은 02-bull-bear.md). 5종목으로 dry run
 10. **첫 주간 실행** — 결과 검토, Bull/Bear 입력으로 핸드오프
 
 ---
@@ -397,7 +419,8 @@ LLM 미사용이므로 비용 계산은 인프라 한정.
 ## 10. 미해결 / 다음 결정 필요
 
 - [ ] **결합 가중치**: `w_m = w_v = 0.5`로 시작 후, M2~M3에서 백테스트 트랙으로 가중치 민감도 평가. 가중치를 환경변수/Step Functions 입력으로 외부화할지 결정.
-- [ ] **재무 데이터 lag**: 분기 발표는 회계기간 종료 후 4~8주 지연. 발표 전 시점에 어떤 분기를 TTM에 포함시킬지(announce_date 기준 vs filing_date 기준) — FMP 응답 필드 실측 후 결정.
+- [x] ~~**FMP 응답 필드 실측**~~: 2026-04 검증 완료 — `key-metrics-ttm` 단일 엔드포인트로 모든 밸류 컴포넌트 + `marketCap` 도출 가능 (P/E TTM 은 `1/earningsYieldTTM`). [`scripts/probe_fmp_fundamentals.py`](../scripts/probe_fmp_fundamentals.py) 로 재현 가능.
+- [ ] **재무 데이터 lag**: 분기 발표는 회계기간 종료 후 4~8주 지연. `key-metrics-ttm` 의 TTM 산출 시점(announce_date 기준 vs filing_date 기준) 이 실측 어떻게 동작하는지 — 분기 발표 시즌에 캐시 무효화 정책 결정 필요.
 - [ ] **데이터 결측 종목 정책**: 두 팩터 모두 결측인 종목은 자동 제외. 한쪽만 결측인 종목을 어디까지 허용할지 (현재안: 결측 컴포넌트=0 중립) — 첫 주간 실행 후 실측 분포 보고 조정.
 - [ ] **Survivorship bias**: 편출 종목 OHLCV는 보존되지만 본 MVP에서는 활용 안 함. 백테스트 트랙으로 이관 시점.
 - [ ] **`peer_context` 범위**: 같은 `sub_sector`로 충분한지, 아니면 `sector`까지 확장할지 — Bull/Bear 골든 케이스 평가 후 결정.
