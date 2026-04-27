@@ -168,6 +168,47 @@ composite_score = w_m × momentum_z + w_v × value_z
 - `composite_score` 내림차순 상위 20개 → 그 중 `data_quality_flags`가 비어 있는 종목부터 채워 15~20개 확정
 - 동점은 `momentum_12_1m` → `fcf_yield` → `symbol` 알파벳 순으로 결정 (재현성)
 
+### 3.6 모듈 단위와 데이터 흐름
+
+§4.3 모듈 배치의 각 모듈은 동작 단위가 다르다 — 일부는 **종목별(per-stock)**, 일부는 **단면(cross-section, 유니버스 전체)** 단위로 동작한다. 이 구분이 모듈 간 호출 순서를 결정한다.
+
+```
+[S&P 500 ~500종목]
+        │
+        ▼
+universe.py        ← 유니버스 단위 (전체 리스트 필터링)
+        │ 통과 ~478종목
+        ▼
+factors.py         ← 종목별 (각 종목마다 모멘텀/밸류 raw값 계산)
+        │ 종목별 raw 팩터값
+        ▼
+normalize.py       ← 단면 단위 (같은 sub_sector 내 z-score)
+        │ 종목별 z-score
+        ▼
+score.py           ← 단면 단위 (결합 점수 → 정렬 → 상위 15~20)
+        │ 선정 15~20종목
+        ▼
+peer_context.py    ← 선정 종목별 (sub_sector 상위 5개 멀티플 조립)
+        │
+        ▼
+pipeline.py        ← 위 단계를 순서대로 호출, ScreeningResult 1개 반환
+        │
+        ▼
+ScreeningResult JSON → S3
+        │
+        ▼
+[다음 단계: Bull/Bear]
+선정 15~20 종목 각각에 대해
+  ├─ Bull 에이전트 1회 호출
+  └─ Bear 에이전트 1회 호출  (종목 간 독립 → Map state 병렬)
+```
+
+**핵심 포인트**:
+- `normalize.py`(섹터 z-score)와 `score.py`(랭킹)는 **다른 종목과의 비교**가 필요하므로 종목별로 분리 호출 불가. 한 종목의 z-score를 구하려면 같은 sub_sector의 다른 종목 평균·표준편차가, 랭킹은 정의상 전체를 줄 세워야 산출 가능.
+- 그래서 전체 흐름은 "**유니버스 → 종목별 → 단면 → 종목별 → 합성**"으로 단위가 바뀐다.
+
+**Bull/Bear와의 대비**: Bull/Bear는 종목 간 비교가 필요 없으므로 종목별·관점별로 완전 독립 호출 가능 — [`docs/02-bull-bear.md` §4.1](02-bull-bear.md#41-호출-패턴)의 Step Functions Map state 병렬화 근거가 여기에서 나온다.
+
 ---
 
 ## 4. 오케스트레이션
