@@ -203,6 +203,32 @@ ScreeningResult JSON → S3
   └─ Bear 에이전트 1회 호출  (종목 간 독립 → Map state 병렬)
 ```
 
+**`schemas.py`가 흐름도에 없는 이유**:
+`schemas.py`는 데이터 흐름의 **단계**가 아니라, 흐름 전반에서 공유되는 **타입 계약(type contract)** 이다. 위 다이어그램의 화살표가 schemas가 정의한 "그릇"이고, 각 모듈은 그 그릇에 데이터를 채우거나 다음 그릇으로 변환하는 작업자다.
+
+```
+                  schemas.py
+        (FactorScores, PeerComparable,
+         ScreenedStock, ScreeningResult)
+                       ▲
+                       │ 모든 모듈이 import
+                       │
+   universe.py → factors.py → normalize.py → score.py → peer_context.py → pipeline.py
+                       │
+                       ▼
+                 같은 타입을 입출력으로 주고받음
+```
+
+각 모듈의 입출력 타입 매핑:
+- `universe.py`: `list[Constituent]` → `list[Constituent]` (이미 [`common/models.py`](../src/common/models.py)에 있는 타입 재사용)
+- `factors.py`: 종목 데이터 → `FactorScores`
+- `normalize.py`: `dict[symbol, FactorScores]` → z-score가 채워진 `FactorScores`
+- `score.py`: 위 결과 → `list[ScreenedStock]` (`rank`, `composite_score` 채움)
+- `peer_context.py`: 종목 + 유니버스 → `list[PeerComparable]`로 `ScreenedStock` 완성
+- `pipeline.py`: 최종 묶음 → `ScreeningResult` 1개
+
+**부가 효과**: Pydantic이 각 단계의 출력을 자동 검증 → 모듈 경계에서 데이터 오염 차단.
+
 **핵심 포인트**:
 - `normalize.py`(섹터 z-score)와 `score.py`(랭킹)는 **다른 종목과의 비교**가 필요하므로 종목별로 분리 호출 불가. 한 종목의 z-score를 구하려면 같은 sub_sector의 다른 종목 평균·표준편차가, 랭킹은 정의상 전체를 줄 세워야 산출 가능.
 - 그래서 전체 흐름은 "**유니버스 → 종목별 → 단면 → 종목별 → 합성**"으로 단위가 바뀐다.
