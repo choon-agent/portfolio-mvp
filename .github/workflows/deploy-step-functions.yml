@@ -1,0 +1,61 @@
+name: Deploy Step Functions
+
+# 스크리닝 Step Functions state machine 배포.
+#
+# 트리거:
+#   - main 푸시 시 ASL JSON 또는 배포 스크립트가 변경되면 자동
+#   - 수동 실행도 가능 (workflow_dispatch)
+#
+# Lambda 코드 변경에는 영향 없음 — 그건 deploy-lambdas.yml 담당.
+#
+# 필요한 GitHub secrets / variables:
+#   secrets.AWS_DEPLOY_ROLE_ARN     — OIDC 로 assume 할 IAM Role ARN.
+#                                     기존 deploy-lambdas.yml 와 동일 role 재사용.
+#                                     단, 추가 권한 필요 (infra/README.md §CI/CD 권한 참고):
+#                                       states:CreateStateMachine, UpdateStateMachine,
+#                                       ListStateMachines, DescribeStateMachine
+#                                       iam:PassRole on Step Functions execution role
+#   vars.STEP_FUNCTIONS_ROLE_NAME   — (선택) state machine execution role 이름
+#                                     기본 "portfolio-mvp-step-functions-role"
+#   vars.STATE_MACHINE_NAME         — (선택) 기본 "portfolio-mvp-screening"
+#   vars.LAMBDA_NAME_PREFIX         — (선택) 기본 "portfolio-mvp"
+#                                     ASL 의 <<LAMBDA_NAME>> 치환에 사용
+#                                     deploy-lambdas.yml 의 prefix 와 동일 값 유지
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/step_functions/**'
+      - 'scripts/deploy_step_functions.sh'
+      - '.github/workflows/deploy-step-functions.yml'
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write   # OIDC 용
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  deploy:
+    name: state machine 배포
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AWS 자격증명 설정 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: state machine 배포 (create-or-update)
+        env:
+          IAM_ROLE_NAME: ${{ vars.STEP_FUNCTIONS_ROLE_NAME || 'portfolio-mvp-step-functions-role' }}
+          STATE_MACHINE_NAME: ${{ vars.STATE_MACHINE_NAME || 'portfolio-mvp-screening' }}
+          LAMBDA_NAME_PREFIX: ${{ vars.LAMBDA_NAME_PREFIX || 'portfolio-mvp' }}
+        run: |
+          chmod +x scripts/deploy_step_functions.sh
+          scripts/deploy_step_functions.sh

@@ -28,12 +28,26 @@ M2 이후 워크플로우가 복잡해지면 SAM 또는 CDK 로 이전 검토 (C
 
 ## 배포 순서
 
-1. **IAM 역할 3개 생성 (한 번만)** — 아래 §IAM 역할 참고
-2. **Lambda 배포** — `scripts/deploy_lambda.sh run_screening portfolio-mvp-run_screening`
-3. **Step Functions 배포** — `IAM_ROLE_NAME=portfolio-mvp-step-functions-role scripts/deploy_step_functions.sh`
-4. **EventBridge 스케줄** — 아래 §EventBridge 스케줄 참고
+### 초기 1회 수동
+1. **IAM 역할 4개 생성** — 아래 §IAM 역할 (3개 런타임 + CI 1개 추가 권한) 참고
+2. **Lambda 환경변수 설정** — Lambda 콘솔에서 `S3_BUCKET`, `FMP_SECRET_ID` 입력
+3. **EventBridge 스케줄 생성** — 아래 §EventBridge 스케줄 명령어 그대로
 
-코드 변경 후에는 2 → 3만 재실행. 두 스크립트 모두 멱등(create-or-update).
+### 코드/정의 변경 시 (자동)
+- `src/lambdas/**`, `src/common/**`, `src/screening/**` 변경 → [`.github/workflows/deploy-lambdas.yml`](../.github/workflows/deploy-lambdas.yml) 가 Lambda 자동 배포
+- `infra/step_functions/**` 변경 → [`.github/workflows/deploy-step-functions.yml`](../.github/workflows/deploy-step-functions.yml) 가 state machine 자동 배포
+- 두 워크플로우 모두 멱등 (create-or-update). 트리거되지 않으면 변경 없음.
+
+### 로컬 수동 실행 (옵션)
+GitHub Actions 우회하고 즉시 배포가 필요할 때:
+```bash
+# Lambda
+scripts/deploy_lambda.sh run_screening portfolio-mvp-run_screening
+
+# Step Functions
+IAM_ROLE_NAME=portfolio-mvp-step-functions-role scripts/deploy_step_functions.sh
+```
+로컬엔 `aws configure` 필요. CI 와 다른 자격증명을 쓰지 않도록 주의.
 
 ## IAM 역할
 
@@ -111,6 +125,56 @@ M2 이후 워크플로우가 복잡해지면 SAM 또는 CDK 로 이전 검토 (C
   }]
 }
 ```
+
+### 4) CI/CD 배포 역할 (`AWS_DEPLOY_ROLE_ARN`) — 기존 OIDC role 에 권한 추가
+
+GitHub Actions 가 Lambda/Step Functions 를 배포할 때 OIDC 로 assume 하는 role.
+`secrets.AWS_DEPLOY_ROLE_ARN` 에 ARN 등록되어 있고, `deploy-lambdas.yml` 가 이미 사용 중.
+Step Functions 자동 배포를 위해 **다음 권한을 인라인으로 추가** (한 번만):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ManageStateMachine",
+      "Effect": "Allow",
+      "Action": [
+        "states:CreateStateMachine",
+        "states:UpdateStateMachine",
+        "states:ListStateMachines",
+        "states:DescribeStateMachine"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PassStepFunctionsExecRole",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::<ACCOUNT>:role/portfolio-mvp-step-functions-role",
+      "Condition": {
+        "StringEquals": {"iam:PassedToService": "states.amazonaws.com"}
+      }
+    }
+  ]
+}
+```
+
+**주의**:
+- `iam:PassRole` 은 condition 으로 `states.amazonaws.com` 으로 제한 — Step Functions 외 서비스로
+  넘기는 것 차단
+- `states:*` 는 `Resource: "*"` 인데, list/describe 는 리소스 스코프 안 됨. 필요 시 create/update 만
+  특정 ARN 으로 좁힐 수 있음 (`arn:aws:states:ap-northeast-2:<ACCOUNT>:stateMachine:portfolio-mvp-*`)
+
+## GitHub Actions 변수 (vars)
+
+리포지토리 Settings → Variables 에서 (모두 선택 — 미설정 시 기본값 사용):
+
+| 변수 이름 | 기본값 | 사용처 |
+|---|---|---|
+| `LAMBDA_NAME_PREFIX` | `portfolio-mvp` | 두 워크플로우 모두 — Lambda/state machine 이름 prefix |
+| `STATE_MACHINE_NAME` | `portfolio-mvp-screening` | deploy-step-functions.yml |
+| `STEP_FUNCTIONS_ROLE_NAME` | `portfolio-mvp-step-functions-role` | deploy-step-functions.yml |
 
 ## Lambda 환경변수 (M1)
 
