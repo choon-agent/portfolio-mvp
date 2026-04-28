@@ -16,9 +16,9 @@ LLM 에이전트 오케스트레이션을 활용한 주식 포트폴리오 관�
 - **주요 서비스**: Lambda, S3, Athena, EventBridge, Step Functions
 - **데이터 소스**: Financial Modeling Prep (FMP) API
 - **LLM**: Anthropic Claude API (Sonnet 4.6 기본, Haiku 4.5 폴백)
-- **IaC**: (TBD — SAM 또는 CDK 중 선택)
-- **테스트**: pytest, moto (AWS 모킹)
-- **의존성 관리**: uv 또는 poetry 중 택1 (현재 미정)
+- **IaC**: Plain ASL JSON + AWS CLI 스크립트 (M1 — `infra/step_functions/`, `scripts/deploy_step_functions.sh`). SAM/CDK 재검토는 M2 이후 워크플로우 복잡도 증가 시점.
+- **테스트**: pytest (단위 테스트, 154 케이스 통과). 통합 테스트(moto/AWS 모킹)는 M2 이후 도입 예정.
+- **의존성 관리**: `requirements.txt` (Lambda 번들) + `requirements-dev.txt` (로컬 — pytest, boto3) 분리
 
 ## 디렉토리 구조 (목표)
 
@@ -108,13 +108,19 @@ portfolio-mvp/
 - 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (작성 중)
 - 외부: FMP API 문서, Anthropic API 문서, AWS Lambda 문서
 
-## 현재 단계 (M0 — 2026-04-20)
+## 현재 단계 (M1 — 2026-04-28 기준)
 
 - [x] Charter 작성
 - [x] Repo 생성
-- [ ] CLAUDE.md 작성 (이 파일)
-- [ ] README.md 작성
-- [ ] 디렉토리 스캐폴딩
-- [ ] FMP 클라이언트 + 캐싱 계층 (기존 자산 마이그레이션)
-- [ ] 1단계 스크리닝 (코드 기반)
-- [ ] 2단계 Bull/Bear MVP (가장 학습 레버리지 큼)
+- [x] CLAUDE.md 작성 (이 파일)
+- [x] README.md 작성
+- [x] 디렉토리 스캐폴딩
+- [x] FMP 클라이언트 + 캐싱 계층 (`update_constituents`, `update_ohlcv` Lambda 운영 중)
+- [x] **1단계 스크리닝 (코드 기반) — 완료**
+  - 7개 모듈(schemas, universe, factors, normalize, score, peer_context, pipeline) + 154개 단위 테스트
+  - `run_screening` Lambda + Step Functions + EventBridge (Mon 06:00 ET) 자동 실행
+  - 첫 운영 실행 (2026-04-25 기준): universe 483 → selected 20, peer_context 평균 5.0
+  - 설계: `docs/01-screening.md`
+- [ ] **2단계 Bull/Bear MVP (다음 작업) — `docs/02-bull-bear.md` 설계 완료, 구현 대기**
+
+§10 미해결 디자인 채무는 `docs/01-screening.md` 참고 (sector-specific factor, turnover 안정성 등 — 4주 운영 데이터 누적 후 결정).
