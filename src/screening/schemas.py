@@ -67,15 +67,20 @@ class ScreenedStock(BaseModel):
 class ScreeningResult(BaseModel):
     """스크리닝 단계의 최종 출력. Bull/Bear 단계의 입력원.
 
-    검증 (docs/01-screening.md §2.3):
-    - selected 길이 15~20 (CHARTER §3.2 포지션 수와 정합)
+    Schema 검증:
+    - selected 길이 1~50 (데이터 형태 sanity — 향후 Russell 확장·dry-run 여지 확보)
     - rank 가 selected 순서와 일치 (1, 2, 3, ...)
     - composite_score 내림차순
+
+    생산 정책 (CHARTER §3.2 "포지션 10~15개"):
+    - 실제 출력 크기 15~20 은 pipeline.run_screening 의 target_min/target_max
+      기본값으로 강제 — Lambda 가 default 로 호출하므로 운영 출력은 항상 그 범위.
+    - dry-run 이나 테스트는 더 작은 target 으로 호출 가능.
     """
 
     as_of_date: date
     universe_size: int = Field(ge=0)
-    selected: list[ScreenedStock] = Field(min_length=15, max_length=20)
+    selected: list[ScreenedStock] = Field(min_length=1, max_length=50)
     factor_weights: dict[str, float]
     run_id: str
 

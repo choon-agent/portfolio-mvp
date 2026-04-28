@@ -83,27 +83,57 @@ def test_under_n_peers_when_sub_sector_small():
     assert len(result[0].peer_context) == 3
 
 
-def test_empty_when_no_peers_in_sub_sector():
-    pool = [_pool(f"P{i}", sub_sector="HW", z=1.0) for i in range(5)]
+def test_falls_back_to_sector_when_no_subsector_peers():
+    """sub_sector "SW" 에 peer 가 없어도 같은 sector "Tech" 에서 5개 끌어옴."""
+    pool = [_pool(f"P{i}", sub_sector="HW", z=1.0 - i * 0.1) for i in range(5)]
+    result = attach_peer_context([_selected("X", sub_sector="SW")], pool)
+    # selected 의 sector="Tech" + pool 모두 sector="Tech" → sector 폴백으로 5개 충족
+    assert len(result[0].peer_context) == 5
+    assert {p.symbol for p in result[0].peer_context} == {f"P{i}" for i in range(5)}
+
+
+def test_falls_back_to_sector_when_selected_subsector_is_none():
+    """selected 가 sub_sector 모르더라도 sector 가 있으면 sector 폴백."""
+    pool = [_pool(f"P{i}", z=1.0 - i * 0.1) for i in range(5)]  # sector="Tech", sub_sector="SW"
+    result = attach_peer_context([_selected("X", sub_sector=None)], pool)
+    # selected.sector="Tech" → sector 폴백 가능
+    assert len(result[0].peer_context) == 5
+
+
+def test_empty_when_both_subsector_and_sector_unmatched():
+    """selected 의 sector 도 pool 에 없으면 빈 peer_context."""
+    pool = [
+        (_c(f"P{i}", sector="DifferentSector", sub_sector="DifferentSub"), _fs(z=1.0))
+        for i in range(5)
+    ]
     result = attach_peer_context([_selected("X", sub_sector="SW")], pool)
     assert result[0].peer_context == []
 
 
-def test_empty_when_selected_sub_sector_is_none():
-    pool = [_pool(f"P{i}", z=1.0) for i in range(5)]
-    result = attach_peer_context([_selected("X", sub_sector=None)], pool)
-    assert result[0].peer_context == []
-
-
-def test_pool_entries_with_none_sub_sector_are_skipped():
+def test_pool_entries_with_none_sub_sector_excluded_from_subsector_grouping():
+    """sub_sector=None 인 pool 항목은 sub_sector peer 후보에서 제외."""
     pool = [
         (_c("VALID", sub_sector="SW"), _fs(z=1.0)),
         (_c("INVALID", sub_sector=None), _fs(z=2.0)),  # 더 높은 점수지만 sub_sector 없음
     ]
     result = attach_peer_context([_selected("X", sub_sector="SW")], pool)
-    symbols = [p.symbol for p in result[0].peer_context]
+    symbols = {p.symbol for p in result[0].peer_context}
+    # VALID 는 sub_sector peer 로 포함, INVALID 는 (sector="Tech" 가 같으므로) sector 폴백으로 들어옴
+    # sub_sector peer 가 1 < n_peers=5 라 sector 폴백 발동
     assert "VALID" in symbols
-    assert "INVALID" not in symbols
+    assert "INVALID" in symbols  # sector 폴백으로 들어옴 — sector "Tech" 매칭
+
+
+def test_pool_entries_with_none_sector_excluded_from_sector_fallback():
+    """sub_sector=None AND sector=None 인 pool 항목은 어떤 폴백에도 안 들어옴."""
+    pool = [
+        (_c("VALID", sub_sector="SW"), _fs(z=1.0)),
+        (_c("ORPHAN", sector=None, sub_sector=None), _fs(z=5.0)),  # 그룹 키 모두 없음
+    ]
+    result = attach_peer_context([_selected("X", sub_sector="SW")], pool)
+    symbols = {p.symbol for p in result[0].peer_context}
+    assert "VALID" in symbols
+    assert "ORPHAN" not in symbols
 
 
 # ---------- 정렬 ----------
@@ -154,6 +184,75 @@ def test_peer_carries_none_for_missing_multiples():
     assert peer.pe_ttm is None
     assert peer.ev_ebitda is None
     assert peer.fcf_yield is None
+
+
+# ---------- sector 폴백 (dry-run 30종목 발견 사례) ----------
+
+
+def test_falls_back_to_sector_when_subsector_is_singleton():
+    """선정 종목이 sub_sector 의 유일한 멤버여도 sector 폴백으로 peer 확보.
+
+    실 운영 사례 (2026-04-28 dry-run): MPC ("Oil & Gas Refining & Marketing" 1종목),
+    USB ("Banks - Regional" 1종목) 가 빈 peer_context → sector 에서 보충.
+    """
+    # 같은 sub_sector "RareSub" 에 selected 자기 1종목뿐 (pool 에 안 들어감)
+    # sector "EnergySim" 에는 다른 4개 종목
+    pool = [
+        (_c(f"P{i}", sector="EnergySim", sub_sector="OtherSub"), _fs(z=1.0 - i * 0.1))
+        for i in range(4)
+    ]
+    selected = ScreenedStock(
+        symbol="LONELY",
+        sector="EnergySim",
+        sub_sector="RareSub",
+        rank=1,
+        composite_score=1.0,
+        factors=FactorScores(),
+    )
+    result = attach_peer_context([selected], pool)
+
+    assert len(result[0].peer_context) == 4
+    assert {p.symbol for p in result[0].peer_context} == {f"P{i}" for i in range(4)}
+
+
+def test_subsector_peers_listed_before_sector_extras():
+    """sub_sector peer 와 sector 폴백 peer 가 섞일 때 sub_sector 가 먼저."""
+    pool = [
+        # sub_sector "SW" 에 2개 (selected 와 같은 sub_sector)
+        (_c("S1", sector="Tech", sub_sector="SW"), _fs(z=0.1)),
+        (_c("S2", sector="Tech", sub_sector="SW"), _fs(z=0.0)),
+        # sector "Tech" 의 다른 sub_sector 에 5개 (점수 더 높음 — 그래도 sub_sector 우선)
+        (_c("H1", sector="Tech", sub_sector="HW"), _fs(z=2.0)),
+        (_c("H2", sector="Tech", sub_sector="HW"), _fs(z=1.9)),
+        (_c("H3", sector="Tech", sub_sector="HW"), _fs(z=1.8)),
+    ]
+    selected = _selected("X", sub_sector="SW")  # sector="Tech"
+    result = attach_peer_context([selected], pool)
+
+    peers = result[0].peer_context
+    # n_peers=5: sub_sector "SW" peer 2개 → 부족 3개를 sector "Tech" 에서 보충
+    # sub_sector peer 가 먼저, 이어서 sector extras
+    assert len(peers) == 5
+    # 첫 2개는 sub_sector "SW" 멤버 (점수 낮아도 우선)
+    assert {peers[0].symbol, peers[1].symbol} == {"S1", "S2"}
+    # 나머지 3개는 sector 폴백 — H1/H2/H3 (점수 desc)
+    assert [peers[i].symbol for i in range(2, 5)] == ["H1", "H2", "H3"]
+
+
+def test_subsector_only_when_sufficient_no_sector_fallback():
+    """sub_sector 만으로 n_peers 충족하면 sector 폴백 안 함 (점수 낮은 sector peer 무시)."""
+    pool = [
+        # sub_sector 5개로 충분
+        *[(_c(f"S{i}", sector="Tech", sub_sector="SW"), _fs(z=1.0 - i * 0.1)) for i in range(5)],
+        # sector 의 다른 sub_sector — 점수 매우 높지만 들어오면 안 됨
+        (_c("HOT", sector="Tech", sub_sector="HW"), _fs(z=10.0)),
+    ]
+    selected = _selected("X", sub_sector="SW")
+    result = attach_peer_context([selected], pool)
+
+    peer_symbols = {p.symbol for p in result[0].peer_context}
+    assert peer_symbols == {f"S{i}" for i in range(5)}
+    assert "HOT" not in peer_symbols
 
 
 # ---------- 다중 selected ----------

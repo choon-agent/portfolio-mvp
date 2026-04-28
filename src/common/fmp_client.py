@@ -66,6 +66,21 @@ class FMPClient:
 
         raise FMPError(f"FMP 요청이 {self._max_retries}회 시도 후 실패: {last_exc}")
 
+    def get_profile(self, symbol: str) -> list[dict[str, Any]]:
+        """단일 종목 프로필 조회 — sector, industry, companyName 등.
+
+        주로 dry-run·로컬 분석에서 sector/sub_sector 정보 보강용. 운영 Lambda 는
+        S3 캐시(constituents) 에서 sector/sub_sector 가져오므로 이 호출 불필요.
+
+        반환은 list (FMP 의 일관된 형식). 보통 length 1, 빈 list 면 데이터 없음.
+        """
+        fmp_symbol = symbol.replace(".", "-")
+        data = self._get("profile", params={"symbol": fmp_symbol})
+        if isinstance(data, list):
+            return data
+        logger.warning("%s profile 응답이 예상과 다름: %s", symbol, data)
+        return []
+
     def get_key_metrics_ttm(self, symbol: str) -> list[dict[str, Any]]:
         """단일 종목의 TTM key metrics 조회.
 

@@ -99,19 +99,27 @@ def test_screened_stock_peer_context_capped_at_5():
 # ---------- ScreeningResult ----------
 
 
-def test_screening_result_accepts_15_to_20_selected():
+def test_screening_result_accepts_production_sizes():
+    """생산 정책 15~20 은 schema 가 직접 강제하지 않지만 모두 valid."""
     assert len(_result(15).selected) == 15
     assert len(_result(20).selected) == 20
 
 
-def test_screening_result_rejects_under_15():
-    with pytest.raises(ValidationError):
-        _result(14)
+def test_screening_result_accepts_dry_run_sizes():
+    """dry-run/테스트용 작은 크기도 schema 통과 (1 이상)."""
+    assert len(_result(3).selected) == 3
+    assert len(_result(5).selected) == 5
 
 
-def test_screening_result_rejects_over_20():
+def test_screening_result_rejects_empty_selected():
     with pytest.raises(ValidationError):
-        _result(21)
+        _result(0)
+
+
+def test_screening_result_rejects_above_schema_max():
+    """schema 상한 50 — 향후 확장 여지지만 비현실적 크기는 차단."""
+    with pytest.raises(ValidationError):
+        _result(51)
 
 
 def test_screening_result_enforces_consecutive_rank_order():

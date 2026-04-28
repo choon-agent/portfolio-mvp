@@ -102,10 +102,18 @@ class ScreeningResult(BaseModel):
 **핵심 결정**: `peer_context`를 본 단계에서 미리 조립한다. Bull/Bear 단계에서 다시 FMP를 호출하지 않게 해 토큰·비용·지연을 줄이고, 동일 시점 데이터로 일관성을 확보한다.
 
 ### 2.3 검증
-- `selected` 길이 15~20 강제 (Pydantic `Field(min_length=15, max_length=20)`)
+
+**Schema 레벨** (Pydantic, 데이터 형태 sanity):
+- `selected` 길이 1~50 (`Field(min_length=1, max_length=50)`) — 향후 Russell 확장·dry-run·테스트 유연성
 - 모든 종목 `peer_context` 길이 ≤ 5 (sub_sector에 5개 미만이면 그만큼만)
-- `composite_score` 내림차순으로 `rank` 부여
-- 팩터 결측치는 `None` 허용하되, 종합 점수 산출 시 결측 컴포넌트는 0(중립)으로 대체 — `data_quality_flags`에 명시
+- `composite_score` 내림차순 + `rank` 가 1..N 연속 (model_validator)
+
+**생산 정책 레벨** (pipeline.run_screening 인자):
+- `target_min=15`, `target_max=20` 이 기본값 — Lambda 가 그대로 호출하므로 운영 출력은 항상 15~20 범위 (CHARTER §3.2 포지션 수 정책)
+- dry-run 이나 단위 테스트는 더 작은 target 으로 호출 가능 (예: 3~5)
+
+**팩터 결측치 처리**:
+- `None` 허용하되, 종합 점수 산출 시 결측 z-score 는 0(중립)으로 대체 — `data_quality_flags`에 명시
 
 ---
 
@@ -423,8 +431,14 @@ LLM 미사용이므로 비용 계산은 인프라 한정.
 - [ ] **재무 데이터 lag**: 분기 발표는 회계기간 종료 후 4~8주 지연. `key-metrics-ttm` 의 TTM 산출 시점(announce_date 기준 vs filing_date 기준) 이 실측 어떻게 동작하는지 — 분기 발표 시즌에 캐시 무효화 정책 결정 필요.
 - [ ] **데이터 결측 종목 정책**: 두 팩터 모두 결측인 종목은 자동 제외. 한쪽만 결측인 종목을 어디까지 허용할지 (현재안: 결측 컴포넌트=0 중립) — 첫 주간 실행 후 실측 분포 보고 조정.
 - [ ] **Survivorship bias**: 편출 종목 OHLCV는 보존되지만 본 MVP에서는 활용 안 함. 백테스트 트랙으로 이관 시점.
-- [ ] **`peer_context` 범위**: 같은 `sub_sector`로 충분한지, 아니면 `sector`까지 확장할지 — Bull/Bear 골든 케이스 평가 후 결정.
+- [x] ~~**`peer_context` 범위**~~: 2026-04-28 30종목 dry-run 에서 singleton sub_sector(MPC, USB)가 빈 peer_context 를 만드는 사례 발견 → **sector 폴백 도입**. 동작: 같은 sub_sector 우선 → 부족하면 같은 sector 의 다른 sub_sector 에서 보충 → 모두 없으면 빈 리스트. ([`peer_context.py`](../src/screening/peer_context.py) `attach_peer_context` 의 폴백 체인 docstring 참고).
 - [ ] **선정 종목 안정성**: 주 단위 turnover가 너무 높으면 거래비용 부담. M1 종료 시 4주 turnover 측정, 필요 시 hysteresis(랭크 버퍼) 도입.
+- [ ] **Sector-specific 팩터 정책** (M1 dry-run, 2026-04-28 발견): 은행/보험/REIT 등 **금융 sector 는 EV/EBITDA·FCF Yield 가 본질적으로 부적절**. 이유:
+  - 예금(은행)·보험준비금(보험)이 EV 정의의 부채에 들어가면서 EV 가 비대해짐 → EV/EBITDA 가 sector 평균 30+ 로 튐
+  - 대출 자산 증가가 CF 차감으로 잡혀 영업 호조에도 FCF 음수 흔함 (예: Citigroup TTM FCF -$362B 가 실제 FMP 응답값)
+  - 산업 표준은 P/B·ROE·NIM (은행), embedded value (보험) 등
+  - **현 영향**: dry-run 결과에서 단일 sub_sector(Diversified Banks 5종목) 안 z-score 가 한 종목으로 크게 왜곡. 단 momentum 차원과 균형 + Bull/Bear 가 컨텍스트로 보강하므로 시스템 동작 자체는 유지.
+  - **M2~M3 조치 후보**: (a) 금융 sector 에서 value 차원 가중치 ↓, (b) sector 별 팩터 세트 분기, (c) outlier z-score winsorization (예: ±3σ 클립). 백테스트 트랙으로 평가 후 결정.
 
 ---
 
@@ -437,7 +451,7 @@ LLM 미사용이므로 비용 계산은 인프라 한정.
 | `symbol`, `company_name`, `sector`, `sub_sector` | `ScreenedStock` 직접 필드 | `Constituent`에서 그대로 |
 | `as_of_date` | `ScreeningResult.as_of_date` | 리밸런싱 기준일 = 스크리닝 실행일 |
 | `screening_score` | `ScreenedStock.composite_score` | 참고용 — Bull/Bear는 직접 사용 안 함 |
-| `peer_context` | `ScreenedStock.peer_context` | 사전 조립 |
+| `peer_context` | `ScreenedStock.peer_context` | 사전 조립 — sub_sector 우선 → 부족하면 sector 폴백 |
 | `price_summary`, `fundamentals`, `valuation` | (Bull/Bear의 `context_builder`가 캐시에서 직접 조립) | 본 단계는 미공급 — 단, 동일 캐시 시점 보장 위해 `run_id` 공유 |
 
 → Bull/Bear 단계는 본 단계 결과 JSON과 동일 시점의 FMP 캐시를 참조해 `StockContext`를 완성한다.
