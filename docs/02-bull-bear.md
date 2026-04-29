@@ -2,18 +2,25 @@
 
 > **단계**: 2단계 — Bull/Bear 리서치 (LLM 핵심 사용 지점)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
-> **버전**: v0.1 (2026-04-27 초안)
-> **상태**: 설계 단계 (M1 마일스톤 — 미구현)
+> **선행 문서**: [`docs/01-screening.md`](01-screening.md) — 본 단계 입력원, M1에서 운영 중
+> **버전**: v0.2 (2026-04-29)
+> **상태**: 설계 완료, 구현 대기 (M2 마일스톤)
+>
+> **v0.2 변경**: 1단계 스크리닝이 M1에서 운영 단계 진입(2026-04-25 첫 실행 — 483→20)함에 따라
+> ① `StockContext`를 평탄화 구조로 확정, ② `ScreenedStock`이 사전 조립한 `peer_context`를
+> 그대로 활용하도록 수정, ③ 밸류 출처를 `key-metrics-ttm` 단일 엔드포인트로 통일,
+> ④ 기존 `screening_workflow.asl.json`을 Map state로 확장하는 방향으로 변경,
+> ⑤ §10에 sector-specific 팩터 보강 효과·turnover 영향 평가 항목 추가.
 
 ---
 
 ## 0. TL;DR
 
-스크리닝 통과 종목(상위 15~20개)에 대해 **Bull 에이전트**와 **Bear 에이전트**를 각각 1회 호출해 매수·매도 근거를 독립적으로 생성한다. 두 출력은 다음 단계(시나리오 모델링)에 입력으로 전달된다.
+스크리닝 통과 종목(상위 15~20개, [`ScreeningResult.selected`](../src/screening/schemas.py))에 대해 **Bull 에이전트**와 **Bear 에이전트**를 각각 1회 호출해 매수·매도 근거를 독립적으로 생성한다. 두 출력은 다음 단계(시나리오 모델링)에 입력으로 전달된다.
 
 - 모델: **Sonnet 4.6** (Haiku 4.5 폴백)
-- 호출량: 종목 15개 × 2 에이전트 × 주 1회 = **주 30회 / 월 ~120회**
-- 예상 비용: **월 $25~$50** (CHARTER §3.3 예산 내)
+- 호출량: 종목 15~20개 × 2 에이전트 × 주 1회 = **주 30~40회 / 월 ~120~160회**
+- 예상 비용: **월 ~$5 미만** (peer_context 사전 조립으로 토큰 절감 — §5 참조. CHARTER §3.3 월 $200 예산 내, v2 Debate 실험 여력 큼)
 - 출력: Pydantic 검증 JSON. 채택/기각 결정은 룰 기반 다음 단계가 수행 — 본 단계는 **근거 생성만**.
 
 ---
@@ -46,21 +53,72 @@
 
 ### 2.1 입력 (`StockContext`)
 
-스크리닝 통과 종목 1개에 대해 호출 직전에 조립한다. **FMP 직접 호출 금지** — 캐싱 계층(`src/common/fmp_client.py`)을 통해서만.
+**평탄화 구조** — `ScreenedStock`을 그대로 임베드하지 않고, Bull/Bear가 보는 필드만 1-depth로 명시한다. 결정 근거: 스크리닝-Bull/Bear 결합도 ↓, 입력 토큰 효율 ↑, "LLM이 보는 데이터의 정확한 형태"를 한 타입에 박제 → 프롬프트 회귀 테스트 단순.
 
-| 필드 | 타입 | 출처 | 비고 |
+```python
+class PriceSummary(BaseModel):
+    return_1y: float | None         # 직전 252영업일 수익률
+    return_6m: float | None
+    pct_from_52w_high: float | None # (close - 52w_high) / 52w_high
+    pct_from_52w_low: float | None
+    beta_1y: float | None           # SPY 대비 1Y 회귀 베타
+
+class FundamentalsTimeseries(BaseModel):
+    quarters: list[QuarterlyFigures]   # 직전 4분기 (매출·EPS·FCF)
+    revenue_cagr_5y: float | None
+    eps_cagr_5y: float | None
+    fcf_cagr_5y: float | None
+
+class StockContext(BaseModel):
+    # ── Identity (from ScreenedStock) ──
+    symbol: str
+    company_name: str | None
+    sector: str | None
+    sub_sector: str | None
+    as_of_date: date
+
+    # ── Screening signals (from ScreenedStock — LLM에 노출) ──
+    composite_score: float          # rank 1이 최상위, 다른 종목과의 상대값
+    momentum_z: float | None        # 같은 sub_sector 내 z-score (없으면 sector 폴백)
+    value_z: float | None
+    pe_ttm: float | None            # FMP key-metrics-ttm 의 1/earningsYieldTTM
+    ev_ebitda: float | None         # evToEBITDATTM
+    fcf_yield: float | None         # freeCashFlowYieldTTM (음수도 보존)
+
+    # ── Peer context (from ScreenedStock — 사전 조립) ──
+    peer_context: list[PeerComparable]   # sub_sector 우선 → sector 폴백, 최대 5
+
+    # ── Time-series context (Bull/Bear context_builder가 캐시에서 조립) ──
+    price_summary: PriceSummary
+    fundamentals: FundamentalsTimeseries
+
+    # ── Lineage (LLM 프롬프트로는 안 감, audit/재현용) ──
+    run_id: str                     # ScreeningResult.run_id 그대로
+    screening_s3_key: str           # screening/dt={...}/result.json 포인터
+    data_quality_flags: list[str]   # ScreenedStock에서 그대로 (프롬프트엔 미포함)
+```
+
+#### 2.1.1 출처 매핑
+
+| 영역 | 출처 | 조립 책임 | 비고 |
 |---|---|---|---|
-| `symbol` | str | 스크리닝 결과 | |
-| `company_name` | str | `Constituent` | |
-| `sector` / `sub_sector` | str | `Constituent` | |
-| `as_of_date` | date | 호출 시점 | 리밸런싱 기준일 (월요일 프리마켓) |
-| `price_summary` | obj | OHLCV 캐시 | 직전 1Y 수익률, 52w high/low 대비, 베타 |
-| `fundamentals` | obj | FMP statements | 매출·EPS·FCF의 직전 4분기 + 5Y CAGR |
-| `valuation` | obj | FMP ratios | P/E, P/S, EV/EBITDA, FCF yield (섹터 중앙값과 함께) |
-| `peer_context` | obj | 스크리닝 결과 | 같은 sub_sector 상위 5개 멀티플 비교 |
-| `screening_score` | float | 1단계 출력 | 팩터 점수 (참고용 — Bull/Bear는 직접 사용 안 함) |
+| Identity, screening signals, peer_context, lineage | [`ScreenedStock`](../src/screening/schemas.py) | 스크리닝 (M1 운영 중) | 매퍼 `screened_to_context()`가 1:1 평탄화 |
+| `price_summary` | OHLCV 캐시 (`s3://{bucket}/ohlcv/ticker={SYM}/data.parquet`) | Bull/Bear `context_builder` | 본 단계에서 조립 |
+| `fundamentals` | FMP `income-statement`/`cash-flow-statement` (분기) — 캐싱 계층 경유 | Bull/Bear `context_builder` | TTM 멀티플은 이미 `pe_ttm` 등으로 채워짐 → 분기 시계열만 추가 호출 |
 
-**원칙**: 컨텍스트 토큰을 8K 이하로 묶는다 (Sonnet 입력 단가 절감). 표 데이터는 Markdown table로 직렬화.
+**원칙**:
+- FMP 직접 호출 금지 — [`common/fmp_client.py`](../src/common/fmp_client.py) 캐싱 계층 경유 (CLAUDE.md)
+- `pe_ttm`/`ev_ebitda`/`fcf_yield`는 **재호출 금지** — `ScreenedStock.factors`에 이미 동일 시점 값 존재 (스크리닝과 동일 캐시 시점 보장 = `run_id` 일관성)
+- 컨텍스트 토큰을 6K 이하로 묶는다 (Sonnet 입력 단가 절감). 표 데이터는 Markdown table로 직렬화
+
+#### 2.1.2 LLM 프롬프트 노출 vs 미노출
+
+평탄화 구조의 핵심은 **"LLM이 보는 것"과 "감사·재현용"의 분리**:
+
+- **프롬프트로 들어감**: identity, screening signals, peer_context, price_summary, fundamentals
+- **프롬프트로 안 감**: `run_id`, `screening_s3_key`, `data_quality_flags`
+  - 이유: 이들은 LLM 추론에 가치 없고 토큰만 소모. `data_quality_flags`는 결측 정보를 LLM에 전달하면 "데이터 부족"을 핑계로 한 회피적 답변을 유도할 위험 → 시스템 프롬프트의 "데이터에 없는 추정 금지" 원칙과 충돌. 단, S3에 저장되는 `StockContext` JSON에는 보존되어 사후 분석에 활용.
+- 직렬화 컨벤션: `context_builder`의 `to_prompt_markdown()` 메서드가 노출 필드만 화이트리스트로 골라 Markdown 변환. `model_dump()`는 전체 보존(S3 저장용).
 
 ### 2.2 출력 (`BullBearOpinion`)
 
@@ -131,6 +189,11 @@ Bear는 동일 구조에 입장만 반대.
 - "추천/타깃 금지" → 매매 결정 룰 기반 유지 (CHARTER §6 리스크 2)
 - 반증 강제 → 단일 호출 단점(편향) 일부 보완
 
+**스크리닝 시그널 명시 노출** (v0.2 추가):
+- 사용자 프롬프트에 `composite_score` / `momentum_z` / `value_z`를 **명시**하되, "이 종목은 (예: 모멘텀 z=+1.8, 밸류 z=-0.4) 점수로 통과됨" 한 줄로 컨텍스트만 제공
+- 의도: LLM이 "왜 이 종목이 통과됐는지"를 파악해 *반대 측면*도 같이 보게 함 (예: 모멘텀 강한 종목의 밸류 부담을 Bear가 짚도록)
+- 단, 시스템 프롬프트에 "screening score는 통과 사유일 뿐 매수/매도 근거가 아니다 — 자체 데이터로 새로 추론할 것" 명시 → score 자체가 논거가 되지 않도록
+
 ### 3.3 사용자 프롬프트
 `StockContext`를 Markdown 표 형태로 직렬화 + 마지막에 "이 데이터를 근거로 {bull|bear} 관점의 의견을 작성하라" 한 줄.
 
@@ -138,28 +201,44 @@ Bear는 동일 구조에 입장만 반대.
 
 ## 4. 오케스트레이션
 
-### 4.1 호출 패턴
-1주 1회, 월요일 프리마켓:
+### 4.1 호출 패턴 — 기존 워크플로우 확장
+
+M1에서 [`infra/step_functions/screening_workflow.asl.json`](../infra/step_functions/screening_workflow.asl.json)이 이미 운영 중(EventBridge Mon 06:00 ET → `RunScreening` 단일 state). 본 단계는 **새 워크플로우를 만들지 않고** 기존 ASL에 Map state를 이어 붙인다 (해당 파일 Comment에도 "M2 에 Bull/Bear Map state 추가 예정" 명시).
 
 ```
-스크리닝 결과 (15~20 종목)
+EventBridge (Mon 06:00 ET)
         │
         ▼
-[StepFunctions Map state, MaxConcurrency=5]
-   ├─ Lambda: bull_agent(symbol_i)   ─┐
-   └─ Lambda: bear_agent(symbol_i)   ─┴─→ S3 (opinions/yyyy-mm-dd/{symbol}_{stance}.json)
+[Step Functions — screening_workflow.asl.json 확장]
+  ├─ RunScreening                     ← M1 운영 중
+  │     │ ScreeningResult.selected[15~20]
+  │     ▼
+  ├─ BullBearMap (Map state, MaxConcurrency=5)   ← M2 추가
+  │     for each ScreenedStock:
+  │       ├─ BuildContext             (Lambda or inline Pass+Choice)
+  │       ├─ Parallel:
+  │       │   ├─ BullAgent  (Lambda)
+  │       │   └─ BearAgent  (Lambda)
+  │       └─ S3 write: agents/bullbear/dt={...}/symbol={SYM}/{bull|bear}.json
+  │
+  └─ (다음: 시나리오 → 최적화 → 리밸런서 — M3 이후)
 ```
 
-- **Bull/Bear는 서로 독립** → 동일 종목 내에서도 병렬 호출 가능
-- **종목 간**도 병렬 (`MaxConcurrency=5`로 Anthropic rate limit 보호)
-- 한 종목의 한쪽이 실패해도 다른 종목/스탠스에 영향 없음
+- **Bull/Bear는 서로 독립** → 동일 종목 내에서도 Parallel state로 동시 호출
+- **종목 간**도 Map state로 병렬 (`MaxConcurrency=5`로 Anthropic rate limit 보호)
+- 한 종목의 한쪽이 실패해도 다른 종목/스탠스에 영향 없음 (`Catch` per-state)
 - 1주 1회 배치이므로 Lambda 동시성 부담 없음
 
 ### 4.2 구성 요소 매핑 (CHARTER §3.4 기존 자산 재사용)
-- **EventBridge**: 매주 월요일 06:00 ET 트리거
-- **Step Functions**: 스크리닝 → Bull/Bear Map → 시나리오 → 최적화 → 리밸런서
-- **Lambda**: 종목당 1개 인스턴스, Bull/Bear는 별도 Lambda (모델·프롬프트 격리)
-- **S3 레이아웃**: `s3://{bucket}/agents/bullbear/dt={yyyy-mm-dd}/symbol={SYM}/stance={bull|bear}.json`
+- **EventBridge**: 기존 트리거 그대로 — 신규 스케줄 없음
+- **Step Functions**: `screening_workflow.asl.json`에 `BullBearMap` state 추가
+- **IaC 방식**: Plain ASL JSON + [`scripts/deploy_step_functions.sh`](../scripts/deploy_step_functions.sh) + GitHub Actions 자동 배포 (CLAUDE.md 기술 스택). SAM/CDK 재검토는 워크플로우 복잡도 증가 시점(M3 이후)으로 이연
+- **Lambda**: Bull/Bear는 별도 Lambda 함수 2개로 분리 (모델·프롬프트 격리, 비용 추적 단순)
+  - `agent_bullbear_bull` / `agent_bullbear_bear`
+  - `context_builder`는 별도 Lambda 또는 각 에이전트 Lambda 내부 모듈 — M2 초반 구현 시 결정
+- **S3 레이아웃**:
+  - `s3://{bucket}/agents/bullbear/dt={yyyy-mm-dd}/symbol={SYM}/stance={bull|bear}.json` — 출력
+  - `s3://{bucket}/agents/bullbear/dt={yyyy-mm-dd}/symbol={SYM}/context.json` — 입력 `StockContext` 원본 (재현용)
 - **Athena**: S3 출력에 외부 테이블 연결 → 의사결정 로그 사후 분석 (CHARTER 2순위)
 
 ---
@@ -173,26 +252,33 @@ Bear는 동일 구조에 입장만 반대.
 
 ### 5.2 토큰·비용 추정 (단일 호출)
 
+`peer_context`가 스크리닝에서 사전 조립되어 오므로 입력 토큰이 v0.1 추정보다 작다.
+
 | 항목 | 추정 |
 |---|---|
 | 시스템 프롬프트 | ~600 tok |
-| 사용자 컨텍스트 (StockContext) | ~3,500 tok |
-| 출력 (JSON) | ~600 tok |
-| **합계** | 입력 ~4,100 / 출력 ~600 |
+| StockContext (평탄화, peer_context 5개 포함) | ~2,500 tok |
+| 사용자 프롬프트 지시문 | ~150 tok |
+| 출력 (JSON: arguments 3~5개 + risks) | ~600 tok |
+| **합계** | 입력 ~3,250 / 출력 ~600 |
 
 Sonnet 4.6 가격 가정 (2026-04 시점): 입력 $3/1M, 출력 $15/1M
-- 호출당 비용: 4,100 × $3/1M + 600 × $15/1M ≈ **$0.021**
-- **단일 호출 $1 상한 (CLAUDE.md)** 대비 50배 여유
+- 호출당 비용: 3,250 × $3/1M + 600 × $15/1M ≈ **$0.019**
+- **단일 호출 $1 상한 (CLAUDE.md)** 대비 50배 이상 여유
 
 ### 5.3 월 비용 추정
 
 | 시나리오 | 종목 | 주간 호출 | 월 호출 | 월 비용 |
 |---|---|---|---|---|
-| MVP 기본 (15종목) | 15 | 30 | 120 | ~$2.6 |
-| 상한 (20종목) | 20 | 40 | 160 | ~$3.4 |
-| 재시도 +20% 가정 | 20 | 48 | 192 | ~$4.0 |
+| MVP 기본 (15종목) | 15 | 30 | 120 | ~$2.3 |
+| 상한 (20종목, 첫 운영 실측) | 20 | 40 | 160 | ~$3.0 |
+| 재시도 +20% 가정 | 20 | 48 | 192 | ~$3.6 |
 
-**여유분이 큰 이유**: 2단계 자체보다 3단계 시나리오 모델링 비용이 더 무거울 것으로 예상. CHARTER §3.3의 "월 $30~$80" 추정의 대부분은 3단계 몫. 본 단계는 **월 $5 미만**으로 운영 가능 → v2에서 Debate 패턴(에이전트 수 5~10배) 실험 여력 확보.
+**여유분이 큰 이유**:
+1. `peer_context` 사전 조립으로 같은 시점에 같은 데이터 다시 수집·직렬화하지 않음
+2. 2단계 자체보다 3단계 시나리오 모델링 비용이 더 무거울 것으로 예상 — CHARTER §3.3의 "월 $30~$80" 추정의 대부분은 3단계 몫
+
+본 단계는 **월 $5 미만**으로 운영 가능 → v2에서 Debate 패턴(에이전트 수 5~10배) 실험 여력 확보.
 
 ### 5.4 비용 가드레일
 - 단일 호출이 입력 6K tok 초과 시 **컨텍스트 빌더 단계에서 컷** (예외 발생, 호출 안 함)
@@ -269,27 +355,31 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 
 ---
 
-## 9. 구현 순서 (M1 마일스톤)
+## 9. 구현 순서 (M2 마일스톤)
 
-> CLAUDE.md "현재 단계 M0" 다음 항목들. 각 단계는 별도 커밋. LLM 호출 추가 커밋은 메시지에 비용 추정 명시.
+> M1 종료 (스크리닝 운영 진입) 다음 단계. 각 단계는 별도 커밋. LLM 호출 추가 커밋은 메시지에 비용 추정 명시 (CLAUDE.md 커밋 컨벤션).
 
-1. **schemas.py 작성** — `StockContext`, `Argument`, `BullBearOpinion` Pydantic 모델 + 단위 테스트
-2. **context_builder.py** — FMP 캐시 → `StockContext` 변환 (LLM 호출 없음)
-3. **프롬프트 파일 3종** — `bull_system.md`, `bear_system.md`, `bullbear_user.md`
-4. **agent.py 골격** — Anthropic SDK 호출, JSON mode, Pydantic 검증, 재시도/폴백, 로깅 (`FakeAnthropicClient`로 단위 테스트)
-5. **golden 케이스 1개** — AAPL 실제 호출 1회, 출력 검토, 스냅샷 저장
-6. **Lambda 핸들러** — `src/lambdas/agent_bullbear/handler.py`
-7. **Step Functions Map state** — 5종목으로 dry run
-8. **15종목 주간 배치 첫 실행** — 비용·실패율 기록 → M1 회고
+1. **schemas.py** — `StockContext`(평탄), `PriceSummary`, `FundamentalsTimeseries`, `QuarterlyFigures`, `Argument`, `BullBearOpinion` Pydantic 모델 + 단위 테스트
+2. **screened_to_context 매퍼** — `ScreenedStock` → `StockContext` 평탄화 함수 (1:1 필드 매핑, 순수 함수). 단위 테스트로 매핑 누락 가드 (Pydantic 필드 변경이 silent 불일치를 만들지 않도록)
+3. **context_builder.py** — `screened_to_context` + OHLCV/분기 펀더멘털 캐시 조립. `to_prompt_markdown()` 화이트리스트 직렬화. LLM 호출 없음 → `FakeFMPClient`로 테스트
+4. **프롬프트 파일 3종** — `bull_system.md`, `bear_system.md`, `bullbear_user.md` (composite_score/momentum_z/value_z 명시 포함)
+5. **agent.py 골격** — Anthropic SDK 호출, JSON mode, Pydantic 검증, 재시도/폴백, 로깅 (`FakeAnthropicClient`로 단위 테스트)
+6. **golden 케이스 3개** — AAPL/XOM/NVDA 실제 호출 (sector 다양성 확보 — sector-specific 팩터 보강 효과 §10 평가 입력), 출력 검토, 스냅샷 저장
+7. **Lambda 2개 + 핸들러** — `src/lambdas/agent_bullbear_bull/handler.py`, `agent_bullbear_bear/handler.py`
+8. **Step Functions ASL 확장** — 기존 `screening_workflow.asl.json`에 `BullBearMap` (Map + Parallel) 추가. 5종목으로 dry run
+9. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M2 회고. §10 평가 항목 데이터 수집 시작
 
 ---
 
 ## 10. 미해결 / 다음 결정 필요
 
-- [ ] FMP statements 캐시 TTL이 현재 90일 — Bull/Bear는 분기 발표 직후 호출이 잦을 수 있어 **이벤트 기반 캐시 무효화** 도입 여부
-- [ ] `key_risks_to_thesis`의 출력이 실제로 단일 호출 편향 보완 효과가 있는지 — M1 종료 시 골든 케이스로 평가
-- [ ] v2 Debate 패턴 실험 시점 (M2 후반? M3?)
-- [ ] 의견 출력의 한국어 vs 영어 — 일관성 차원에서 영어가 무난하지만 산출물(블로그) 관점에서 한국어 이점 존재 → M1 골든 케이스에서 양쪽 비교 후 결정
+- [ ] FMP statements 캐시 TTL이 현재 90일 — Bull/Bear `fundamentals` 시계열은 분기 발표 직후 신선도가 중요. **이벤트 기반 캐시 무효화** 도입 여부 (분기 발표 시즌 첫 주만 강제 갱신)
+- [ ] `key_risks_to_thesis`의 출력이 실제로 단일 호출 편향 보완 효과가 있는지 — M2 골든 케이스 3건으로 1차 평가, 첫 주간 실행으로 2차 평가
+- [ ] v2 Debate 패턴 실험 시점 — 본 단계 단일 호출 패턴이 4주 안정 운영 후 도입 (M3 후반 후보)
+- [ ] 의견 출력의 한국어 vs 영어 — 일관성 차원에서 영어가 무난하지만 산출물(블로그) 관점에서 한국어 이점 존재 → 골든 케이스 3건에서 양쪽 비교 후 결정
+- [ ] **Sector-specific 팩터 보강 효과 측정** ([`docs/01-screening.md` §10](01-screening.md#10-미해결--다음-결정-필요)에서 본 단계로 위임된 항목): 금융 sector(은행·보험·REIT)는 EV/EBITDA·FCF Yield가 본질적으로 부적절하여 z-score가 왜곡됨. 01-screening §10의 결론은 "Bull/Bear가 컨텍스트로 보강한다"였음. **검증 방법**: 골든 케이스에 금융 sector 1종목(예: JPM 또는 Citigroup) 포함 → Bull/Bear가 P/B·ROE·NIM 같은 sector-적합 지표로 자체 논거를 만들어내는지 확인. 못 만들면 시스템 프롬프트에 "금융 sector는 P/B·ROE·NIM을 우선 검토" 한 줄 추가 또는 sector별 프롬프트 분기 도입 검토
+- [ ] **종목 풀 turnover의 호출량 영향**: 01-screening §10 "선정 종목 안정성" 평가가 4주 운영 후 진행됨. turnover 높으면 Bull/Bear는 매주 신규 종목에 대해 1회차 의견을 내야 함 → 캐시 적중률 0% 가정. turnover 측정 결과에 따라 (a) 의견 캐싱(2주 TTL) 도입 또는 (b) 스크리닝에 hysteresis 도입 중 선택. 본 단계는 turnover 데이터를 받아 결정만 반영
+- [ ] `data_quality_flags`를 프롬프트에 미노출하기로 결정(§2.1.2)했으나, 결측이 너무 많은 종목은 *호출 자체를 스킵*해야 할 수도 있음 — 첫 주간 실행에서 결측 분포 본 후 임계값 결정
 
 ---
 
@@ -302,20 +392,43 @@ src/agents/
 ├── __init__.py
 ├── bull_bear/
 │   ├── __init__.py
-│   ├── agent.py
-│   ├── context_builder.py
-│   └── schemas.py
+│   ├── agent.py              # Anthropic 호출 + 검증 + 로깅
+│   ├── context_builder.py    # ScreenedStock + 캐시 → StockContext (평탄)
+│   ├── mappers.py            # screened_to_context() 1:1 평탄화
+│   └── schemas.py            # StockContext, BullBearOpinion 등
 └── prompts/
     ├── bull_system.md
     ├── bear_system.md
     └── bullbear_user.md
 
 src/lambdas/
-└── agent_bullbear/
+├── agent_bullbear_bull/
+│   └── handler.py
+└── agent_bullbear_bear/
     └── handler.py
 ```
 
-## 부록 B. 참고
+## 부록 B. 1단계와의 인터페이스 계약
+
+[`docs/01-screening.md` 부록 A](01-screening.md#부록-a-bullbear와의-인터페이스-계약)와 짝을 이루는 본 단계 측 계약. **평탄화 매퍼**(`screened_to_context`)가 인터페이스 표면이다.
+
+| `StockContext` 필드 | `ScreenedStock` 출처 | 변환 규칙 |
+|---|---|---|
+| `symbol`, `company_name`, `sector`, `sub_sector` | 동명 필드 | 1:1 |
+| `as_of_date` | `ScreeningResult.as_of_date` | 매 호출에서 부모로부터 주입 |
+| `composite_score` | 동명 필드 | 1:1 (`screening_score`로 표기 변경 X — 명칭 통일) |
+| `momentum_z`, `value_z` | `factors.momentum_z`, `factors.value_z` | nested → flat |
+| `pe_ttm`, `ev_ebitda`, `fcf_yield` | `factors.pe_ttm` 등 | nested → flat. **재호출 금지** (스크리닝과 동일 시점) |
+| `peer_context` | 동명 필드 | 1:1, 사전 조립된 list[PeerComparable] 그대로 |
+| `data_quality_flags` | 동명 필드 | 1:1 (단, LLM 프롬프트에는 미노출 — §2.1.2) |
+| `run_id` | `ScreeningResult.run_id` | 매 호출에서 부모로부터 주입 |
+| `screening_s3_key` | (없음) | Lambda 핸들러가 `screening/dt={...}/result.json` 경로 주입 |
+| `price_summary` | (없음) | `context_builder`가 OHLCV 캐시에서 조립 |
+| `fundamentals` | (없음) | `context_builder`가 FMP statements 캐시에서 조립 |
+
+**가드**: `mappers.py`의 단위 테스트는 `ScreenedStock` 필드 셋과 `StockContext` 필드 셋을 dict 키로 비교해 매핑 누락을 방지한다. 스크리닝이 신규 필드를 추가하면 매퍼 테스트가 깨져 변경을 강제 인지하게 됨.
+
+## 부록 C. 참고
 
 - Anthropic JSON mode / Tool use (스키마 강제)
 - 트윗 원본 영감: 종목당 30개 에이전트 → MVP는 의도적으로 2개 (CHARTER §3.3)
