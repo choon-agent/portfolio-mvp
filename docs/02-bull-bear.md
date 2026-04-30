@@ -3,8 +3,16 @@
 > **단계**: 2단계 — Bull/Bear 리서치 (LLM 핵심 사용 지점)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/01-screening.md`](01-screening.md) — 본 단계 입력원, M1에서 운영 중
-> **버전**: v0.4 (2026-04-30)
-> **상태**: §9 #1~#7 구현 완료, #8 (Step Functions ASL — `BullBearMap`) 대기 (M2 마일스톤)
+> **버전**: v0.5 (2026-04-30)
+> **상태**: §9 #1~#8 구현 완료, #9 첫 주간 배치 dry-run 통과. EventBridge 정기 트리거 활성화 대기 (M2 마일스톤)
+>
+> **v0.5 변경 (2026-04-30 #8 ASL 확장 + 첫 20종목 dry-run 검증)**:
+> ① §9 #8 ✅ Step Functions ASL 확장 — `BullBearMap` (Map MaxConcurrency=1 + Parallel Bull/Bear) + 종목별 Catch 격리 (`RecordItemFailure` Pass state),
+> ② §9 #9 *부분* ✅ 20종목 첫 dry-run 통과 — 40 invoke, cache hit 35/40 (87.5%), 사다리 retry 0회, Haiku 폴백 0회, **총 비용 $0.083** (캐시 누적 효과로 추정 $0.5~0.7 의 1/7),
+> ③ §10 "Anthropic rate limit 처방" ✅ 추가 — 1차 dry-run 에서 5종목이 사다리 3회 실패 (Sonnet primary/retry 모두 429 + Haiku schema 위반) → MaxConcurrency 5→1 결정 (8,000 tok/min 한도 산정 공식 §5.2.2 참조), 2차 실행 0건,
+> ④ §10 "Haiku 폴백 schema 보강" ✅ 추가 — bull/bear system prompt 에 strict output schema 섹션(특히 `key_risks_to_thesis` plain string list, summary 200자 명시) 추가,
+> ⑤ §5.2.2 추가 — Anthropic rate limit 산정 공식 (MaxConcurrency × 2 stance × max_tokens ≤ org tier 한도),
+> ⑥ 부록 A 디렉토리 구조에 ASL `BullBearMap` 완료 표기.
 >
 > **v0.4 변경 (2026-04-30 #7 완료 + 운영 invoke 검증)**:
 > ① §9 #7 ✅ 완료 — `lambda_core.py` (캐시 hit/miss 분기) + `agent_bullbear_{bull,bear}/handler.py`
@@ -292,6 +300,25 @@ Sonnet 4.6 가격 (2026-04 기준): 입력 $3/1M, 출력 $15/1M
 
 **검증 (2026-04-30 2차 실행)**: 동일 fixture 재호출 → AAPL_bear 가 `output_tokens=1025` 로 자연 종료 (LLM 자체 stop, 잘림 없음). 1024 hit 이 우연이 아니라 정확히 한계 잘림이었다는 결정적 증거 — 2048 상한에서 1025 까지만 사용. 8회 모두 1차 성공 (retry 0회), 총 비용 $0.166 → **$0.144 (~13% 절감)**. 평균 토큰: 입력 1,551 / 출력 894 / 호출당 $0.0181 — 본 표 추정과 정합.
 
+#### 5.2.2 Anthropic rate limit 산정 공식 (운영 메모 — 2026-04-30 갱신)
+
+Anthropic 은 호출 시점에 `max_tokens` 값을 *예약* 해서 분당 한도(output tokens/min) 에 가산. 동시 호출 burst 시 일순간에 한도 초과 → 429.
+
+**공식**: `Step Functions Map MaxConcurrency × Bull/Bear Parallel(2) × max_tokens ≤ 조직 분당 한도`
+
+본 단계 운영 (Anthropic Tier 1 가정, 8,000 output tokens/min):
+- `MaxConcurrency=1` × 2 × 2,048 = **4,096** ≤ 8,000 ✓ (현재 정책)
+- `MaxConcurrency=2` × 2 × 2,048 = 8,192 ≥ 8,000 ✗ (worst case 살짝 초과)
+- `MaxConcurrency=3` × 2 × 1,024 = 6,144 ≤ 8,000 ✓ — 단 1,024 는 docs §5.2.1 잘림 위험
+
+**한도 상향 시 점진적 증가** (Anthropic Console 신청 시): 한도 N tok/min → `MaxConcurrency = floor(N / (2 × max_tokens))`. 예: 16,000 → 3, 24,000 → 5.
+
+처리 시간 영향 (`MaxConcurrency=1`): 20종목 직렬 × 한 종목당 ~5초 (Bull/Bear Parallel 이라 max latency) = **~100~150초**. 주 1회 배치라 견딤. 한도 상향 후 동시성 ↑ 시 처리 시간 ↓.
+
+**검증 (2026-04-30 1차 vs 2차 dry-run)**:
+- 1차 (MaxConcurrency=5): 5종목 (VLO/NEE/DAL/...)이 Sonnet primary+retry 모두 429 → Haiku 폴백 → schema 위반 → BullBearAgentError → Step Functions Map 전체 중단
+- 2차 (MaxConcurrency=1 + Haiku schema 보강): 20종목 모두 1차 성공, 사다리 retry 0회, 한 종목 실패도 ASL Catch 가 격리할 수 있는 안전망 보유
+
 ### 5.3 월 비용 추정
 
 | 시나리오 | 종목 | 주간 호출 | 월 호출 | 월 비용 |
@@ -392,8 +419,15 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 5. **agent.py 골격** — Anthropic SDK 호출, JSON mode, Pydantic 검증, 재시도/폴백, 로깅 (`FakeAnthropicClient`로 단위 테스트)
 6. **golden 케이스 4개** ✅ **완료 (2026-04-30)** — AAPL/XOM/NVDA + JPM (금융 sector 추가) 실제 호출, 비용 $0.166 (9 attempts, 1회 retry — `output_tokens=1024` 잘림 → max_tokens 1024→2048 갱신 §5.2.1). false-positive 정정 후 회귀 가드 48 검증 통과. 결과: [`tests/golden/bullbear/`](../tests/golden/bullbear/), 실행 스크립트 [`scripts/run_bullbear_golden.py`](../scripts/run_bullbear_golden.py). 인간 검토 결과는 §10 sector-specific 항목 참조
 7. **Lambda 핸들러 + S3 캐싱** ✅ **완료 (2026-04-30)** — 분할 진행: (#7-A) FMP 분기 statement 메서드 + cache-aside (`fetch_income/cashflow_quarterly_with_cache`), (#7-B) [`agents/bull_bear/lambda_core.py`](../src/agents/bull_bear/lambda_core.py) (입력 파싱 → OHLCV/statements 로드 → `build_context` → `context_input_hash` → 캐시 hit/miss 분기 → S3 저장) + thin wrapper [`agent_bullbear_bull/handler.py`](../src/lambdas/agent_bullbear_bull/handler.py), [`agent_bullbear_bear/handler.py`](../src/lambdas/agent_bullbear_bear/handler.py), (#7-C) 12개 단위 테스트 (cache miss/hit/stale, env/event 검증, wrapper 라우팅). 운영 invoke 검증: APA bull+bear 1차 cache=miss $0.039 → 2차 cache=hit $0 (§10 결정성 정책 운영 검증 항목 참조). 배포 인프라 갱신: `agents/` 패키징 + GitHub Actions path 트리거.
-8. **Step Functions ASL 확장** — 기존 `screening_workflow.asl.json`에 `BullBearMap` (Map + Parallel) 추가. 5종목으로 dry run
-9. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M2 회고. §10 평가 항목 데이터 수집 시작
+8. **Step Functions ASL 확장** ✅ **완료 (2026-04-30)** — 기존 [`screening_workflow.asl.json`](../infra/step_functions/screening_workflow.asl.json) 에 `BullBearMap` 추가 (`MaxConcurrency: 1` — §5.2.2 rate limit 산정 공식 근거), `ItemSelector` 로 ScreenedStock + lineage 4필드 매핑, `ItemProcessor` 안에 `BullBearParallel` (Bull/Bear 동시 호출). 한 종목 실패 격리를 위해 `BullBearParallel.Catch[States.ALL]` → `RecordItemFailure` Pass state 추가. `deploy_step_functions.sh` 가 placeholder 3개(`<<RUN_SCREENING_LAMBDA>>`, `<<BULL_LAMBDA>>`, `<<BEAR_LAMBDA>>`) 치환. 1차 dry-run 후 rate limit + Haiku schema 위반 발견 → 2차에서 정정 검증 (#9 참조).
+9. **20종목 주간 배치 첫 실행** ✅ *부분 완료 (2026-04-30 dry-run)*. EventBridge 정기 트리거 활성화는 응답 품질 검토 후. 결과:
+   - **40 invoke (Bull+Bear × 20)**, cache hit 35 (87.5%) / cache miss 5 (VLO/DAL/NEE)
+   - **사다리 retry 0회, Haiku 폴백 0회** (모두 Sonnet primary 1차 성공)
+   - **총 비용 $0.083** (캐시 누적 효과 — 추정 $0.5~0.7 의 1/7)
+   - 처리 시간 ~100초 (`MaxConcurrency=1` 직렬화 영향)
+   - Step Functions Catch 발동 0건 — 한 종목 실패 안 함
+   - 흥미 신호: NEE 가 bull miss / bear hit 비대칭 — 캐시 키가 stance 별 분리된 덕분에 한쪽만 재호출 (의도대로)
+   - 다음 평가 항목 데이터 수집 시작: turnover (4주 후), 응답 품질 (인간 검토 필요)
 
 ---
 
@@ -408,6 +442,8 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 - [ ] `data_quality_flags`를 프롬프트에 미노출하기로 결정(§2.1.2)했으나, 결측이 너무 많은 종목은 *호출 자체를 스킵*해야 할 수도 있음 — 첫 주간 실행에서 결측 분포 본 후 임계값 결정
 - [x] ~~**max_tokens 1024 의 적절성**~~ ✅ **2026-04-30 골든 1차 실행 후 2048 로 상향**. AAPL_bear 가 정확히 1024 hit 하며 잘림 → §5.2.1 참조. 출력 평균 ~900, 최대 1024 (잘림) → 1024 too tight. 비용 영향 없음 (실제 사용량 청구).
 - [x] ~~**추천 어휘 자동 가드 정규식**~~ ✅ **2026-04-30 정밀화 완료**. 1차 실행에서 NVDA_bull 의 `key_risks_to_thesis` "NVDA's ability to **sell** advanced AI chips" 가 false-positive (LLM 추천이 아니라 회사의 비즈니스 동사). `\b(buy|sell|hold)\b` 단독 매치를 제거하고 추천 *컨텍스트* 명시 표현(target price, outperform, recommend buy, rate as sell, rating: hold 등) 만 매치하도록 좁힘. 골든 회귀 가드는 [`tests/test_bullbear_golden.py`](../src/tests/test_bullbear_golden.py) `RECOMMENDATION_WORDS`.
+- [x] ~~**Anthropic rate limit 처방**~~ ✅ **2026-04-30 1차 dry-run 결과 후 적용**. 1차 (MaxConcurrency=5) 에서 VLO/NEE/DAL 등 5종목이 Sonnet primary+retry 모두 429 (`This request would exceed your organization's rate limit of 8,000 output tokens per minute`) → Haiku 폴백 → schema 위반 → `BullBearAgentError` → Map 전체 중단. **원인**: Anthropic 이 호출 시점에 `max_tokens=2048` 을 *예약* 해 한도 산정. 동시 = MaxConcurrency × 2 stance × 2048 = 5×2×2048 = **20,480 tokens 예약** > 8,000. **처방**: ASL `MaxConcurrency: 5 → 1` (§5.2.2 산정 공식). **검증 (2차 dry-run)**: 20종목 모두 1차 성공, retry 0회. 한도 상향 시 점진적 증가 가능.
+- [x] ~~**Haiku 폴백 schema 보강**~~ ✅ **2026-04-30 system prompt 강화 완료**. 1차 dry-run 에서 Haiku 4.5 가 폴백 호출됐을 때 응답 형식 위반: (a) `key_risks_to_thesis` 가 `list[dict]` (예: `{"risk": "...", "likelihood": "medium"}`) 로 반환 — schema 는 `list[str]`, (b) `summary` 200자 초과. **처방**: [`bull_system.md`](../src/agents/prompts/bull_system.md) / [`bear_system.md`](../src/agents/prompts/bear_system.md) 에 "Output schema (strict)" 섹션 추가 — 명시적 JSON 예시 + 4개 critical 룰 (특히 plain string list, 200자 한도). 2차 dry-run 에서는 Haiku 폴백이 아예 호출 안 됨 (rate limit 처방 효과). 실제 검증은 다음 Haiku 호출 시 (드물 것).
 - [x] ~~**결정성 정책 운영 검증**~~ ✅ **2026-04-30 APA 운영 invoke 로 확인**. 사용자 우려였던 "동일 질의 동일 답변" 의 **운영 레벨 보장** 검증. 운영 ScreeningResult `selected[0]` (APA, Energy/Oil & Gas E&P) 페이로드로 두 람다(`agent_bullbear_{bull,bear}`) 각 2회 invoke:
 
   | 회차 | bull `cache` | bull `cost_usd` | bear `cache` | bear `cost_usd` | bull/bear `input_hash` |
@@ -419,7 +455,7 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 
 ---
 
-## 부록 A. 디렉토리 구조 (M2 #1~#7 구현 완료)
+## 부록 A. 디렉토리 구조 (M2 #1~#8 구현 완료, #9 dry-run 통과)
 
 CLAUDE.md "디렉토리 구조 (목표)"의 `src/agents/` 하위 — 이미 구현된 항목은 ✅ 표기.
 
@@ -454,11 +490,14 @@ scripts/
 .github/workflows/
 └── deploy-lambdas.yml                   ✅ src/agents/** path 트리거 추가 (#7 배포)
 
+infra/step_functions/
+└── screening_workflow.asl.json          ✅ BullBearMap (Map MaxConcurrency=1 + Parallel) + Catch 격리 (§9 #8)
+
 tests/
 ├── golden/bullbear/                     ✅ {symbol}_{stance}.json 8개 (2026-04-30 첫 실행)
 └── (src/tests/test_bullbear_*.py)       ✅ 단위 + 회귀 가드 (lambda_core 12, agent 29, prompts 11, ...)
 
-⏳ 다음 단계 (§9 #8): infra/step_functions/screening_workflow.asl.json 에 BullBearMap state 추가
+⏳ 다음: 응답 품질 인간 검토 → EventBridge 정기 트리거 활성화 (§9 #9 마무리)
 ```
 
 ## 부록 B. 1단계와의 인터페이스 계약
