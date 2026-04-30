@@ -222,7 +222,13 @@ def lambda_handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]
         "n_fmp_failures": len(fmp_failures),
         "elapsed_seconds": round(elapsed, 1),
     }
-    logger.info(json.dumps({"stage": "completed", **summary}))
+    # Step Functions BullBearMap (docs/02-bull-bear.md §4.1) 가 ItemsPath 로 사용.
+    # 20종목 × ~2KB ≈ ~40KB → SFN payload 256KB 한도 안. 로깅에는 noisy 라 별도 추가.
+    summary["selected"] = [s.model_dump(mode="json") for s in result.selected]
+
+    # 로그는 selected 제외 (CloudWatch 가독성)
+    log_summary = {k: v for k, v in summary.items() if k != "selected"}
+    logger.info(json.dumps({"stage": "completed", **log_summary}))
 
     # 디버깅 편의: 실패 상세는 반환값에 포함 (Step Functions 가 다음 state 로 전달)
     if fmp_failures:

@@ -1,12 +1,12 @@
 {
-  "Comment": "Weekly screening workflow (M1) — docs/01-screening.md §4.1. M2 에 Bull/Bear Map state 추가 예정.",
+  "Comment": "Weekly screening + Bull/Bear (M1+M2). docs/01-screening.md §4.1, docs/02-bull-bear.md §4.1. RunScreening 결과 selected[15~20] 를 BullBearMap 이 종목별로 처리, 각 종목 안에서 Bull/Bear 를 Parallel 호출.",
   "StartAt": "RunScreening",
   "States": {
     "RunScreening": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "<<LAMBDA_NAME>>",
+        "FunctionName": "<<RUN_SCREENING_LAMBDA>>",
         "Payload.$": "$"
       },
       "ResultSelector": {
@@ -25,6 +25,93 @@
           "BackoffRate": 2.0
         }
       ],
+      "Next": "BullBearMap"
+    },
+    "BullBearMap": {
+      "Type": "Map",
+      "Comment": "종목별 처리. MaxConcurrency=5 로 Anthropic rate limit 보호. Item 안에서 Bull/Bear 를 Parallel 동시 호출.",
+      "ItemsPath": "$.result.selected",
+      "MaxConcurrency": 5,
+      "ItemSelector": {
+        "screened_stock.$": "$$.Map.Item.Value",
+        "as_of_date.$": "$.result.as_of_date",
+        "run_id.$": "$.result.run_id",
+        "screening_s3_key.$": "$.result.result_s3_key"
+      },
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "BullBearParallel",
+        "States": {
+          "BullBearParallel": {
+            "Type": "Parallel",
+            "Branches": [
+              {
+                "StartAt": "BullAgent",
+                "States": {
+                  "BullAgent": {
+                    "Type": "Task",
+                    "Resource": "arn:aws:states:::lambda:invoke",
+                    "Parameters": {
+                      "FunctionName": "<<BULL_LAMBDA>>",
+                      "Payload.$": "$"
+                    },
+                    "ResultSelector": {
+                      "result.$": "$.Payload"
+                    },
+                    "Retry": [
+                      {
+                        "ErrorEquals": [
+                          "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException",
+                          "Lambda.SdkClientException",
+                          "Lambda.TooManyRequestsException"
+                        ],
+                        "IntervalSeconds": 5,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2.0
+                      }
+                    ],
+                    "End": true
+                  }
+                }
+              },
+              {
+                "StartAt": "BearAgent",
+                "States": {
+                  "BearAgent": {
+                    "Type": "Task",
+                    "Resource": "arn:aws:states:::lambda:invoke",
+                    "Parameters": {
+                      "FunctionName": "<<BEAR_LAMBDA>>",
+                      "Payload.$": "$"
+                    },
+                    "ResultSelector": {
+                      "result.$": "$.Payload"
+                    },
+                    "Retry": [
+                      {
+                        "ErrorEquals": [
+                          "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException",
+                          "Lambda.SdkClientException",
+                          "Lambda.TooManyRequestsException"
+                        ],
+                        "IntervalSeconds": 5,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2.0
+                      }
+                    ],
+                    "End": true
+                  }
+                }
+              }
+            ],
+            "End": true
+          }
+        }
+      },
       "End": true
     }
   }

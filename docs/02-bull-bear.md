@@ -3,8 +3,17 @@
 > **단계**: 2단계 — Bull/Bear 리서치 (LLM 핵심 사용 지점)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/01-screening.md`](01-screening.md) — 본 단계 입력원, M1에서 운영 중
-> **버전**: v0.3 (2026-04-30)
-> **상태**: §9 #1~#6 구현 완료, #7 (Lambda 핸들러 + S3 캐싱) 대기 (M2 마일스톤)
+> **버전**: v0.4 (2026-04-30)
+> **상태**: §9 #1~#7 구현 완료, #8 (Step Functions ASL — `BullBearMap`) 대기 (M2 마일스톤)
+>
+> **v0.4 변경 (2026-04-30 #7 완료 + 운영 invoke 검증)**:
+> ① §9 #7 ✅ 완료 — `lambda_core.py` (캐시 hit/miss 분기) + `agent_bullbear_{bull,bear}/handler.py`
+> thin wrapper + FMP 분기 statement fetcher 추가 (`fetch_income/cashflow_quarterly_with_cache`),
+> ② §10 "결정성 정책 운영 검증" ✅ 추가 — APA invoke 1차 (cache=miss, $0.039) →
+> 2차 재호출 (cache=hit, $0, attempts=0) 으로 운영 레벨 100% 결정성 확인,
+> ③ 부록 A 디렉토리 구조 — Lambda 두 개 + lambda_core 완료 표기,
+> ④ deploy 인프라 (`scripts/deploy_lambda.sh`, `.github/workflows/deploy-lambdas.yml`)
+> 가 `agents/` 패키징 + path 트리거 인식하도록 갱신 (부록 A 디렉토리 구조 참조).
 >
 > **v0.3 변경 (2026-04-30 골든 케이스 1차 실행 결과 반영)**:
 > ① §5.2 비용 추정에 골든 실측 행 추가 (호출당 평균 $0.018, 추정과 정합),
@@ -382,7 +391,7 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 4. **프롬프트 파일 3종** — `bull_system.md`, `bear_system.md`, `bullbear_user.md` (composite_score/momentum_z/value_z 명시 포함)
 5. **agent.py 골격** — Anthropic SDK 호출, JSON mode, Pydantic 검증, 재시도/폴백, 로깅 (`FakeAnthropicClient`로 단위 테스트)
 6. **golden 케이스 4개** ✅ **완료 (2026-04-30)** — AAPL/XOM/NVDA + JPM (금융 sector 추가) 실제 호출, 비용 $0.166 (9 attempts, 1회 retry — `output_tokens=1024` 잘림 → max_tokens 1024→2048 갱신 §5.2.1). false-positive 정정 후 회귀 가드 48 검증 통과. 결과: [`tests/golden/bullbear/`](../tests/golden/bullbear/), 실행 스크립트 [`scripts/run_bullbear_golden.py`](../scripts/run_bullbear_golden.py). 인간 검토 결과는 §10 sector-specific 항목 참조
-7. **Lambda 2개 + 핸들러** — `src/lambdas/agent_bullbear_bull/handler.py`, `agent_bullbear_bear/handler.py`
+7. **Lambda 핸들러 + S3 캐싱** ✅ **완료 (2026-04-30)** — 분할 진행: (#7-A) FMP 분기 statement 메서드 + cache-aside (`fetch_income/cashflow_quarterly_with_cache`), (#7-B) [`agents/bull_bear/lambda_core.py`](../src/agents/bull_bear/lambda_core.py) (입력 파싱 → OHLCV/statements 로드 → `build_context` → `context_input_hash` → 캐시 hit/miss 분기 → S3 저장) + thin wrapper [`agent_bullbear_bull/handler.py`](../src/lambdas/agent_bullbear_bull/handler.py), [`agent_bullbear_bear/handler.py`](../src/lambdas/agent_bullbear_bear/handler.py), (#7-C) 12개 단위 테스트 (cache miss/hit/stale, env/event 검증, wrapper 라우팅). 운영 invoke 검증: APA bull+bear 1차 cache=miss $0.039 → 2차 cache=hit $0 (§10 결정성 정책 운영 검증 항목 참조). 배포 인프라 갱신: `agents/` 패키징 + GitHub Actions path 트리거.
 8. **Step Functions ASL 확장** — 기존 `screening_workflow.asl.json`에 `BullBearMap` (Map + Parallel) 추가. 5종목으로 dry run
 9. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M2 회고. §10 평가 항목 데이터 수집 시작
 
@@ -399,10 +408,18 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 - [ ] `data_quality_flags`를 프롬프트에 미노출하기로 결정(§2.1.2)했으나, 결측이 너무 많은 종목은 *호출 자체를 스킵*해야 할 수도 있음 — 첫 주간 실행에서 결측 분포 본 후 임계값 결정
 - [x] ~~**max_tokens 1024 의 적절성**~~ ✅ **2026-04-30 골든 1차 실행 후 2048 로 상향**. AAPL_bear 가 정확히 1024 hit 하며 잘림 → §5.2.1 참조. 출력 평균 ~900, 최대 1024 (잘림) → 1024 too tight. 비용 영향 없음 (실제 사용량 청구).
 - [x] ~~**추천 어휘 자동 가드 정규식**~~ ✅ **2026-04-30 정밀화 완료**. 1차 실행에서 NVDA_bull 의 `key_risks_to_thesis` "NVDA's ability to **sell** advanced AI chips" 가 false-positive (LLM 추천이 아니라 회사의 비즈니스 동사). `\b(buy|sell|hold)\b` 단독 매치를 제거하고 추천 *컨텍스트* 명시 표현(target price, outperform, recommend buy, rate as sell, rating: hold 등) 만 매치하도록 좁힘. 골든 회귀 가드는 [`tests/test_bullbear_golden.py`](../src/tests/test_bullbear_golden.py) `RECOMMENDATION_WORDS`.
+- [x] ~~**결정성 정책 운영 검증**~~ ✅ **2026-04-30 APA 운영 invoke 로 확인**. 사용자 우려였던 "동일 질의 동일 답변" 의 **운영 레벨 보장** 검증. 운영 ScreeningResult `selected[0]` (APA, Energy/Oil & Gas E&P) 페이로드로 두 람다(`agent_bullbear_{bull,bear}`) 각 2회 invoke:
+
+  | 회차 | bull `cache` | bull `cost_usd` | bear `cache` | bear `cost_usd` | bull/bear `input_hash` |
+  |---|---|---|---|---|---|
+  | 1차 (cold) | miss | 0.020877 | miss | 0.017721 | `46ae5ef8…` (동일) |
+  | 2차 (재호출) | **hit** | **0** | **hit** | **0** | `46ae5ef8…` (동일) |
+
+  검증 결과: (a) `context_input_hash` 가 stance 무관하게 결정적 (bull/bear 동일 hash), (b) 캐시 키가 stance 별로 분리되어 충돌 없음, (c) 동일 input_hash 재호출 시 LLM 호출 0회 / `attempts=0` / `cost_usd=0` / 저장본 그대로 반환 → **운영 레벨 100% 결정성**. 의도치 않은 재호출 (Lambda retry, Step Functions 재실행, 디버깅 invoke) 에서 비용 폭주 0 보장.
 
 ---
 
-## 부록 A. 디렉토리 구조 (M2 #1~#6 구현 완료)
+## 부록 A. 디렉토리 구조 (M2 #1~#7 구현 완료)
 
 CLAUDE.md "디렉토리 구조 (목표)"의 `src/agents/` 하위 — 이미 구현된 항목은 ✅ 표기.
 
@@ -413,24 +430,35 @@ src/agents/                              ✅ namespace package (CLAUDE.md 컨벤
 │   ├── mappers.py                       ✅ screened_to_context() 1:1 평탄화 (부록 B)
 │   ├── context_builder.py               ✅ OHLCV/펀더멘털 → PriceSummary/Fundamentals (§2.1.1)
 │   ├── agent.py                         ✅ 사다리 + 검증 + 로깅 + context_input_hash (§3, §4, §5, §6)
-│   └── anthropic_adapter.py             ✅ AnthropicSDKCaller — Lambda/스크립트가 사용 (§9 #6/#7)
+│   ├── anthropic_adapter.py             ✅ AnthropicSDKCaller — Lambda/스크립트가 사용 (§9 #6/#7)
+│   └── lambda_core.py                   ✅ Lambda 공유 코어 — 캐시 hit/miss 분기 + S3 저장 (§9 #7)
 └── prompts/
     ├── bull_system.md                   ✅ §3.2
     ├── bear_system.md                   ✅ §3.2
     └── bullbear_user.md                 ✅ §3.3 (placeholder 4개)
 
+src/lambdas/                              ✅ Bull/Bear Lambda (§9 #7)
+├── agent_bullbear_bull/
+│   └── handler.py                       ✅ thin wrapper, stance="bull"
+└── agent_bullbear_bear/
+    └── handler.py                       ✅ thin wrapper, stance="bear"
+
+src/common/                               (기존 자산 — 본 단계 #7-A 에 분기 fetcher 추가)
+├── fmp_client.py                        ✅ get_income/cash_flow_statement_quarterly 추가
+└── fundamentals.py                      ✅ fetch_income/cashflow_quarterly_with_cache 추가
+
 scripts/
-└── run_bullbear_golden.py               ✅ 골든 케이스 실행 — 4종목 fixture (§9 #6)
+├── run_bullbear_golden.py               ✅ 골든 케이스 실행 — 4종목 fixture (§9 #6)
+└── deploy_lambda.sh                     ✅ agents/ 패키징 추가 (#7 배포)
+
+.github/workflows/
+└── deploy-lambdas.yml                   ✅ src/agents/** path 트리거 추가 (#7 배포)
 
 tests/
 ├── golden/bullbear/                     ✅ {symbol}_{stance}.json 8개 (2026-04-30 첫 실행)
-└── (src/tests/test_bullbear_*.py)       ✅ 단위 + 회귀 가드
+└── (src/tests/test_bullbear_*.py)       ✅ 단위 + 회귀 가드 (lambda_core 12, agent 29, prompts 11, ...)
 
-src/lambdas/                              ⏳ 다음 단계 (§9 #7)
-├── agent_bullbear_bull/
-│   └── handler.py
-└── agent_bullbear_bear/
-    └── handler.py
+⏳ 다음 단계 (§9 #8): infra/step_functions/screening_workflow.asl.json 에 BullBearMap state 추가
 ```
 
 ## 부록 B. 1단계와의 인터페이스 계약

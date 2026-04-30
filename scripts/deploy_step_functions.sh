@@ -9,13 +9,17 @@
 #                          이 role 은 Lambda invoke 권한을 가져야 함 (infra/README.md 참조).
 #   AWS_REGION           — 기본 ap-northeast-2
 #   STATE_MACHINE_NAME   — 기본 portfolio-mvp-screening
-#   LAMBDA_NAME_PREFIX   — 기본 portfolio-mvp (deploy_lambda.sh 와 동일 규칙)
-#                          state machine 정의의 <<LAMBDA_NAME>> 자리에
-#                          ${LAMBDA_NAME_PREFIX}-run_screening 으로 치환됨.
+#   LAMBDA_NAME_PREFIX   — 기본 portfolio-mvp (deploy_lambda.sh 와 동일 규칙).
+#                          정의 파일의 placeholder 3개 치환:
+#                            <<RUN_SCREENING_LAMBDA>> → ${PREFIX}-run_screening
+#                            <<BULL_LAMBDA>>          → ${PREFIX}-agent_bullbear_bull
+#                            <<BEAR_LAMBDA>>          → ${PREFIX}-agent_bullbear_bear
 #
 # 사전 조건:
-#   - run_screening Lambda 가 이미 배포되어 있어야 함 (deploy_lambda.sh)
+#   - run_screening, agent_bullbear_bull, agent_bullbear_bear Lambda 모두 배포됨
+#     (deploy_lambda.sh + GitHub Actions)
 #   - IAM role 이 infra/README.md 의 권한으로 생성되어 있어야 함
+#     (위 3개 Lambda invoke 권한 포함)
 #
 # 출력: 배포된 state machine 의 ARN.
 
@@ -25,7 +29,9 @@ ROLE_NAME=${IAM_ROLE_NAME:?"IAM_ROLE_NAME 환경변수 필수 (Step Functions ex
 REGION="${AWS_REGION:-ap-northeast-2}"
 NAME="${STATE_MACHINE_NAME:-portfolio-mvp-screening}"
 PREFIX="${LAMBDA_NAME_PREFIX:-portfolio-mvp}"
-LAMBDA_NAME="${PREFIX}-run_screening"
+RUN_SCREENING_LAMBDA="${PREFIX}-run_screening"
+BULL_LAMBDA="${PREFIX}-agent_bullbear_bull"
+BEAR_LAMBDA="${PREFIX}-agent_bullbear_bear"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFINITION_TEMPLATE="$REPO_ROOT/infra/step_functions/screening_workflow.asl.json"
@@ -42,13 +48,25 @@ ROLE_ARN="arn:aws:iam::${ACCOUNT}:role/${ROLE_NAME}"
 # 정의 템플릿에서 Lambda 이름 치환 (임시 파일에)
 TMP_DEF=$(mktemp -t "screening-asl-XXXXXX.json")
 trap 'rm -f "$TMP_DEF"' EXIT
-sed "s|<<LAMBDA_NAME>>|${LAMBDA_NAME}|g" "$DEFINITION_TEMPLATE" > "$TMP_DEF"
+sed -e "s|<<RUN_SCREENING_LAMBDA>>|${RUN_SCREENING_LAMBDA}|g" \
+    -e "s|<<BULL_LAMBDA>>|${BULL_LAMBDA}|g" \
+    -e "s|<<BEAR_LAMBDA>>|${BEAR_LAMBDA}|g" \
+    "$DEFINITION_TEMPLATE" > "$TMP_DEF"
+
+# 치환 누락 가드 — << 가 남아 있으면 정의 오류
+if grep -q '<<' "$TMP_DEF"; then
+  echo "[ERROR] 치환 안 된 placeholder 가 남아 있음:" >&2
+  grep '<<' "$TMP_DEF" >&2
+  exit 1
+fi
 
 echo "==> 설정"
-echo "    Region          : $REGION"
-echo "    State machine   : $NAME"
-echo "    Lambda target   : $LAMBDA_NAME"
-echo "    Execution role  : $ROLE_ARN"
+echo "    Region              : $REGION"
+echo "    State machine       : $NAME"
+echo "    RunScreening Lambda : $RUN_SCREENING_LAMBDA"
+echo "    Bull Lambda         : $BULL_LAMBDA"
+echo "    Bear Lambda         : $BEAR_LAMBDA"
+echo "    Execution role      : $ROLE_ARN"
 
 # 기존 state machine ARN 조회
 EXISTING_ARN=$(aws stepfunctions list-state-machines \
