@@ -3,8 +3,14 @@
 > **단계**: 2단계 — Bull/Bear 리서치 (LLM 핵심 사용 지점)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/01-screening.md`](01-screening.md) — 본 단계 입력원, M1에서 운영 중
-> **버전**: v0.6 (2026-04-30)
-> **상태**: §9 #1~#8 구현 완료, #9 첫 주간 배치 dry-run + 응답 품질 인간 검토 통과. EventBridge 정기 트리거 활성화 대기 (M2 마일스톤)
+> **버전**: v0.7 (2026-04-30)
+> **상태**: **M2 마일스톤 §9 #1~#9 모두 완료**. 다음 월요일 06:00 ET (CHARTER §2.4) 부터 EventBridge 자동 트리거로 운영 진입. 운영 모니터링 정책은 §11.
+>
+> **v0.7 변경 (M2 종료 + 운영 모니터링 정책)**:
+> ① §9 #9 ✅ *완전* 완료 표기 — EventBridge 정기 트리거 연동 사용자 작업으로 완료, 다음 월요일부터 자동 운영,
+> ② §11 신설 — 운영 모니터링 정책 (비용 / 실행 성공률 / turnover / 응답 품질 회귀 / retry·fallback 빈도) 임계값 표 박제,
+> ③ 부록 A 디렉토리 구조 트리에 M2 *완전* 완료 + M3 진입 준비 표기,
+> ④ docs 본문은 더 이상 "대기" 항목 없음 — M2 회고 (CHARTER §7) 이후 갱신은 v1.0 으로.
 >
 > **v0.6 변경 (2026-04-30 응답 품질 인간 검토 — 5 sub-sector sample)**:
 > ① §10 "응답 품질 인간 검토" ✅ 추가 — 운영 ScreeningResult 5종목 (IVZ/NTRS/SPG/NEE/MU)
@@ -432,14 +438,12 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 6. **golden 케이스 4개** ✅ **완료 (2026-04-30)** — AAPL/XOM/NVDA + JPM (금융 sector 추가) 실제 호출, 비용 $0.166 (9 attempts, 1회 retry — `output_tokens=1024` 잘림 → max_tokens 1024→2048 갱신 §5.2.1). false-positive 정정 후 회귀 가드 48 검증 통과. 결과: [`tests/golden/bullbear/`](../tests/golden/bullbear/), 실행 스크립트 [`scripts/run_bullbear_golden.py`](../scripts/run_bullbear_golden.py). 인간 검토 결과는 §10 sector-specific 항목 참조
 7. **Lambda 핸들러 + S3 캐싱** ✅ **완료 (2026-04-30)** — 분할 진행: (#7-A) FMP 분기 statement 메서드 + cache-aside (`fetch_income/cashflow_quarterly_with_cache`), (#7-B) [`agents/bull_bear/lambda_core.py`](../src/agents/bull_bear/lambda_core.py) (입력 파싱 → OHLCV/statements 로드 → `build_context` → `context_input_hash` → 캐시 hit/miss 분기 → S3 저장) + thin wrapper [`agent_bullbear_bull/handler.py`](../src/lambdas/agent_bullbear_bull/handler.py), [`agent_bullbear_bear/handler.py`](../src/lambdas/agent_bullbear_bear/handler.py), (#7-C) 12개 단위 테스트 (cache miss/hit/stale, env/event 검증, wrapper 라우팅). 운영 invoke 검증: APA bull+bear 1차 cache=miss $0.039 → 2차 cache=hit $0 (§10 결정성 정책 운영 검증 항목 참조). 배포 인프라 갱신: `agents/` 패키징 + GitHub Actions path 트리거.
 8. **Step Functions ASL 확장** ✅ **완료 (2026-04-30)** — 기존 [`screening_workflow.asl.json`](../infra/step_functions/screening_workflow.asl.json) 에 `BullBearMap` 추가 (`MaxConcurrency: 1` — §5.2.2 rate limit 산정 공식 근거), `ItemSelector` 로 ScreenedStock + lineage 4필드 매핑, `ItemProcessor` 안에 `BullBearParallel` (Bull/Bear 동시 호출). 한 종목 실패 격리를 위해 `BullBearParallel.Catch[States.ALL]` → `RecordItemFailure` Pass state 추가. `deploy_step_functions.sh` 가 placeholder 3개(`<<RUN_SCREENING_LAMBDA>>`, `<<BULL_LAMBDA>>`, `<<BEAR_LAMBDA>>`) 치환. 1차 dry-run 후 rate limit + Haiku schema 위반 발견 → 2차에서 정정 검증 (#9 참조).
-9. **20종목 주간 배치 첫 실행** ✅ *부분 완료 (2026-04-30 dry-run)*. EventBridge 정기 트리거 활성화는 응답 품질 검토 후. 결과:
-   - **40 invoke (Bull+Bear × 20)**, cache hit 35 (87.5%) / cache miss 5 (VLO/DAL/NEE)
-   - **사다리 retry 0회, Haiku 폴백 0회** (모두 Sonnet primary 1차 성공)
-   - **총 비용 $0.083** (캐시 누적 효과 — 추정 $0.5~0.7 의 1/7)
-   - 처리 시간 ~100초 (`MaxConcurrency=1` 직렬화 영향)
-   - Step Functions Catch 발동 0건 — 한 종목 실패 안 함
+9. **20종목 주간 배치 첫 실행 + EventBridge 자동 트리거** ✅ **완전 완료 (2026-04-30)**. M2 종료.
+   - **첫 dry-run** (2026-04-30): 40 invoke (Bull+Bear × 20), cache hit 35 (87.5%) / cache miss 5 (VLO/DAL/NEE), 사다리 retry 0회, Haiku 폴백 0회, 총 비용 $0.083, 처리 시간 ~100초, Catch 격리 발동 0건
+   - **응답 품질 인간 검토** (§10 [x] 항목): 5 sub-sector sample (IVZ/NTRS/SPG/NEE/MU) 통과, sector 보강 효과 6 sub-sector 최종 검증
+   - **EventBridge 정기 트리거 연동**: Step Functions state machine `portfolio-mvp-screening` 에 사용자 작업으로 매주 월 06:00 ET cron 연결됨 — **다음 월요일부터 자동 운영**
    - 흥미 신호: NEE 가 bull miss / bear hit 비대칭 — 캐시 키가 stance 별 분리된 덕분에 한쪽만 재호출 (의도대로)
-   - 다음 평가 항목 데이터 수집 시작: turnover (4주 후), 응답 품질 (인간 검토 필요)
+   - 운영 진입 후 모니터링은 **§11 운영 모니터링 정책** 참조
 
 ---
 
@@ -505,7 +509,56 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 
 ---
 
-## 부록 A. 디렉토리 구조 (M2 #1~#8 구현 완료, #9 dry-run 통과)
+## 11. 운영 모니터링 정책
+
+M2 마일스톤 종료 후 자동 운영 진입 (다음 월요일 06:00 ET) — 본 절은 운영 진입 후 모니터링·임계값을 박제한다. CHARTER §6 (리스크 & 완화) / §7 (체크포인트) / §4.1 (실전 전환 기준) 의 본 단계 구체화.
+
+### 11.1 모니터링 항목 표
+
+| 항목 | 측정 방법 | 임계값·조치 | 출처 |
+|---|---|---|---|
+| **월 LLM 비용** | AWS Cost Explorer (모델별 분리) + Anthropic Console usage | **$200 hard cap** — 초과 시 Lambda 자동 중단 (CHARTER §6 명시 정책). 사전 알람: $50/$100/$150/$180 단계 (§11.3 권장 후속) | CHARTER §2.2 |
+| **주간 실행 성공률** | Step Functions execution history (콘솔 또는 `aws stepfunctions list-executions`) | **3개월 연속 ≥90%** = 실전 전환 자격. 미달 시 페이퍼 유지 | CHARTER §4.1 |
+| **종목 turnover** | 매주 `s3://{bucket}/agents/bullbear/dt=*/` 의 selected 비교 (이전 주 대비 added/removed) | **4주 누적 후 평가** — turnover 너무 높으면 (a) 의견 캐싱 2주 TTL 또는 (b) 스크리닝 hysteresis 도입 | docs §10, 01-screening.md §10 |
+| **응답 품질 회귀** | 매월 1회 sector-specific sample 검토 (1~2 종목 신규/변경 sub_sector 우선) | 추천 어휘 출현 / schema 위반 / sector 부적합 reasoning 발견 시 system prompt 강화 | docs §10 [x] 응답 품질 항목 |
+| **사다리 retry / fallback 빈도** | CloudWatch Logs Insights 쿼리: `fields @timestamp, stage, error \| filter stage in ['primary_retry', 'fallback']` | **5% 이상이면** rate limit 한도 상향 신청 또는 `max_tokens` 조정 (§5.2.2 산정 공식) | docs §5.2.2 |
+| **결정성 정책** | 같은 dt 내 재실행 시 cache hit 비율 | 동일 input_hash 재호출 시 100% cache hit 유지 (LLM 호출 0회) | docs §10 [x] 결정성 항목 |
+| **CHARTER §6 리스크 — 할루시네이션** | 매매 결정이 LLM 출력에 *직접* 의존하는지 점검 | 매매는 룰 기반, LLM 은 근거 생성만 — 본 단계 출력은 시나리오 모델링(M3)/리밸런서(M4) 의 *입력 컨텍스트* 로만 사용. 위반 발견 시 다운스트림 단계 재설계 | CHARTER §6 |
+
+### 11.2 회고 시점
+
+| 시점 | 이벤트 | 본 단계 입력 |
+|---|---|---|
+| **매주 월 ~07:30 ET** | Step Functions execution 종료 직후 결과 검토 | 비용·실행 성공·실패 종목 |
+| **4주 누적** | turnover 평가 및 hysteresis 의사결정 | docs §10 turnover 항목 |
+| **CHARTER M2 말** (M2 → M3 전환) | 페이퍼 트레이딩 안정성 + 비용 + tracking error 종합 | CHARTER §7 체크포인트 |
+| **CHARTER M3 말** | 실전 전환 vs 페이퍼 유지 결정 | CHARTER §4.1 4개 기준 |
+
+### 11.3 권장 후속 (선택, 우선순위 순)
+
+운영 안정성 향상을 위해 도입 가치 있는 항목들. 미도입 상태에서도 운영은 가능하지만 *이상 감지가 늦음*:
+
+1. **CloudWatch 비용 알람** — SNS topic 으로 $50/$100/$150/$180 단계별. CHARTER §6 hard cap 이 *수동 대응* 기준이라 자동 알람으로 사전 인지 필요
+2. **주간 실행 후 자동 리포트** — Step Functions 종료 시 SNS 발송. 처리 종목·cache 분포·실패 종목·총 비용·신규 vs 이전 주 selected (turnover 신호)
+3. **Athena 외부 테이블** — `s3://{bucket}/agents/bullbear/dt=*/symbol=*/stance=*.json` 에 외부 테이블 연결. SQL 로 시계열 분석 가능 (예: 종목별 confidence 추이, sector 별 평균 cost_usd)
+4. **운영 검증용 골든 디렉토리 외부화** — [`tests/test_bullbear_golden.py`](../src/tests/test_bullbear_golden.py) 의 `GOLDEN_DIR` 을 환경변수로 받도록 수정. 매주 운영 결과를 그대로 골든 회귀 가드로 자동 검증 가능
+
+### 11.4 운영 진입 시 보유한 안전망 (M2 종료 시점 정리)
+
+| 안전망 | 구체 메커니즘 | 발동 조건 |
+|---|---|---|
+| 사다리 retry/fallback | Sonnet primary → Sonnet retry → Haiku fallback (3회) | JSON 파싱·schema 검증·네트워크 실패 |
+| ASL Catch 격리 | `BullBearParallel.Catch[States.ALL]` → `RecordItemFailure` Pass | 한 종목 사다리 3회 모두 실패 시 Map 계속 |
+| Rate limit 회피 | `MaxConcurrency: 1` × Parallel 2 × `max_tokens 2048` = 4,096 ≤ 8,000 한도 | Anthropic Tier 1 분당 한도 (§5.2.2) |
+| 결정성 캐싱 | `(symbol, as_of_date, stance, input_hash)` S3 키 | 같은 입력 재호출 시 LLM 호출 생략 |
+| Schema 강제 | Pydantic `BullBearOpinion` + system prompt strict schema | LLM 응답 형식 위반 차단 |
+| 추천 어휘 자동 가드 | `tests/test_bullbear_golden.py` `RECOMMENDATION_WORDS` 정규식 | Buy/Sell/Target 등 추천 표현 차단 |
+| Sector 보강 | system prompt `Sector context` 섹션 + LLM 도메인 지식 | 6 sub-sector 검증 완료 (§10) |
+| 비용 hard cap | (수동 대응) Anthropic Console / AWS Lambda 환경변수 disable | 월 $200 초과 (CHARTER §6) |
+
+---
+
+## 부록 A. 디렉토리 구조 (M2 마일스톤 ✅ 완전 종료)
 
 CLAUDE.md "디렉토리 구조 (목표)"의 `src/agents/` 하위 — 이미 구현된 항목은 ✅ 표기.
 
@@ -547,7 +600,12 @@ tests/
 ├── golden/bullbear/                     ✅ {symbol}_{stance}.json 8개 (2026-04-30 첫 실행)
 └── (src/tests/test_bullbear_*.py)       ✅ 단위 + 회귀 가드 (lambda_core 12, agent 29, prompts 11, ...)
 
-⏳ 다음: EventBridge 정기 트리거 활성화 (§9 #9 마무리). 응답 품질 인간 검토는 §10 [x] 완료 (5 sub-sector sample).
+EventBridge → Step Functions 트리거       ✅ 매주 월 06:00 ET cron (§9 #9, CHARTER §2.4)
+
+⏳ 다음 단계 (본 문서 범위 밖):
+   - M2 회고 (CHARTER §7 체크포인트) — 4주 운영 데이터 누적 후
+   - M3 진입 — 시나리오 모델링 (`docs/03-scenario.md` 작성 시점)
+   - 운영 모니터링 정책은 §11 참조
 ```
 
 ## 부록 B. 1단계와의 인터페이스 계약

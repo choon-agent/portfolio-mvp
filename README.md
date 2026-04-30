@@ -4,7 +4,7 @@
 > S&P 500 유니버스, 주 1회 리밸런싱, Bull/Bear 에이전트 기반 종목 리서치.
 
 **기간**: 2026-04-20 ~ 2026-10-20 (6개월 MVP)
-**현재 단계**: **M1 — 1단계(스크리닝) 운영 시작, 2단계(Bull/Bear) 진행 예정**
+**현재 단계**: **M2 종료 — 1·2단계 자동 운영 (스크리닝 + Bull/Bear), 3단계 시나리오 모델링 다음**
 
 ---
 
@@ -26,18 +26,24 @@
 주간 실행 파이프라인 (5단계):
 
 ```
-[1] 스크리닝          → 코드 기반 팩터 스코어 (LLM 사용 X)
+[1] 스크리닝          ✅ 운영 — 코드 기반 팩터 스코어 (LLM 사용 X)
        ↓
-[2] Bull/Bear 리서치  → 종목당 LLM 에이전트 2개 (핵심 학습 포인트)
+[2] Bull/Bear 리서치  ✅ 운영 — 종목당 LLM 에이전트 2개 (핵심 학습 포인트)
        ↓
-[3] 시나리오 모델링   → 상위 15~20개만 대상
+[3] 시나리오 모델링   ⏳ 다음 (M3) — 상위 15~20개만 대상
        ↓
-[4] 포트폴리오 최적화  → PyPortfolioOpt 등 (LLM 사용 X)
+[4] 포트폴리오 최적화  — PyPortfolioOpt 등 (LLM 사용 X)
        ↓
-[5] 리밸런싱          → 룰 기반 매매, LLM 은 근거 생성만
+[5] 리밸런싱          — 룰 기반 매매, LLM 은 근거 생성만
 ```
 
 유니버스 10~15 종목, 섹터당 ≤35%, 월 LLM 비용 상한 $200.
+
+**현재 운영 상태** (M2 종료, 2026-04-30):
+- 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` (Bull/Bear Parallel) → S3 의견 저장
+- 첫 dry-run: 20종목 × 2 stance = 40 invoke, retry 0회, 총 비용 **$0.083**
+- 결정성 정책 100% (동일 input_hash 재호출 시 LLM 호출 0회)
+- 6 sub-sector 검증 완료 (Banks/Investment Mgmt/REIT/Utility/Memory Semi/Energy)
 
 ---
 
@@ -62,47 +68,59 @@ portfolio-mvp/
 ├── CHARTER.md                       # 프로젝트 헌장 (상위 의사결정 원칙)
 ├── CLAUDE.md                        # 개발 규칙 (Claude Code 자동 로드)
 ├── README.md                        # 이 파일
-├── requirements.txt                 # Lambda 번들용 외부 의존성
+├── requirements.txt                 # Lambda 번들용 (pydantic·pyarrow·requests·bs4·anthropic)
 ├── requirements-dev.txt             # 로컬 개발용 (pytest, boto3)
 ├── docs/
-│   ├── 01-screening.md              # 1단계 스크리닝 설계 (확정)
-│   └── 02-bull-bear.md              # 2단계 Bull/Bear 설계 (M2 작업 대상)
+│   ├── 01-screening.md              # 1단계 스크리닝 설계 (M1 운영 중)
+│   └── 02-bull-bear.md              # 2단계 Bull/Bear 설계 (v0.7, M2 종료)
 ├── infra/
 │   ├── README.md                    # 배포 순서, IAM 정책, EventBridge 명령
 │   └── step_functions/
-│       └── screening_workflow.asl.json  # 스크리닝 워크플로우 정의 (M1)
+│       └── screening_workflow.asl.json  # RunScreening + BullBearMap (M1 + M2)
 ├── src/
 │   ├── common/
-│   │   ├── fmp_client.py            # FMP API 클라이언트 (OHLCV·key-metrics-ttm·profile)
-│   │   ├── fundamentals.py          # key-metrics-ttm cache-aside (S3, 90일 TTL)
+│   │   ├── fmp_client.py            # FMP 클라이언트 (OHLCV / key-metrics-ttm / income·cashflow 분기)
+│   │   ├── fundamentals.py          # cache-aside (key-metrics-ttm + 분기 statements, 90일 TTL)
 │   │   ├── sp500_wikipedia.py       # S&P 500 구성종목 스크래퍼
-│   │   ├── s3_io.py                 # S3/Secrets Manager I/O (parquet + JSON)
+│   │   ├── s3_io.py                 # S3/Secrets Manager I/O
 │   │   ├── ohlcv.py                 # OHLCV 수집·저장
-│   │   └── models.py                # Pydantic 도메인 모델 (Constituent 등)
-│   ├── screening/                   # 1단계: 코드 기반 스크리닝 (LLM 미사용)
-│   │   ├── schemas.py               # FactorScores, ScreenedStock, ScreeningResult
-│   │   ├── constituents.py          # 구성종목 diff 로직
-│   │   ├── universe.py              # 5개 컷 필터 (시총·유동성·history·seasoning)
-│   │   ├── factors.py               # 모멘텀(12-1m, 6m) + 밸류 raw 값 산출
-│   │   ├── normalize.py             # sub_sector → sector → universe z-score 폴백
-│   │   ├── score.py                 # composite_score, 동점 처리, 상위 15~20 선택
-│   │   ├── peer_context.py          # sub_sector → sector peer 폴백
-│   │   └── pipeline.py              # 위 모듈 합성, ScreeningResult 반환
+│   │   └── models.py                # Pydantic 도메인 모델
+│   ├── screening/                   # 1단계: 코드 기반 (LLM 미사용)
+│   │   ├── schemas.py / constituents.py / universe.py / factors.py
+│   │   ├── normalize.py / score.py / peer_context.py / pipeline.py
+│   ├── agents/                      # 2단계: LLM 에이전트 (M2 신규)
+│   │   ├── bull_bear/
+│   │   │   ├── schemas.py           # StockContext, BullBearOpinion (평탄 1-depth)
+│   │   │   ├── mappers.py           # ScreenedStock → StockContext 1:1 평탄화
+│   │   │   ├── context_builder.py   # OHLCV/펀더멘털 → PriceSummary/Fundamentals + to_prompt_markdown 화이트리스트
+│   │   │   ├── agent.py             # 사다리 (Sonnet→retry→Haiku) + 검증 + context_input_hash
+│   │   │   ├── anthropic_adapter.py # AnthropicCaller Protocol 구현
+│   │   │   └── lambda_core.py       # Lambda 공유 코어 (캐시 hit/miss 분기 + S3 저장)
+│   │   └── prompts/
+│   │       ├── bull_system.md       # Bull 시스템 프롬프트 (strict schema 섹션 포함)
+│   │       ├── bear_system.md       # Bear 시스템 프롬프트 (미러 구조)
+│   │       └── bullbear_user.md     # 사용자 프롬프트 템플릿 (placeholder 4개)
 │   ├── lambdas/
 │   │   ├── update_constituents/handler.py    # 주 1회 구성종목 업데이트
 │   │   ├── update_ohlcv/handler.py           # 매 거래일 OHLCV 증분 업데이트
-│   │   └── run_screening/handler.py          # 매주 월 스크리닝 실행 (M1 신규)
-│   └── tests/                       # pytest 154 케이스 (모든 screening 모듈)
+│   │   ├── run_screening/handler.py          # 매주 월 스크리닝 (M1)
+│   │   ├── agent_bullbear_bull/handler.py    # thin wrapper, stance="bull" (M2 신규)
+│   │   └── agent_bullbear_bear/handler.py    # thin wrapper, stance="bear" (M2 신규)
+│   ├── tests/                       # pytest 332 케이스 (M2 종료)
+│   └── pytest.ini                   # marker 등록 (golden — 골든 회귀 가드)
 ├── scripts/
-│   ├── deploy_lambda.sh             # Lambda 패키징·배포
-│   ├── deploy_step_functions.sh     # Step Functions 정의 배포 (M1 신규)
-│   ├── backfill_ohlcv.py            # OHLCV 초기 백필 (로컬 일회성)
-│   ├── dry_run_screening.py         # pipeline 로컬 검증 (FMP 실호출)
-│   └── probe_fmp_fundamentals.py    # FMP 엔드포인트 가용성 점검
+│   ├── deploy_lambda.sh             # Lambda 패키징·배포 (agents/ 포함)
+│   ├── deploy_step_functions.sh     # ASL placeholder 3개 치환·배포
+│   ├── backfill_ohlcv.py            # OHLCV 초기 백필
+│   ├── dry_run_screening.py         # pipeline 로컬 검증
+│   ├── probe_fmp_fundamentals.py    # FMP 엔드포인트 가용성 점검
+│   └── run_bullbear_golden.py       # 골든 케이스 실행 (M2 신규 — 4종목 fixture)
+├── tests/
+│   └── golden/bullbear/             # 골든 스냅샷 (AAPL/XOM/NVDA/JPM × bull/bear, 8개)
 └── .github/
     └── workflows/
-        ├── deploy-lambdas.yml       # CI/CD: Lambda 자동 배포
-        └── deploy-step-functions.yml  # CI/CD: Step Functions 자동 배포 (M1 신규)
+        ├── deploy-lambdas.yml       # CI/CD: src/agents/** path 트리거 추가
+        └── deploy-step-functions.yml
 ```
 
 ---
@@ -171,32 +189,58 @@ portfolio-mvp/
 - **재시도 정책**: Lambda.ServiceException 외 4종 트랜지언트 에러에 대해 5초 백오프 × 3회
 - **운영 가이드**: [`infra/README.md`](infra/README.md) — IAM 4개 역할 정책, EventBridge CLI 명령, 트러블슈팅
 
+### ✅ 2단계 Bull/Bear 에이전트 (M2 종료)
+
+**구현 완료** ([docs/02-bull-bear.md v0.7](docs/02-bull-bear.md)):
+- **평탄화 `StockContext`** — `ScreenedStock` 임베드 대신 1-depth 명시 필드 (스크리닝-Bull/Bear 결합도 ↓, 입력 토큰 효율 ↑)
+- **사다리 (Sonnet primary → primary retry → Haiku fallback)** — JSON 파싱·schema·네트워크 실패 모두 흡수
+- **결정성 정책** — `temperature=0` + `context_input_hash(StockContext)` SHA-256으로 같은 입력 재호출 시 LLM 호출 생략 (운영 cache hit 100% 검증)
+- **`MaxConcurrency=1`** — Anthropic 8K tok/min 한도 회피 (산정 공식: `MaxConcurrency × 2 stance × max_tokens ≤ 한도`)
+- **종목별 Catch 격리** — `BullBearParallel.Catch[States.ALL]` → `RecordItemFailure` Pass state, 한 종목 실패가 Map 전체 중단 안 시킴
+
+**검증 완료**:
+- **골든 케이스 4종목** (AAPL/XOM/NVDA/JPM, sector 다양성 — 비용 $0.144) — 응답 품질 baseline
+- **운영 첫 dry-run** (2026-04-30, 20종목): 40 invoke, retry 0회, **총 비용 $0.083**, cache hit 87.5%
+- **응답 품질 인간 검토** (5 sub-sector sample): 5 hard rule 모두 통과, sector 보강 효과 6 sub-sector 최종 검증
+- **332 단위 테스트 + 48 골든 회귀 가드**
+
+### ✅ Bull/Bear 인프라 (M2)
+- **두 Lambda** (`agent_bullbear_bull`, `agent_bullbear_bear`) — 공유 `lambda_core.handle` + thin wrapper로 stance만 다르게 주입
+- **Step Functions ASL 확장** — `RunScreening` → `BullBearMap` (Map MaxConcurrency=1, ItemSelector로 lineage 매핑) → 안 `BullBearParallel` (Bull/Bear 동시) → S3 저장
+- **deploy 인프라 갱신** — `deploy_lambda.sh`가 `agents/` 패키징 (lazy `__init__.py`), `.github/workflows/deploy-lambdas.yml`이 `src/agents/**` path 트리거. `deploy_step_functions.sh`는 placeholder 3개 치환
+- **EventBridge 정기 트리거 연동** — 매주 월 06:00 ET cron으로 자동 운영 진입
+
 ### ✅ 문서화
 - CHARTER (헌장): 우선순위·제약·성공 기준 확정
 - CLAUDE.md (개발 규칙): 코딩 규칙, 커밋 컨벤션, 비용 상한
-- [docs/01-screening.md](docs/01-screening.md): 1단계 설계 (확정, §10 미해결 디자인 채무 명시)
-- [docs/02-bull-bear.md](docs/02-bull-bear.md): 2단계 설계 (M2 구현 대기)
+- [docs/01-screening.md](docs/01-screening.md): 1단계 설계 (M1 운영 중)
+- [docs/02-bull-bear.md](docs/02-bull-bear.md) **v0.7**: 2단계 설계 (M2 종료) — 운영 모니터링 정책 §11 포함
 - [infra/README.md](infra/README.md): AWS 인프라 배포·운영 가이드
 
 ---
 
 ## 앞으로 진행할 작업
 
-### M1 (1개월차 마지막까지 목표)
+### M1 (✅ 완료 — 2026-04-28)
+1. 1단계 스크리닝 자동화
 
-1. **1단계 스크리닝 자동화** ✅ 완료 (위 "현재까지 진행된 작업" 참고)
-2. **2단계 Bull/Bear 에이전트 MVP** — CHARTER 의 핵심 학습 포인트, **다음 작업**
-   - 설계 [docs/02-bull-bear.md](docs/02-bull-bear.md) 완료 — 구현 대기
-   - 종목당 Bull 1 + Bear 1 에이전트 (총 2개)
-   - 입력: `screening/dt={date}/result.json` 의 `selected[].peer_context` + Constituent 메타 + OHLCV/펀더멘털 캐시
-   - 프롬프트는 `src/agents/prompts/` 에 분리 (`bull_system.md`, `bear_system.md`, `bullbear_user.md`)
-   - Pydantic 모델로 출력 검증 (JSON mode)
-   - 비용 로깅: `timestamp, model, input_tokens, output_tokens, cost_usd, purpose`
-   - 비용 추정: 종목 15~20 × 2 에이전트 × 4회/월 ≈ **월 $5 미만** ([docs/02-bull-bear.md §5.3](docs/02-bull-bear.md))
-3. **§10 미해결 디자인 채무 결정** — 4주 운영 데이터 누적 후
-   - sector-specific factor 정책 (금융 sector 의 EV/EBITDA·FCF Yield 부적합 — Citi outlier 사례)
-   - 선정 종목 turnover 안정성 (4주 데이터로 평가 → 필요 시 hysteresis 도입)
-   - 결측 종목 정책 미세조정
+### M2 (✅ 완료 — 2026-04-30)
+2. 2단계 Bull/Bear 에이전트 — 운영 진입
+3. Step Functions ASL 확장 (`BullBearMap`)
+4. EventBridge 정기 트리거 연결
+
+### M3 (3개월차, Phase 1 종료 — 진행 예정)
+5. **3단계 시나리오 모델링** — `docs/03-scenario.md` 작성 + 구현. Bull/Bear 출력을 입력으로 받아 가격 시나리오 산출
+6. **4~5단계 연결** — 포트폴리오 최적화 (PyPortfolioOpt) + 리밸런싱 (룰 기반)
+7. **페이퍼 트레이딩 첫 주간 실행 성공** — 5단계 모두 연결된 첫 end-to-end
+8. **Charter 재검토 및 실전 전환 판단** — [CHARTER.md §4.1](CHARTER.md) 4개 기준 충족 시 소액 실전 전환
+9. **블로그 1편 초고**
+
+### M2 운영 안정화 항목 (M2 종료 후 4주 데이터 누적 시점에 평가)
+- **종목 풀 turnover** — 너무 높으면 의견 캐싱 2주 TTL 또는 스크리닝 hysteresis 도입 ([docs/02-bull-bear.md §10](docs/02-bull-bear.md))
+- **사다리 retry/fallback 빈도** — 5% 이상이면 Anthropic 한도 상향 신청 또는 max_tokens 조정
+- **응답 품질 회귀 sample** — 매월 1-2 종목 sector-specific 검토
+- 상세 모니터링 정책: [docs/02-bull-bear.md §11](docs/02-bull-bear.md)
 
 ---
 
@@ -257,19 +301,9 @@ portfolio-mvp/
 
 - **AWS 자격증명 범위**
   - GitHub Actions 배포 role: Lambda 코드 업데이트 + Step Functions 정의 업데이트 권한 (`lambda:UpdateFunctionCode`, `states:CreateStateMachine`, `states:UpdateStateMachine`, `iam:PassRole` 제한 condition)
-  - **자동화된 영역**: Lambda 코드 + Step Functions 정의 (M1 부터)
-  - **수동 영역 (1회)**: Lambda 함수 생성·환경변수·EventBridge 규칙·IAM 4개 역할 — [`infra/README.md`](infra/README.md) 의 명령으로 복붙 진행
+  - **자동화된 영역**: Lambda 코드 + Step Functions 정의 (M1 부터, M2에서 `agents/` 패키징 추가)
+  - **수동 영역 (1회)**: Lambda 함수 생성·환경변수·EventBridge 규칙·IAM 역할 — [`infra/README.md`](infra/README.md) 의 명령으로 복붙 진행
   - 새 Lambda 추가 시: 콘솔 생성 → 환경변수·IAM role 설정 → GitHub Actions 가 자동 배포
-
-### M2 (2개월차)
-
-4. 3~5단계 연결 (시나리오 모델링 → 최적화 → 리밸런싱)
-5. 페이퍼 트레이딩 첫 주간 실행 성공
-
-### M3 (3개월차, Phase 1 종료)
-
-6. Charter 재검토 및 실전 전환 판단 (기준은 [CHARTER.md §4.1](CHARTER.md))
-7. 블로그 1편 초고
 
 ---
 
@@ -297,16 +331,20 @@ git push origin main
 
 | 리소스 | 용도 |
 |---|---|
-| S3 버킷 | Parquet/JSON 저장소 (`metadata/`, `ohlcv/`, `screening/`) |
-| Secrets Manager | FMP API 키 (평문 저장) |
+| S3 버킷 | Parquet/JSON 저장소 (`metadata/`, `ohlcv/`, `screening/`, `agents/bullbear/`) |
+| Secrets Manager: FMP API 키 | OHLCV·펀더멘털 수집용 |
+| **Secrets Manager: Anthropic API 키** | **Bull/Bear LLM 호출용 (M2 신규)** |
 | IAM Role: `portfolio-mvp-run_screening-role` | Lambda 실행 (S3 RW, Secrets read) |
-| IAM Role: `portfolio-mvp-step-functions-role` | SF → Lambda invoke |
+| **IAM Role: Bull/Bear Lambda 실행** | **S3 RW + FMP·Anthropic Secret read (M2 신규)** |
+| IAM Role: `portfolio-mvp-step-functions-role` | SF → Lambda invoke (3개 Lambda — run_screening + bullbear_bull/bear) |
 | IAM Role: `portfolio-mvp-eventbridge-role` | EventBridge → SF startExecution |
 | IAM Role: `choon-github-actions-role` | CI/CD 배포 (Lambda·Step Functions 업데이트, OIDC) |
 | EventBridge 규칙: `update_constituents` | 매주 월 09:00 ET |
 | EventBridge 규칙: `update_ohlcv` | 매 평일 22:00 ET |
-| EventBridge 규칙: `portfolio-mvp-weekly-screening` | 매주 월 11:00 UTC → Step Functions |
-| Step Functions: `portfolio-mvp-screening` | run_screening Lambda 호출 + 재시도 |
+| EventBridge 규칙: `portfolio-mvp-weekly-screening` | 매주 월 06:00 ET → Step Functions (M1 + M2 통합 워크플로우) |
+| Step Functions: `portfolio-mvp-screening` | RunScreening + BullBearMap (Bull/Bear Parallel) |
+| **Lambda: `portfolio-mvp-agent_bullbear_bull`** | **Bull 에이전트 (M2 신규)** |
+| **Lambda: `portfolio-mvp-agent_bullbear_bear`** | **Bear 에이전트 (M2 신규)** |
 
 ### Lambda 환경변수
 
@@ -334,6 +372,17 @@ git push origin main
 | `SCREENING_PREFIX` | `screening` |
 | `CACHE_MAX_AGE_DAYS` | `90` (분기 재무 캐시 TTL) |
 
+`agent_bullbear_bull` / `agent_bullbear_bear` 추가 (M2):
+
+| 변수 | 기본값 / 비고 |
+|---|---|
+| `ANTHROPIC_SECRET_ID` | ✅ 필수 — Anthropic API 키 secret ID |
+| `OHLCV_PREFIX` | `ohlcv` (run_screening과 공유) |
+| `AGENTS_PREFIX` | `agents/bullbear` (Bull/Bear 출력 + 입력 context lineage) |
+| `INCOME_QUARTERLY_PREFIX` | `metadata/fundamentals/income-statement-quarterly` |
+| `CASHFLOW_QUARTERLY_PREFIX` | `metadata/fundamentals/cash-flow-statement-quarterly` |
+| `CACHE_MAX_AGE_DAYS` | `90` |
+
 ---
 
 ## 주요 설계 결정
@@ -352,6 +401,12 @@ git push origin main
 | Plain ASL JSON + AWS CLI 스크립트 (M1 IaC) | 워크플로우 1 state 에 SAM/CDK 는 과함. M2 복잡도 증가 시 재검토 | [infra/README.md](infra/README.md) |
 | peer_context: sub_sector → sector 폴백 | dry-run 에서 singleton sub_sector 가 빈번함을 발견 (NEM Gold, USB Banks-Regional 등) → 모든 selected 가 5 peers 보장 | [docs/01-screening.md §10](docs/01-screening.md) |
 | Schema bound 1~50 vs 정책 15~20 | schema 는 데이터 형태 sanity, 정책은 pipeline `target_min/max` 기본값 — dry-run/테스트 유연성 | [docs/01-screening.md §2.3](docs/01-screening.md) |
+| **Bull/Bear `StockContext` 평탄화 (M2)** | ScreenedStock 임베드 대신 1-depth 명시 필드 — 스크리닝-Bull/Bear 결합도 ↓, 입력 토큰 효율 ↑, "LLM이 보는 형태"가 한 타입에 박제 | [docs/02-bull-bear.md §2.1](docs/02-bull-bear.md) |
+| **결정성 캐시 키 = `context_input_hash` (M2)** | StockContext SHA-256으로 같은 입력 재호출 시 LLM 호출 생략 — 운영 cache hit 100% 검증 | [docs/02-bull-bear.md §10](docs/02-bull-bear.md) |
+| **`MaxConcurrency=1` Map (M2)** | Anthropic 8K tok/min 한도 회피 (`MaxConcurrency × 2 stance × max_tokens ≤ 한도`). 1차 dry-run에서 5종목 사다리 3회 실패 후 5→1 변경 | [docs/02-bull-bear.md §5.2.2](docs/02-bull-bear.md) |
+| **`max_tokens 2048` (M2)** | 골든 1차 실행에서 AAPL_bear가 1024 hit으로 잘림 → 2048 상향. 출력 평균 ~900, 비용 영향 없음 (실 사용량 청구) | [docs/02-bull-bear.md §5.2.1](docs/02-bull-bear.md) |
+| **단일 Sector context 프롬프트 (M2)** | 6 sub-sector 검증 — LLM이 sector-specific 회계 차이를 자동 활용 (Bank EV/EBITDA 회피, REIT FFO 부재 자각, Utility capex 인지). 추가 sector별 분기 불필요 | [docs/02-bull-bear.md §10](docs/02-bull-bear.md) |
+| **Bull/Bear thin wrapper + 공유 lambda_core (M2)** | 두 Lambda가 동일 코어 import, stance만 다르게 주입. 코드 중복 0, 모델·프롬프트 격리 | [docs/02-bull-bear.md §4.2](docs/02-bull-bear.md) |
 
 ---
 
@@ -359,7 +414,11 @@ git push origin main
 
 - **프로젝트 헌장**: [CHARTER.md](CHARTER.md) — 의사결정 기준
 - **개발 규칙**: [CLAUDE.md](CLAUDE.md) — 코딩 컨벤션, 커밋 규칙, 작업 가이드
-- **단계별 설계**: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (작성 예정)
+- **단계별 설계**:
+  - [docs/01-screening.md](docs/01-screening.md) ✅ M1 운영
+  - [docs/02-bull-bear.md](docs/02-bull-bear.md) v0.7 ✅ M2 종료
+  - `docs/03-scenario.md` ⏳ M3 작성 예정
+  - `docs/04-optimizer.md` / `docs/05-rebalancing.md` (작성 예정)
 - **외부**:
   - [FMP Stable API](https://site.financialmodelingprep.com/developer/docs/stable)
   - [Anthropic API](https://docs.anthropic.com/)
@@ -384,4 +443,12 @@ git push origin main
 | 2026-04-28 | `run_screening` Lambda + Step Functions + EventBridge 배포 — 첫 운영 실행 (483 universe → 20 selected, 150초) |
 | 2026-04-28 | dry-run 으로 발견한 peer_context singleton sub_sector 이슈 → sector 폴백 추가 적용 → 모든 selected 5 peers 보장 |
 | 2026-04-28 | EventBridge 주간 스케줄 활성화 (월 11:00 UTC) — **M1 1단계 인프라 완료** |
-| — | Bull/Bear 에이전트 MVP (M2 다음 작업) |
+| 2026-04-29 | Bull/Bear schemas / mappers / context_builder / 프롬프트 / agent.py 구현 (332 단위 테스트 통과) |
+| 2026-04-29 | docs/02-bull-bear.md v0.2~v0.3 — 평탄화 StockContext 확정, FMP 분기 statement fetcher 추가 |
+| 2026-04-30 | **골든 케이스 첫 실행** — AAPL/XOM/NVDA/JPM × bull/bear (8 의견, $0.166, 회귀 가드 48 통과). max_tokens 1024→2048 갱신, 추천 어휘 정규식 정밀화 |
+| 2026-04-30 | Lambda 핸들러 + S3 캐싱 (lambda_core + thin wrapper) — APA 운영 invoke 검증 (cache miss → hit, $0.039) |
+| 2026-04-30 | Step Functions ASL 확장 (`BullBearMap` Map MaxConcurrency=1 + Parallel + Catch 격리) |
+| 2026-04-30 | **첫 운영 dry-run** (20종목): 40 invoke, retry 0회, **총 비용 $0.083**. 1차 실행에서 rate limit 발견 → MaxConcurrency 5→1 처방 + Haiku schema 보강 |
+| 2026-04-30 | 응답 품질 인간 검토 (5 sub-sector sample) — sector 보강 효과 6 sub-sector 최종 검증 |
+| 2026-04-30 | EventBridge 정기 트리거 연동 — **M2 마일스톤 §9 #1~#9 완료** ([docs/02-bull-bear.md v0.7](docs/02-bull-bear.md)) |
+| — | M3 진입: 시나리오 모델링 (`docs/03-scenario.md` 작성), 4~5단계 연결, 페이퍼 트레이딩 |
