@@ -1,0 +1,57 @@
+{
+  "opinion": {
+    "symbol": "XOM",
+    "stance": "bear",
+    "as_of_date": "2026-04-27",
+    "summary": "XOM trades at a premium to most peers while revenue growth is modest and recent momentum has stalled, suggesting limited upside relative to cheaper integrated-oil alternatives.",
+    "arguments": [
+      {
+        "claim": "XOM commands a P/E premium over most peers despite no clear earnings-growth advantage, making its relative valuation difficult to justify.",
+        "evidence": "XOM P/E TTM of 12.00 is above COP (11.00), MPC (8.50), and PSX (10.00); only CVX (13.50) is higher. Yet XOM's 5Y EPS CAGR of +14% is not materially differentiated from peers who trade at steeper discounts, meaning investors are paying up without a clear growth premium.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "Revenue growth has been essentially flat over the trailing four quarters, with the most recent quarter showing a sequential decline from the prior-quarter peak.",
+        "evidence": "Revenue was $85.00B (Q2-2025), $87.00B (Q3-2025), $92.00B (Q4-2025), then fell back to $88.00B (Q1-2026) — a $4B sequential drop — and the 5Y revenue CAGR is only +4.00%, indicating structural top-line stagnation.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "FCF declined sequentially in the most recent quarter, reversing a prior build-up and suggesting the peak FCF generation may already be behind us.",
+        "evidence": "FCF peaked at $16.00B in Q4-2025 and fell to $14.00B in Q1-2026, a $2B quarter-over-quarter decline, while revenue also contracted — both metrics moving in the same negative direction simultaneously.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "Near-term price momentum has turned negative, with the stock down 3% over the last six months and sitting 8% below its 52-week high, indicating the market is already de-rating the name.",
+        "evidence": "6M return of -3.00% and current price -8.00% from the 52-week high, despite a still-positive 1Y return of +12.00% — the more recent trend is clearly deteriorating.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "XOM's FCF yield of 8.50% is below cheaper peers COP (9.00%), MPC (11.00%), and PSX (9.50%), meaning investors receive less cash-return compensation per dollar invested relative to alternatives in the same sector.",
+        "evidence": "FCF Yield TTM: XOM 8.50% vs. COP 9.00%, MPC 11.00%, PSX 9.50% — XOM is the second-lowest FCF yield in the peer group while carrying a higher P/E than three of the four peers.",
+        "confidence": "medium"
+      }
+    ],
+    "key_risks_to_thesis": [
+      "XOM's Pioneer Natural Resources acquisition could deliver synergies and Permian production growth that materially accelerates FCF above the current run-rate, invalidating the 'peak FCF' argument if Q1-2026 proves to be a one-quarter dip rather than a trend.",
+      "A sustained rebound in crude oil prices (driven by OPEC+ supply discipline or geopolitical disruption) could rapidly expand EPS and FCF, compressing the P/E and FCF-yield gap versus peers and making the current valuation look cheap in hindsight.",
+      "XOM's integrated downstream and chemicals segments provide earnings diversification that pure-play E&P peers like COP lack; if refining margins recover from a trough, XOM's earnings quality advantage over peers could justify its persistent P/E premium."
+    ],
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 1600,
+    "output_tokens": 954,
+    "cost_usd": 0.01911
+  },
+  "attempts": [
+    {
+      "model": "claude-sonnet-4-6",
+      "stage": "primary",
+      "input_tokens": 1600,
+      "output_tokens": 954,
+      "cost_usd": 0.01911,
+      "succeeded": true,
+      "error": null
+    }
+  ],
+  "prompt_user": "# XOM — Exxon Mobil Corporation\n- Sector: Energy / Integrated Oil & Gas\n- As-of: 2026-04-27\n\n## Screening Signals\n(통과 사유 컨텍스트 — 매수/매도 근거가 아니라 자체 데이터로 새로 추론할 것)\n- Composite score: 1.200\n- Momentum z-score: +0.40\n- Value z-score: +1.20\n- P/E TTM: 12.00\n- EV/EBITDA TTM: 6.50\n- FCF Yield TTM: 8.50%\n\n## Peer Context (sub_sector → sector 폴백, 최대 5개)\n| Symbol | P/E TTM | EV/EBITDA | FCF Yield |\n|---|---|---|---|\n| CVX | 13.50 | 7.00 | 7.50% |\n| COP | 11.00 | 5.80 | 9.00% |\n| MPC | 8.50 | 5.20 | 11.00% |\n| PSX | 10.00 | 6.00 | 9.50% |\n\n## Price Summary\n- 1Y return: +12.00%\n- 6M return: -3.00%\n- From 52w high: -8.00%\n- From 52w low: +18.00%\n- Beta (1Y vs SPY): 0.95\n\n## Fundamentals — Last 4 Quarters\n| Period end | Revenue | Diluted EPS | FCF |\n|---|---|---|---|\n| 2026-03-31 | $88.00B | 2.60 | $14.00B |\n| 2025-12-31 | $92.00B | 2.85 | $16.00B |\n| 2025-09-30 | $87.00B | 2.55 | $13.50B |\n| 2025-06-30 | $85.00B | 2.50 | $12.50B |\n\n5Y CAGR — Revenue +4.00%, EPS +14.00%, FCF +9.00%\n\n\n---\n\nTask: based strictly on the data above, write your **bear** opinion of **XOM** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Each `arguments[i].evidence` must cite a specific figure or comparison from the data above.\n- `arguments` length 3–5. Use lower `confidence` rather than padding.\n- `key_risks_to_thesis` length 1–3 — concrete scenarios under which your **bear** thesis fails. Specific to this company.\n- Do not recommend Buy / Hold / Sell, price targets, or position sizes.\n- The Screening Signals section is context for *why this stock was selected*, not evidence by itself. Derive your reasoning from Price Summary, Fundamentals, and Peer Context.\n\nReturn only the JSON object matching the schema.\n",
+  "input_hash": "5dc80bacd9820a7af039497bcee678a695292b5f624f85c774726a6f9986303c"
+}

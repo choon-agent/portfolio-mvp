@@ -28,6 +28,8 @@ from common.s3_io import read_json, write_json
 logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_PREFIX = "metadata/fundamentals/key-metrics-ttm"
+DEFAULT_INCOME_QUARTERLY_PREFIX = "metadata/fundamentals/income-statement-quarterly"
+DEFAULT_CASHFLOW_QUARTERLY_PREFIX = "metadata/fundamentals/cash-flow-statement-quarterly"
 DEFAULT_CACHE_MAX_AGE_DAYS = 90
 
 
@@ -128,5 +130,80 @@ def fetch_with_cache(
         cache_read=lambda: read_json(bucket, key),
         cache_write=lambda payload: write_json(bucket, key, payload, indent=None),
         fmp_call=_fmp_call,
+        max_age_days=max_age_days,
+    )
+
+
+# ---------- 분기 statement (Bull/Bear context_builder 입력) ----------
+
+
+def _fetch_quarterly(
+    *,
+    fmp_call: Callable[[], list[dict[str, Any]]],
+    bucket: str,
+    key: str,
+    max_age_days: int,
+) -> list[dict[str, Any]]:
+    """분기 statement (list[dict]) 용 공통 cache-aside 래퍼.
+
+    key-metrics-ttm 의 dict 반환과 다른 list 반환 — 빈 list 를 None 으로
+    승격해 load_or_fetch_pure 의 빈응답 fallback 정책을 그대로 활용.
+    """
+
+    def _wrapped() -> list[dict[str, Any]] | None:
+        return fmp_call() or None
+
+    result = load_or_fetch_pure(
+        cache_read=lambda: read_json(bucket, key),
+        cache_write=lambda payload: write_json(bucket, key, payload, indent=None),
+        fmp_call=_wrapped,
+        max_age_days=max_age_days,
+    )
+    return result if isinstance(result, list) else []
+
+
+def fetch_income_quarterly_with_cache(
+    fmp: FMPClient,
+    bucket: str,
+    symbol: str,
+    *,
+    prefix: str = DEFAULT_INCOME_QUARTERLY_PREFIX,
+    max_age_days: int = DEFAULT_CACHE_MAX_AGE_DAYS,
+    limit: int = 40,
+) -> list[dict[str, Any]]:
+    """심볼 1개의 분기 income-statement 응답을 cache-aside 로 가져옴.
+
+    Bull/Bear context_builder 가 직전 4분기 + 5Y CAGR 산출에 사용.
+
+    호출당 최대 1회 S3 read + 최대 1회 FMP + 최대 1회 S3 write (key-metrics-ttm
+    과 동일 정책). 일반적으로 분기 발표 후 첫 호출 시에만 FMP — 이후 90일은
+    S3 hit. 분기 발표 직후 캐시 무효화는 docs/02-bull-bear.md §10 미해결 항목.
+    """
+    return _fetch_quarterly(
+        fmp_call=lambda: fmp.get_income_statement_quarterly(symbol, limit=limit),
+        bucket=bucket,
+        key=_cache_key(prefix, symbol),
+        max_age_days=max_age_days,
+    )
+
+
+def fetch_cashflow_quarterly_with_cache(
+    fmp: FMPClient,
+    bucket: str,
+    symbol: str,
+    *,
+    prefix: str = DEFAULT_CASHFLOW_QUARTERLY_PREFIX,
+    max_age_days: int = DEFAULT_CACHE_MAX_AGE_DAYS,
+    limit: int = 40,
+) -> list[dict[str, Any]]:
+    """심볼 1개의 분기 cash-flow-statement cache-aside.
+
+    `freeCashFlow` 가 본 단계 핵심. 은행/보험은 음수 빈번 — 호출 측이 결측/
+    음수 분기 모두 보존 (docs §10 sector-specific 항목).
+    """
+    return _fetch_quarterly(
+        fmp_call=lambda: fmp.get_cash_flow_statement_quarterly(symbol, limit=limit),
+        bucket=bucket,
+        key=_cache_key(prefix, symbol),
         max_age_days=max_age_days,
     )

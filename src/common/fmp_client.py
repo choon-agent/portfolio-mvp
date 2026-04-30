@@ -98,6 +98,51 @@ class FMPClient:
         logger.warning("%s key-metrics-ttm 응답이 예상과 다름: %s", symbol, data)
         return []
 
+    def get_income_statement_quarterly(
+        self, symbol: str, *, limit: int = 40
+    ) -> list[dict[str, Any]]:
+        """단일 종목의 분기 income-statement (date desc, 최신부터).
+
+        Bull/Bear `context_builder.compute_fundamentals_timeseries` 가 직전
+        4분기 + 5Y CAGR 산출에 사용. 5Y CAGR 은 24분기 (4 + 5*4) 필요 — limit
+        기본 40 은 10년치 여유.
+
+        주요 필드: `date`, `period`, `revenue`, `epsdiluted`, `calendarYear`.
+        Dual-class 종목(BRK.B)은 자동으로 하이픈 표기로 변환.
+
+        반환은 list (FMP 의 일관된 형식). 빈 list 면 데이터 없음.
+        """
+        fmp_symbol = symbol.replace(".", "-")
+        data = self._get(
+            "income-statement",
+            params={"symbol": fmp_symbol, "period": "quarter", "limit": limit},
+        )
+        if isinstance(data, list):
+            return data
+        logger.warning("%s income-statement(quarter) 응답이 예상과 다름: %s", symbol, data)
+        return []
+
+    def get_cash_flow_statement_quarterly(
+        self, symbol: str, *, limit: int = 40
+    ) -> list[dict[str, Any]]:
+        """단일 종목의 분기 cash-flow-statement.
+
+        본 단계 핵심 필드: `date`, `freeCashFlow`. 은행/보험은 freeCashFlow 가
+        구조적으로 음수일 수 있음 — 호출 측이 결측·음수 분기 모두 보존
+        (docs/02-bull-bear.md §10 sector-specific 항목).
+        """
+        fmp_symbol = symbol.replace(".", "-")
+        data = self._get(
+            "cash-flow-statement",
+            params={"symbol": fmp_symbol, "period": "quarter", "limit": limit},
+        )
+        if isinstance(data, list):
+            return data
+        logger.warning(
+            "%s cash-flow-statement(quarter) 응답이 예상과 다름: %s", symbol, data
+        )
+        return []
+
     def get_historical_price(self, symbol: str) -> list[dict[str, Any]]:
         """단일 종목의 전체 일별 OHLCV 이력 조회.
 

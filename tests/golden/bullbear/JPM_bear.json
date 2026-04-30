@@ -1,0 +1,52 @@
+{
+  "opinion": {
+    "symbol": "JPM",
+    "stance": "bear",
+    "as_of_date": "2026-04-27",
+    "summary": "JPM trades at a P/E premium to most large-bank peers while revenue growth has stalled sequentially and the stock sits near 52-week highs, leaving little margin of safety.",
+    "arguments": [
+      {
+        "claim": "JPM commands a P/E premium over most large-bank peers despite no clear earnings-growth advantage that justifies the gap.",
+        "evidence": "JPM P/E TTM of 13.0x versus BAC 12.0x, WFC 11.5x, and C 10.0x — JPM trades at a 8–30% premium to three of four peers. GS at 14.5x is the only peer trading higher, yet GS operates a more capital-markets-intensive model. JPM's 5Y EPS CAGR of +10% is solid but not exceptional enough to warrant a sustained premium across the peer group.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "Sequential revenue momentum has stalled: the most recent quarter showed a meaningful decline from the prior quarter's peak.",
+        "evidence": "Revenue fell from $43.50B in Q4 2025 to $42.00B in Q1 2026, a sequential drop of ~$1.5B (~3.4%), after a prior-quarter peak. The trailing four quarters show revenue oscillating in a $40.5B–$43.5B band with no clear upward breakout, consistent with a 5Y revenue CAGR of only +6% — modest for a stock near 52-week highs.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "The stock is priced near its 52-week high with limited technical cushion, concentrating downside risk if fundamentals disappoint.",
+        "evidence": "JPM is only -2% from its 52-week high while up +25% from its 52-week low and +20% over the past year. With a beta of 1.05, any macro or credit-cycle deterioration would translate into at least market-level drawdowns from a near-peak entry point, with little valuation buffer given the peer-relative P/E premium.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "Diluted EPS declined sequentially in the most recent quarter, suggesting near-term earnings momentum may be fading.",
+        "evidence": "Diluted EPS dropped from $5.20 in Q4 2025 to $4.80 in Q1 2026, a sequential decline of ~7.7%, reversing the prior quarter's high-water mark. While Q1 seasonality can be a factor, the EPS level also sits only modestly above the $4.55–$4.60 range seen in mid-2025, indicating limited incremental earnings power over the past three quarters.",
+        "confidence": "medium"
+      }
+    ],
+    "key_risks_to_thesis": [
+      "JPM's 5Y EPS CAGR of +10% could re-accelerate if net interest income expands in a higher-for-longer rate environment, compressing the peer-relative P/E premium organically and validating the current valuation.",
+      "A significant market-share gain in investment banking or wealth management — visible in a revenue rebound above the $43.5B Q4 2025 peak in coming quarters — would invalidate the stalling-revenue argument and support multiple expansion.",
+      "If credit losses at peers (BAC, WFC, C) rise materially while JPM's superior risk management keeps provisions contained, JPM's premium P/E would be justified by relative earnings resilience, undermining the valuation-gap bear case."
+    ],
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 1585,
+    "output_tokens": 897,
+    "cost_usd": 0.01821
+  },
+  "attempts": [
+    {
+      "model": "claude-sonnet-4-6",
+      "stage": "primary",
+      "input_tokens": 1585,
+      "output_tokens": 897,
+      "cost_usd": 0.01821,
+      "succeeded": true,
+      "error": null
+    }
+  ],
+  "prompt_user": "# JPM — JPMorgan Chase & Co.\n- Sector: Financials / Diversified Banks\n- As-of: 2026-04-27\n\n## Screening Signals\n(통과 사유 컨텍스트 — 매수/매도 근거가 아니라 자체 데이터로 새로 추론할 것)\n- Composite score: 0.950\n- Momentum z-score: +0.70\n- Value z-score: +0.50\n- P/E TTM: 13.00\n- EV/EBITDA TTM: 32.00\n- FCF Yield TTM: -20.00%\n\n## Peer Context (sub_sector → sector 폴백, 최대 5개)\n| Symbol | P/E TTM | EV/EBITDA | FCF Yield |\n|---|---|---|---|\n| BAC | 12.00 | 28.00 | -15.00% |\n| WFC | 11.50 | 30.00 | -18.00% |\n| C | 10.00 | 35.00 | -22.00% |\n| GS | 14.50 | 20.00 | 5.00% |\n\n## Price Summary\n- 1Y return: +20.00%\n- 6M return: +5.00%\n- From 52w high: -2.00%\n- From 52w low: +25.00%\n- Beta (1Y vs SPY): 1.05\n\n## Fundamentals — Last 4 Quarters\n| Period end | Revenue | Diluted EPS | FCF |\n|---|---|---|---|\n| 2026-03-31 | $42.00B | 4.80 | n/a |\n| 2025-12-31 | $43.50B | 5.20 | n/a |\n| 2025-09-30 | $41.00B | 4.60 | n/a |\n| 2025-06-30 | $40.50B | 4.55 | n/a |\n\n5Y CAGR — Revenue +6.00%, EPS +10.00%\n\n\n---\n\nTask: based strictly on the data above, write your **bear** opinion of **JPM** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Each `arguments[i].evidence` must cite a specific figure or comparison from the data above.\n- `arguments` length 3–5. Use lower `confidence` rather than padding.\n- `key_risks_to_thesis` length 1–3 — concrete scenarios under which your **bear** thesis fails. Specific to this company.\n- Do not recommend Buy / Hold / Sell, price targets, or position sizes.\n- The Screening Signals section is context for *why this stock was selected*, not evidence by itself. Derive your reasoning from Price Summary, Fundamentals, and Peer Context.\n\nReturn only the JSON object matching the schema.\n",
+  "input_hash": "95daca8f6ce2097d38e948484e555e32b01706d7a57721f8b4f5ff8d10d7d17c"
+}

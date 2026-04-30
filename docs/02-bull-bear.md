@@ -3,8 +3,16 @@
 > **단계**: 2단계 — Bull/Bear 리서치 (LLM 핵심 사용 지점)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/01-screening.md`](01-screening.md) — 본 단계 입력원, M1에서 운영 중
-> **버전**: v0.2 (2026-04-29)
-> **상태**: 설계 완료, 구현 대기 (M2 마일스톤)
+> **버전**: v0.3 (2026-04-30)
+> **상태**: §9 #1~#6 구현 완료, #7 (Lambda 핸들러 + S3 캐싱) 대기 (M2 마일스톤)
+>
+> **v0.3 변경 (2026-04-30 골든 케이스 1차 실행 결과 반영)**:
+> ① §5.2 비용 추정에 골든 실측 행 추가 (호출당 평균 $0.018, 추정과 정합),
+> ② §9 #6 골든 케이스 ✅ 완료 표시 + 첫 실행 결과 ($0.17, 9 attempts, 1회 retry),
+> ③ §10 "sector-specific 팩터 보강 효과 측정" ✅ JPM 골든으로 검증 완료 — 추가
+> sector별 프롬프트 분기 *불필요*, ④ 운영 메모 추가: max_tokens 1024 → 2048
+> 상향 (1차 실행 AAPL_bear 잘림 사례), ⑤ 부록 A 디렉토리 구조에 anthropic_adapter,
+> 골든 스크립트, 스냅샷 디렉토리 반영.
 >
 > **v0.2 변경**: 1단계 스크리닝이 M1에서 운영 단계 진입(2026-04-25 첫 실행 — 483→20)함에 따라
 > ① `StockContext`를 평탄화 구조로 확정, ② `ScreenedStock`이 사전 조립한 `peer_context`를
@@ -254,17 +262,26 @@ EventBridge (Mon 06:00 ET)
 
 `peer_context`가 스크리닝에서 사전 조립되어 오므로 입력 토큰이 v0.1 추정보다 작다.
 
-| 항목 | 추정 |
-|---|---|
-| 시스템 프롬프트 | ~600 tok |
-| StockContext (평탄화, peer_context 5개 포함) | ~2,500 tok |
-| 사용자 프롬프트 지시문 | ~150 tok |
-| 출력 (JSON: arguments 3~5개 + risks) | ~600 tok |
-| **합계** | 입력 ~3,250 / 출력 ~600 |
+| 항목 | 추정 (설계 시) | 실측 (2026-04-30 골든 9회) |
+|---|---|---|
+| 시스템 프롬프트 | ~600 tok | (input 합계에 포함) |
+| StockContext (평탄화, peer_context 5개 포함) | ~2,500 tok | (input 합계에 포함) |
+| 사용자 프롬프트 지시문 | ~150 tok | (input 합계에 포함) |
+| 입력 합계 | ~3,250 | **평균 ~1,560** (1,497~1,599) |
+| 출력 (JSON: arguments 3~5개 + risks) | ~600 | **평균 ~900** (713~1,024) |
 
-Sonnet 4.6 가격 가정 (2026-04 시점): 입력 $3/1M, 출력 $15/1M
-- 호출당 비용: 3,250 × $3/1M + 600 × $15/1M ≈ **$0.019**
+실측이 추정과 양방향으로 다른데 비용은 거의 일치 — 입력이 추정보다 작아서 ($/1M 단가가 출력의 1/5) 입력·출력 차이가 상쇄.
+
+Sonnet 4.6 가격 (2026-04 기준): 입력 $3/1M, 출력 $15/1M
+- 호출당 비용 (실측 평균): 1,560 × $3/1M + 900 × $15/1M ≈ **$0.018**
+- 골든 9 attempts 합계: $0.166 (호출당 평균 $0.0184, 추정과 정합)
 - **단일 호출 $1 상한 (CLAUDE.md)** 대비 50배 이상 여유
+
+#### 5.2.1 max_tokens 상한 (운영 메모 — 2026-04-30 갱신)
+
+`AgentConfig.max_tokens` 기본값을 **1024 → 2048** 로 상향. 2026-04-30 골든 케이스 1차 실행에서 AAPL_bear 가 `output_tokens=1024` 정확히 hit 하며 응답이 잘림 → JSON 파싱 실패 → primary retry 로 복구되었으나 사다리 비용 발생. 출력 평균 ~900, 최대 1024 (잘림) 라 1024 는 too tight. 비용은 *실제* 사용량만 청구되므로 상한 확대로 인한 비용 증가 없음.
+
+**검증 (2026-04-30 2차 실행)**: 동일 fixture 재호출 → AAPL_bear 가 `output_tokens=1025` 로 자연 종료 (LLM 자체 stop, 잘림 없음). 1024 hit 이 우연이 아니라 정확히 한계 잘림이었다는 결정적 증거 — 2048 상한에서 1025 까지만 사용. 8회 모두 1차 성공 (retry 0회), 총 비용 $0.166 → **$0.144 (~13% 절감)**. 평균 토큰: 입력 1,551 / 출력 894 / 호출당 $0.0181 — 본 표 추정과 정합.
 
 ### 5.3 월 비용 추정
 
@@ -364,7 +381,7 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 3. **context_builder.py** — `screened_to_context` + OHLCV/분기 펀더멘털 캐시 조립. `to_prompt_markdown()` 화이트리스트 직렬화. LLM 호출 없음 → `FakeFMPClient`로 테스트
 4. **프롬프트 파일 3종** — `bull_system.md`, `bear_system.md`, `bullbear_user.md` (composite_score/momentum_z/value_z 명시 포함)
 5. **agent.py 골격** — Anthropic SDK 호출, JSON mode, Pydantic 검증, 재시도/폴백, 로깅 (`FakeAnthropicClient`로 단위 테스트)
-6. **golden 케이스 3개** — AAPL/XOM/NVDA 실제 호출 (sector 다양성 확보 — sector-specific 팩터 보강 효과 §10 평가 입력), 출력 검토, 스냅샷 저장
+6. **golden 케이스 4개** ✅ **완료 (2026-04-30)** — AAPL/XOM/NVDA + JPM (금융 sector 추가) 실제 호출, 비용 $0.166 (9 attempts, 1회 retry — `output_tokens=1024` 잘림 → max_tokens 1024→2048 갱신 §5.2.1). false-positive 정정 후 회귀 가드 48 검증 통과. 결과: [`tests/golden/bullbear/`](../tests/golden/bullbear/), 실행 스크립트 [`scripts/run_bullbear_golden.py`](../scripts/run_bullbear_golden.py). 인간 검토 결과는 §10 sector-specific 항목 참조
 7. **Lambda 2개 + 핸들러** — `src/lambdas/agent_bullbear_bull/handler.py`, `agent_bullbear_bear/handler.py`
 8. **Step Functions ASL 확장** — 기존 `screening_workflow.asl.json`에 `BullBearMap` (Map + Parallel) 추가. 5종목으로 dry run
 9. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M2 회고. §10 평가 항목 데이터 수집 시작
@@ -377,31 +394,39 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 - [ ] `key_risks_to_thesis`의 출력이 실제로 단일 호출 편향 보완 효과가 있는지 — M2 골든 케이스 3건으로 1차 평가, 첫 주간 실행으로 2차 평가
 - [ ] v2 Debate 패턴 실험 시점 — 본 단계 단일 호출 패턴이 4주 안정 운영 후 도입 (M3 후반 후보)
 - [ ] 의견 출력의 한국어 vs 영어 — 일관성 차원에서 영어가 무난하지만 산출물(블로그) 관점에서 한국어 이점 존재 → 골든 케이스 3건에서 양쪽 비교 후 결정
-- [ ] **Sector-specific 팩터 보강 효과 측정** ([`docs/01-screening.md` §10](01-screening.md#10-미해결--다음-결정-필요)에서 본 단계로 위임된 항목): 금융 sector(은행·보험·REIT)는 EV/EBITDA·FCF Yield가 본질적으로 부적절하여 z-score가 왜곡됨. 01-screening §10의 결론은 "Bull/Bear가 컨텍스트로 보강한다"였음. **검증 방법**: 골든 케이스에 금융 sector 1종목(예: JPM 또는 Citigroup) 포함 → Bull/Bear가 P/B·ROE·NIM 같은 sector-적합 지표로 자체 논거를 만들어내는지 확인. 못 만들면 시스템 프롬프트에 "금융 sector는 P/B·ROE·NIM을 우선 검토" 한 줄 추가 또는 sector별 프롬프트 분기 도입 검토
+- [x] ~~**Sector-specific 팩터 보강 효과 측정**~~ ✅ **2026-04-30 골든 케이스 (JPM) 검증 완료**. ([`docs/01-screening.md` §10](01-screening.md#10-미해결--다음-결정-필요)에서 본 단계로 위임된 항목 — 금융 sector EV/EBITDA·FCF Yield 의 구조적 왜곡). 결과: JPM 골든 입력에 `EV/EBITDA=32.00` (피어 28~35의 구조적 왜곡), `FCF Yield=-20.00%` (모든 피어 음수) 명시했음에도 **Bull/Bear 모두 두 멀티플을 evidence 에 0회 인용**. P/E (13.0x vs 피어 10.0~14.5x), 분기별 매출/EPS 추세, 5Y CAGR (revenue +6%, EPS +10%) 로만 reasoning. 시스템 프롬프트의 `Sector context: standard multiples ... structurally distorted` 섹션이 효과적으로 작동. **결론**: 추가 sector 별 프롬프트 분기 또는 sector 가중치 조정 *불필요*. 단일 시스템 프롬프트로 충분. 골든 스냅샷 [`tests/golden/bullbear/JPM_{bull,bear}.json`](../tests/golden/bullbear/) 참조.
 - [ ] **종목 풀 turnover의 호출량 영향**: 01-screening §10 "선정 종목 안정성" 평가가 4주 운영 후 진행됨. turnover 높으면 Bull/Bear는 매주 신규 종목에 대해 1회차 의견을 내야 함 → 캐시 적중률 0% 가정. turnover 측정 결과에 따라 (a) 의견 캐싱(2주 TTL) 도입 또는 (b) 스크리닝에 hysteresis 도입 중 선택. 본 단계는 turnover 데이터를 받아 결정만 반영
 - [ ] `data_quality_flags`를 프롬프트에 미노출하기로 결정(§2.1.2)했으나, 결측이 너무 많은 종목은 *호출 자체를 스킵*해야 할 수도 있음 — 첫 주간 실행에서 결측 분포 본 후 임계값 결정
+- [x] ~~**max_tokens 1024 의 적절성**~~ ✅ **2026-04-30 골든 1차 실행 후 2048 로 상향**. AAPL_bear 가 정확히 1024 hit 하며 잘림 → §5.2.1 참조. 출력 평균 ~900, 최대 1024 (잘림) → 1024 too tight. 비용 영향 없음 (실제 사용량 청구).
+- [x] ~~**추천 어휘 자동 가드 정규식**~~ ✅ **2026-04-30 정밀화 완료**. 1차 실행에서 NVDA_bull 의 `key_risks_to_thesis` "NVDA's ability to **sell** advanced AI chips" 가 false-positive (LLM 추천이 아니라 회사의 비즈니스 동사). `\b(buy|sell|hold)\b` 단독 매치를 제거하고 추천 *컨텍스트* 명시 표현(target price, outperform, recommend buy, rate as sell, rating: hold 등) 만 매치하도록 좁힘. 골든 회귀 가드는 [`tests/test_bullbear_golden.py`](../src/tests/test_bullbear_golden.py) `RECOMMENDATION_WORDS`.
 
 ---
 
-## 부록 A. 디렉토리 변경 제안
+## 부록 A. 디렉토리 구조 (M2 #1~#6 구현 완료)
 
-CLAUDE.md "디렉토리 구조 (목표)"에 이미 명시된 `src/agents/`를 다음과 같이 시작:
+CLAUDE.md "디렉토리 구조 (목표)"의 `src/agents/` 하위 — 이미 구현된 항목은 ✅ 표기.
 
 ```
-src/agents/
-├── __init__.py
+src/agents/                              ✅ namespace package (CLAUDE.md 컨벤션 — __init__.py 없음)
 ├── bull_bear/
-│   ├── __init__.py
-│   ├── agent.py              # Anthropic 호출 + 검증 + 로깅
-│   ├── context_builder.py    # ScreenedStock + 캐시 → StockContext (평탄)
-│   ├── mappers.py            # screened_to_context() 1:1 평탄화
-│   └── schemas.py            # StockContext, BullBearOpinion 등
+│   ├── schemas.py                       ✅ StockContext, BullBearOpinion 등 (§2.1, §2.2)
+│   ├── mappers.py                       ✅ screened_to_context() 1:1 평탄화 (부록 B)
+│   ├── context_builder.py               ✅ OHLCV/펀더멘털 → PriceSummary/Fundamentals (§2.1.1)
+│   ├── agent.py                         ✅ 사다리 + 검증 + 로깅 + context_input_hash (§3, §4, §5, §6)
+│   └── anthropic_adapter.py             ✅ AnthropicSDKCaller — Lambda/스크립트가 사용 (§9 #6/#7)
 └── prompts/
-    ├── bull_system.md
-    ├── bear_system.md
-    └── bullbear_user.md
+    ├── bull_system.md                   ✅ §3.2
+    ├── bear_system.md                   ✅ §3.2
+    └── bullbear_user.md                 ✅ §3.3 (placeholder 4개)
 
-src/lambdas/
+scripts/
+└── run_bullbear_golden.py               ✅ 골든 케이스 실행 — 4종목 fixture (§9 #6)
+
+tests/
+├── golden/bullbear/                     ✅ {symbol}_{stance}.json 8개 (2026-04-30 첫 실행)
+└── (src/tests/test_bullbear_*.py)       ✅ 단위 + 회귀 가드
+
+src/lambdas/                              ⏳ 다음 단계 (§9 #7)
 ├── agent_bullbear_bull/
 │   └── handler.py
 └── agent_bullbear_bear/

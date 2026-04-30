@@ -217,3 +217,122 @@ def test_propagates_unexpected_exceptions():
             fmp_call=fmp_call,
             now=NOW,
         )
+
+
+# ---------- 분기 statement wrapper 와이어링 ----------
+#
+# fetch_income_quarterly_with_cache / fetch_cashflow_quarterly_with_cache 는
+# load_or_fetch_pure 의 wrapping — 핵심 로직은 위 테스트들이 covered. 본 섹션은
+# wiring (어떤 fmp 메서드 호출하는지, 빈 list → None 승격, 결과 list 반환) 만
+# 검증. moto/s3 통합 테스트는 #7-C 에서.
+
+
+class _FakeFMPClient:
+    """get_income_statement_quarterly / get_cash_flow_statement_quarterly 만
+    대응하는 가짜 클라이언트. 호출 인자 검증용."""
+
+    def __init__(
+        self,
+        income_payload: list[dict[str, Any]] | None = None,
+        cashflow_payload: list[dict[str, Any]] | None = None,
+    ):
+        self.income_payload = income_payload or []
+        self.cashflow_payload = cashflow_payload or []
+        self.income_calls: list[tuple[str, int]] = []
+        self.cashflow_calls: list[tuple[str, int]] = []
+
+    def get_income_statement_quarterly(self, symbol: str, *, limit: int = 40):
+        self.income_calls.append((symbol, limit))
+        return self.income_payload
+
+    def get_cash_flow_statement_quarterly(self, symbol: str, *, limit: int = 40):
+        self.cashflow_calls.append((symbol, limit))
+        return self.cashflow_payload
+
+
+def test_fetch_income_quarterly_wires_through_load_or_fetch_pure(monkeypatch):
+    """캐시 미스(read=None) + FMP 응답 → list 반환 + write 호출."""
+    from common import fundamentals as f
+
+    income = [{"date": "2026-03-31", "revenue": 95_000_000_000.0, "epsdiluted": 1.55}]
+    fake = _FakeFMPClient(income_payload=income)
+
+    written: dict[str, Any] = {}
+
+    def fake_read(_bucket, _key):
+        return None
+
+    def fake_write(_bucket, key, payload, indent=None):
+        written["key"] = key
+        written["payload"] = payload
+
+    monkeypatch.setattr(f, "read_json", fake_read)
+    monkeypatch.setattr(f, "write_json", fake_write)
+
+    result = f.fetch_income_quarterly_with_cache(
+        fake,  # type: ignore[arg-type]
+        "test-bucket",
+        "AAPL",
+        limit=24,
+    )
+
+    assert result == income
+    assert fake.income_calls == [("AAPL", 24)]
+    assert "income-statement-quarterly" in written["key"]
+    assert "AAPL" in written["key"]
+    assert written["payload"]["data"] == income
+
+
+def test_fetch_cashflow_quarterly_wires_through_load_or_fetch_pure(monkeypatch):
+    from common import fundamentals as f
+
+    cashflow = [{"date": "2026-03-31", "freeCashFlow": 25_000_000_000.0}]
+    fake = _FakeFMPClient(cashflow_payload=cashflow)
+
+    monkeypatch.setattr(f, "read_json", lambda *a, **k: None)
+    written_keys: list[str] = []
+    monkeypatch.setattr(
+        f, "write_json", lambda _b, key, _p, indent=None: written_keys.append(key)
+    )
+
+    result = f.fetch_cashflow_quarterly_with_cache(
+        fake,  # type: ignore[arg-type]
+        "test-bucket",
+        "AAPL",
+        limit=24,
+    )
+
+    assert result == cashflow
+    assert fake.cashflow_calls == [("AAPL", 24)]
+    assert "cash-flow-statement-quarterly" in written_keys[0]
+
+
+def test_fetch_quarterly_returns_empty_list_when_fmp_empty_and_no_cache(monkeypatch):
+    """FMP 가 빈 list 반환 + 캐시 없음 → 빈 list (None 아님)."""
+    from common import fundamentals as f
+
+    fake = _FakeFMPClient(income_payload=[])
+
+    monkeypatch.setattr(f, "read_json", lambda *a, **k: None)
+    monkeypatch.setattr(f, "write_json", lambda *a, **k: None)
+
+    result = f.fetch_income_quarterly_with_cache(fake, "b", "AAPL")  # type: ignore[arg-type]
+    assert result == []
+    # 빈 응답이라 cache write 도 안 일어남 (load_or_fetch_pure 정책)
+
+
+def test_fetch_quarterly_returns_cached_list_on_fresh_hit(monkeypatch):
+    from common import fundamentals as f
+
+    cached = {
+        "cached_at": (NOW - timedelta(days=10)).isoformat(),
+        "data": [{"date": "2026-03-31", "revenue": 100.0}],
+    }
+    fake = _FakeFMPClient()  # FMP 호출되면 빈 list — 캐시 hit 이어야
+
+    monkeypatch.setattr(f, "read_json", lambda *a, **k: cached)
+    monkeypatch.setattr(f, "write_json", lambda *a, **k: None)
+
+    result = f.fetch_income_quarterly_with_cache(fake, "b", "AAPL")  # type: ignore[arg-type]
+    assert result == cached["data"]
+    assert fake.income_calls == []  # FMP 호출 X (캐시 hit)

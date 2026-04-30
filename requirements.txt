@@ -3,3 +3,8 @@ pyarrow>=15.0,<20.0
 requests>=2.31,<3.0
 beautifulsoup4>=4.12,<5.0
 lxml>=5.0,<6.0
+# Anthropic SDK — Bull/Bear 에이전트 실제 호출용 (M2 #6/#7).
+# 단위 테스트는 FakeAnthropicClient 로 모킹하므로 SDK 미설치 환경에서도
+# pytest 통과. anthropic_adapter.py / scripts/run_bullbear_golden.py /
+# Lambda 핸들러(M2 #7) 만 SDK 직접 사용.
+anthropic>=0.40,<2.0

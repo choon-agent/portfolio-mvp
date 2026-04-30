@@ -2,10 +2,10 @@ name: Deploy Lambdas
 
 # 전략:
 #   1. detect 잡이 변경된 파일을 보고 배포 대상 Lambda 목록을 계산
-#      - src/lambdas/<name>/** 만 바뀜        → 해당 Lambda 만
-#      - src/common/** 또는 src/screening/**  → 의존하는 모든 Lambda 재배포
-#      - 배포 스크립트 자체/이 워크플로 변경   → 모든 Lambda 재배포
-#      - 초기 푸시(before SHA 없음)           → 모든 Lambda
+#      - src/lambdas/<name>/** 만 바뀜                     → 해당 Lambda 만
+#      - src/common/** / src/screening/** / src/agents/**  → 모든 Lambda 재배포
+#      - 배포 스크립트 자체/이 워크플로 변경                → 모든 Lambda 재배포
+#      - 초기 푸시(before SHA 없음)                        → 모든 Lambda
 #   2. deploy 잡이 matrix 로 병렬 배포
 #
 # 필요한 GitHub secrets / variables:
@@ -22,6 +22,7 @@ on:
       - 'src/lambdas/**'
       - 'src/common/**'
       - 'src/screening/**'
+      - 'src/agents/**'
       - 'requirements.txt'
       - 'scripts/deploy_lambda.sh'
       - '.github/workflows/deploy-lambdas.yml'
@@ -81,7 +82,7 @@ jobs:
             echo "변경된 파일:"
             echo "$changed" | sed 's/^/  /'
 
-            if echo "$changed" | grep -Eq '^(src/common/|src/screening/|requirements\.txt$|scripts/deploy_lambda\.sh$|\.github/workflows/deploy-lambdas\.yml$)'; then
+            if echo "$changed" | grep -Eq '^(src/common/|src/screening/|src/agents/|requirements\.txt$|scripts/deploy_lambda\.sh$|\.github/workflows/deploy-lambdas\.yml$)'; then
               echo "공용 코드/의존성/배포 스크립트 변경 → 모든 Lambda 재배포"
               targets=$(all_lambdas)
             else

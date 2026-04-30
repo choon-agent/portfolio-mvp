@@ -51,10 +51,17 @@ mkdir -p "$BUILD_DIR/lambdas"
 cp -R "$LAMBDA_SRC" "$BUILD_DIR/lambdas/"
 [ -d "$SRC_DIR/common" ]    && cp -R "$SRC_DIR/common"    "$BUILD_DIR/common"
 [ -d "$SRC_DIR/screening" ] && cp -R "$SRC_DIR/screening" "$BUILD_DIR/screening"
+# agents/ 는 Bull/Bear Lambda (M2 #7) 전용. 다른 Lambda 는 import 안 하지만 zip
+# 에 포함되어도 무해 — agents/prompts/*.md 는 agent.py 가 런타임 로드.
+[ -d "$SRC_DIR/agents" ]    && cp -R "$SRC_DIR/agents"    "$BUILD_DIR/agents"
 
 # Python 3.12 에서는 namespace package 가 동작하지만, 명시적 __init__.py 로 안전하게
 touch "$BUILD_DIR/lambdas/__init__.py"
 touch "$BUILD_DIR/lambdas/$LAMBDA_DIR/__init__.py"
+if [ -d "$BUILD_DIR/agents" ]; then
+  touch "$BUILD_DIR/agents/__init__.py"
+  [ -d "$BUILD_DIR/agents/bull_bear" ] && touch "$BUILD_DIR/agents/bull_bear/__init__.py"
+fi
 
 # 번들에 포함되면 안 되는 것들 제거
 find "$BUILD_DIR" -type d \( -name __pycache__ -o -name tests -o -name .pytest_cache \) -prune -exec rm -rf {} + 2>/dev/null || true

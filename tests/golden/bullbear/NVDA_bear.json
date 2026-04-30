@@ -1,0 +1,52 @@
+{
+  "opinion": {
+    "symbol": "NVDA",
+    "stance": "bear",
+    "as_of_date": "2026-04-27",
+    "summary": "NVDA trades at a steep premium to all semiconductor peers (P/E 65x vs. median ~30x) while its FCF yield of 1.5% is the lowest in the group, leaving little margin for any growth deceleration.",
+    "arguments": [
+      {
+        "claim": "NVDA's valuation is dramatically richer than every semiconductor peer on every metric, pricing in near-perfect execution with no room for error.",
+        "evidence": "P/E TTM of 65x versus peer median of ~30x (AMD 42x, AVGO 38x, QCOM 22x, INTC 28x); EV/EBITDA of 50x versus peer median of ~21x (AMD 30x, AVGO 25x, QCOM 15x, INTC 12x). NVDA trades at roughly 2x the peer median P/E and more than 2x the peer median EV/EBITDA.",
+        "confidence": "high"
+      },
+      {
+        "claim": "NVDA's FCF yield of 1.5% is the lowest among all listed peers, meaning investors are receiving the least cash-return compensation per dollar invested despite the highest valuation multiples.",
+        "evidence": "FCF Yield TTM of 1.5% versus QCOM 4.5%, AVGO 3.0%, INTC 2.5%, and AMD 2.0% — NVDA's yield is one-third of QCOM's and half of AVGO's, despite NVDA commanding the highest P/E and EV/EBITDA in the group.",
+        "confidence": "high"
+      },
+      {
+        "claim": "The stock's 120% gain from its 52-week low and 85% 1-year return embed an extremely optimistic growth trajectory; any sequential revenue growth deceleration from the current pace would likely trigger a sharp de-rating given the 65x P/E.",
+        "evidence": "Sequential quarterly revenue growth has been: $28B → $30B (+7.1%) → $35B (+16.7%) → $38B (+8.6%), showing the growth rate already stepped down meaningfully in the most recent quarter. The stock sits only 5% below its 52-week high after a +120% move from the low, leaving little technical cushion if fundamentals disappoint.",
+        "confidence": "medium"
+      },
+      {
+        "claim": "With a beta of 1.45 versus SPY, NVDA amplifies broad market drawdowns by nearly 50%, meaning the elevated valuation multiple faces compounded risk from both multiple compression and market-level volatility.",
+        "evidence": "Beta (1Y vs SPY) of 1.45 combined with a P/E of 65x — if the market corrects and growth expectations moderate simultaneously, the high-beta, high-multiple combination creates outsized downside relative to lower-beta peers such as QCOM (implied lower beta, P/E 22x) or AVGO (P/E 38x).",
+        "confidence": "medium"
+      }
+    ],
+    "key_risks_to_thesis": [
+      "NVDA's 5Y revenue CAGR of +45% and FCF CAGR of +50% could continue to accelerate if AI infrastructure capex by hyperscalers (cloud providers) expands faster than consensus expects, causing the current 65x P/E to prove justified or even cheap on a forward basis.",
+      "If NVDA's data-center GPU monopoly position allows it to sustain gross margins well above peers, the absolute FCF per share could grow fast enough to compress the FCF yield toward peer levels within 1–2 years, neutralizing the valuation-premium bear argument.",
+      "A major competitor (AMD, custom silicon from hyperscalers) failing to gain meaningful GPU market share would extend NVDA's pricing power and revenue growth runway, making the premium multiple durable rather than a risk."
+    ],
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 1597,
+    "output_tokens": 972,
+    "cost_usd": 0.019371
+  },
+  "attempts": [
+    {
+      "model": "claude-sonnet-4-6",
+      "stage": "primary",
+      "input_tokens": 1597,
+      "output_tokens": 972,
+      "cost_usd": 0.019371,
+      "succeeded": true,
+      "error": null
+    }
+  ],
+  "prompt_user": "# NVDA — NVIDIA Corporation\n- Sector: Technology / Semiconductors\n- As-of: 2026-04-27\n\n## Screening Signals\n(통과 사유 컨텍스트 — 매수/매도 근거가 아니라 자체 데이터로 새로 추론할 것)\n- Composite score: 2.100\n- Momentum z-score: +2.50\n- Value z-score: -1.50\n- P/E TTM: 65.00\n- EV/EBITDA TTM: 50.00\n- FCF Yield TTM: 1.50%\n\n## Peer Context (sub_sector → sector 폴백, 최대 5개)\n| Symbol | P/E TTM | EV/EBITDA | FCF Yield |\n|---|---|---|---|\n| AMD | 42.00 | 30.00 | 2.00% |\n| AVGO | 38.00 | 25.00 | 3.00% |\n| QCOM | 22.00 | 15.00 | 4.50% |\n| INTC | 28.00 | 12.00 | 2.50% |\n\n## Price Summary\n- 1Y return: +85.00%\n- 6M return: +30.00%\n- From 52w high: -5.00%\n- From 52w low: +120.00%\n- Beta (1Y vs SPY): 1.45\n\n## Fundamentals — Last 4 Quarters\n| Period end | Revenue | Diluted EPS | FCF |\n|---|---|---|---|\n| 2026-03-31 | $38.00B | 5.20 | $20.00B |\n| 2025-12-31 | $35.00B | 4.80 | $18.50B |\n| 2025-09-30 | $30.00B | 4.10 | $15.50B |\n| 2025-06-30 | $28.00B | 3.80 | $14.00B |\n\n5Y CAGR — Revenue +45.00%, EPS +60.00%, FCF +50.00%\n\n\n---\n\nTask: based strictly on the data above, write your **bear** opinion of **NVDA** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Each `arguments[i].evidence` must cite a specific figure or comparison from the data above.\n- `arguments` length 3–5. Use lower `confidence` rather than padding.\n- `key_risks_to_thesis` length 1–3 — concrete scenarios under which your **bear** thesis fails. Specific to this company.\n- Do not recommend Buy / Hold / Sell, price targets, or position sizes.\n- The Screening Signals section is context for *why this stock was selected*, not evidence by itself. Derive your reasoning from Price Summary, Fundamentals, and Peer Context.\n\nReturn only the JSON object matching the schema.\n",
+  "input_hash": "e663917e2704c572233408d3a5b918149da028476daeedcb49568465c875c591"
+}
