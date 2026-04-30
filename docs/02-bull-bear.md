@@ -3,8 +3,20 @@
 > **단계**: 2단계 — Bull/Bear 리서치 (LLM 핵심 사용 지점)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/01-screening.md`](01-screening.md) — 본 단계 입력원, M1에서 운영 중
-> **버전**: v0.5 (2026-04-30)
-> **상태**: §9 #1~#8 구현 완료, #9 첫 주간 배치 dry-run 통과. EventBridge 정기 트리거 활성화 대기 (M2 마일스톤)
+> **버전**: v0.6 (2026-04-30)
+> **상태**: §9 #1~#8 구현 완료, #9 첫 주간 배치 dry-run + 응답 품질 인간 검토 통과. EventBridge 정기 트리거 활성화 대기 (M2 마일스톤)
+>
+> **v0.6 변경 (2026-04-30 응답 품질 인간 검토 — 5 sub-sector sample)**:
+> ① §10 "응답 품질 인간 검토" ✅ 추가 — 운영 ScreeningResult 5종목 (IVZ/NTRS/SPG/NEE/MU)
+> bull/bear pair 검토. 5 hard rule 모두 통과, 자동 추천 어휘 grep 40건 0히트,
+> ② sector 보강 효과 *최종 검증* — 6 sub-sector (Diversified Bank/Custody Bank/
+> Investment Mgmt/REIT/Utility/Memory Semi) 모두에서 LLM 이 sector-specific 회계·
+> 비즈니스 특성을 정확히 활용 (예: REIT 의 FFO 부재 자각, Utility 의 capex 타이밍
+> 인지, Memory 의 cyclical commodity 분석). 추가 sector 별 프롬프트 분기 *불필요*
+> 결론을 운영 데이터로 강력 재검증,
+> ③ 운영 응답 품질이 골든 케이스와 일관됨 확인 — MU/NEE 의 cache miss (새 호출)
+> 응답이 골든 4종목과 동등 품질, Sonnet primary 1차 성공의 운영 안정성 입증,
+> ④ 결측 데이터 (EPS n/a) 일관 처리 — 호출 스킵 정책 불필요 (§10 미해결 항목 결론).
 >
 > **v0.5 변경 (2026-04-30 #8 ASL 확장 + 첫 20종목 dry-run 검증)**:
 > ① §9 #8 ✅ Step Functions ASL 확장 — `BullBearMap` (Map MaxConcurrency=1 + Parallel Bull/Bear) + 종목별 Catch 격리 (`RecordItemFailure` Pass state),
@@ -444,6 +456,44 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 - [x] ~~**추천 어휘 자동 가드 정규식**~~ ✅ **2026-04-30 정밀화 완료**. 1차 실행에서 NVDA_bull 의 `key_risks_to_thesis` "NVDA's ability to **sell** advanced AI chips" 가 false-positive (LLM 추천이 아니라 회사의 비즈니스 동사). `\b(buy|sell|hold)\b` 단독 매치를 제거하고 추천 *컨텍스트* 명시 표현(target price, outperform, recommend buy, rate as sell, rating: hold 등) 만 매치하도록 좁힘. 골든 회귀 가드는 [`tests/test_bullbear_golden.py`](../src/tests/test_bullbear_golden.py) `RECOMMENDATION_WORDS`.
 - [x] ~~**Anthropic rate limit 처방**~~ ✅ **2026-04-30 1차 dry-run 결과 후 적용**. 1차 (MaxConcurrency=5) 에서 VLO/NEE/DAL 등 5종목이 Sonnet primary+retry 모두 429 (`This request would exceed your organization's rate limit of 8,000 output tokens per minute`) → Haiku 폴백 → schema 위반 → `BullBearAgentError` → Map 전체 중단. **원인**: Anthropic 이 호출 시점에 `max_tokens=2048` 을 *예약* 해 한도 산정. 동시 = MaxConcurrency × 2 stance × 2048 = 5×2×2048 = **20,480 tokens 예약** > 8,000. **처방**: ASL `MaxConcurrency: 5 → 1` (§5.2.2 산정 공식). **검증 (2차 dry-run)**: 20종목 모두 1차 성공, retry 0회. 한도 상향 시 점진적 증가 가능.
 - [x] ~~**Haiku 폴백 schema 보강**~~ ✅ **2026-04-30 system prompt 강화 완료**. 1차 dry-run 에서 Haiku 4.5 가 폴백 호출됐을 때 응답 형식 위반: (a) `key_risks_to_thesis` 가 `list[dict]` (예: `{"risk": "...", "likelihood": "medium"}`) 로 반환 — schema 는 `list[str]`, (b) `summary` 200자 초과. **처방**: [`bull_system.md`](../src/agents/prompts/bull_system.md) / [`bear_system.md`](../src/agents/prompts/bear_system.md) 에 "Output schema (strict)" 섹션 추가 — 명시적 JSON 예시 + 4개 critical 룰 (특히 plain string list, 200자 한도). 2차 dry-run 에서는 Haiku 폴백이 아예 호출 안 됨 (rate limit 처방 효과). 실제 검증은 다음 Haiku 호출 시 (드물 것).
+- [x] ~~**응답 품질 인간 검토 (5 sub-sector sample)**~~ ✅ **2026-04-30 완료 — sector 보강 효과 운영 *재검증***. 첫 dry-run 의 selected 20종목 중 sector 다양성 위주로 5종목 (IVZ/NTRS/SPG/NEE/MU) bull/bear pair 검토 (총 10 의견).
+
+  **자동 가드** (test_bullbear_golden 의 RECOMMENDATION_WORDS 정규식): 40 운영 의견 전수 0히트. schema 검증 100% 통과 (Pydantic 호출 측에서 이미 강제됐지만 사후 가드 OK).
+
+  **인간 검토 5 hard rule 결과** (시스템 프롬프트 기준):
+  | # | Rule | 5종목 통과율 |
+  |---|---|---|
+  | 1 | Evidence-bound (입력 수치 인용) | 10/10 |
+  | 2 | No recommendations | 10/10 (자동 가드와 일치) |
+  | 3 | Self-critique (자기 입장 반증, specific) | 10/10 |
+  | 4 | Screening signals 메타 점수 재사용 안 함 | 10/10 |
+  | 5 | Sector 적합성 | 10/10 (아래 sub-sector 분석 참조) |
+
+  **Sector 보강 효과 — 6 sub-sector 최종 검증** (JPM 골든 + 5 운영):
+
+  | Sub-sector | LLM 의 sector context 인식 | 검증 sample |
+  |---|---|---|
+  | Diversified Bank | EV/EBITDA·FCF Yield 구조적 왜곡 회피 | JPM (골든) |
+  | Custody Bank | Banks 와 동일 회피 패턴 (commercial bank consistency) | NTRS (운영) |
+  | Investment Mgmt | 자산운용은 멀티플 정상 → 정상 활용 | IVZ (운영) |
+  | REIT | EV/EBITDA·P/E 활용 + **FFO 부재를 risk 로 자각** | SPG (운영) |
+  | Utility | capex 타이밍·seasonal FCF 음수 가능성 인지 | NEE (운영) |
+  | Memory Semi | 사이클 변동성 + HBM structural vs cyclical 구분 | MU (운영) |
+
+  → **결론**: 6 sub-sector 모두에서 LLM 이 sector-specific 회계·비즈니스 특성을 *과도한 일반화 없이* 정확히 활용. 시스템 프롬프트의 단일 `Sector context` 섹션이 도메인 지식과 결합해 충분. *추가 sector 별 프롬프트 분기 또는 schema 분리 불필요* — 본 항목 [§10 sector-specific] 결론이 *극도로 robust* 하게 재검증됨.
+
+  **인상적 케이스**:
+  - **SPG (REIT)**: Bear 의 risks 에 "P/E discount may reflect REIT accounting conventions (depreciation, FFO vs. GAAP EPS) rather than genuine fundamental weakness" 명시 — 입력에 없는 industry-standard 지표 (FFO) 를 *없다고 인지* 하고 self-critique 으로 노출. prompt 가 강제 안 한, LLM 도메인 지식 + self-critique 정책의 결합 효과
+  - **NEE (Utility)**: Bear risks 에 "utilities often have negative FCF in winter/spring due to capex timing and working capital" 명시 — Q1 -$580M FCF 가 sector seasonal 이라는 가능성을 *bear thesis 무너뜨리는 risk* 로 정직 노출
+  - **MU (Memory)**: $9.30B → $23.86B 매출 *3배* 성장에도 Bear 가 "$23.86B 한 분기 ≈ 이전 두 분기 합" 으로 피크 base 함정을 정확히 지적. Self-critique 으로 "HBM 이 structural step-change 인지 cyclical peak 인지 불확실" 명시 → 자기 입장도 자각
+  - **IVZ (Investment Mgmt)**: 같은 데이터로 Bull (4Q 가속 + FCF 5Y CAGR 8x revenue) vs Bear (5Y revenue CAGR 1.21% + Q1 FCF 64% 급락) — *시간 frame 차이로 정반대 결론*
+
+  **결측 데이터 일관 처리** (§10 별도 항목 참조): IVZ/NTRS/NEE 모두 EPS n/a. 5종목 모두 결측을 *추정 안 하고* evidence 또는 risk 로 명시적 노출 — *호출 자체 스킵* 정책은 *불필요* 결론.
+
+  **운영 응답 품질이 골든 케이스와 일관**: MU/NEE 는 cache miss (새 호출), Bull/Bear 둘 다 골든 4종목 (AAPL/XOM/NVDA/JPM) 과 동등 품질. Sonnet primary 1차 성공의 운영 안정성 입증.
+
+  **결론**: EventBridge 정기 트리거 활성화 (§9 #9 마무리) 준비 완료.
+
 - [x] ~~**결정성 정책 운영 검증**~~ ✅ **2026-04-30 APA 운영 invoke 로 확인**. 사용자 우려였던 "동일 질의 동일 답변" 의 **운영 레벨 보장** 검증. 운영 ScreeningResult `selected[0]` (APA, Energy/Oil & Gas E&P) 페이로드로 두 람다(`agent_bullbear_{bull,bear}`) 각 2회 invoke:
 
   | 회차 | bull `cache` | bull `cost_usd` | bear `cache` | bear `cost_usd` | bull/bear `input_hash` |
@@ -497,7 +547,7 @@ tests/
 ├── golden/bullbear/                     ✅ {symbol}_{stance}.json 8개 (2026-04-30 첫 실행)
 └── (src/tests/test_bullbear_*.py)       ✅ 단위 + 회귀 가드 (lambda_core 12, agent 29, prompts 11, ...)
 
-⏳ 다음: 응답 품질 인간 검토 → EventBridge 정기 트리거 활성화 (§9 #9 마무리)
+⏳ 다음: EventBridge 정기 트리거 활성화 (§9 #9 마무리). 응답 품질 인간 검토는 §10 [x] 완료 (5 sub-sector sample).
 ```
 
 ## 부록 B. 1단계와의 인터페이스 계약
