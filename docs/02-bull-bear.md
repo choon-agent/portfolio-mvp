@@ -456,6 +456,19 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 - [x] ~~**Sector-specific 팩터 보강 효과 측정**~~ ✅ **2026-04-30 골든 케이스 (JPM) 검증 완료**. ([`docs/01-screening.md` §10](01-screening.md#10-미해결--다음-결정-필요)에서 본 단계로 위임된 항목 — 금융 sector EV/EBITDA·FCF Yield 의 구조적 왜곡). 결과: JPM 골든 입력에 `EV/EBITDA=32.00` (피어 28~35의 구조적 왜곡), `FCF Yield=-20.00%` (모든 피어 음수) 명시했음에도 **Bull/Bear 모두 두 멀티플을 evidence 에 0회 인용**. P/E (13.0x vs 피어 10.0~14.5x), 분기별 매출/EPS 추세, 5Y CAGR (revenue +6%, EPS +10%) 로만 reasoning. 시스템 프롬프트의 `Sector context: standard multiples ... structurally distorted` 섹션이 효과적으로 작동. **결론**: 추가 sector 별 프롬프트 분기 또는 sector 가중치 조정 *불필요*. 단일 시스템 프롬프트로 충분. 골든 스냅샷 [`tests/golden/bullbear/JPM_{bull,bear}.json`](../tests/golden/bullbear/) 참조.
 - [ ] **종목 풀 turnover의 호출량 영향**: 01-screening §10 "선정 종목 안정성" 평가가 4주 운영 후 진행됨. turnover 높으면 Bull/Bear는 매주 신규 종목에 대해 1회차 의견을 내야 함 → 캐시 적중률 0% 가정. turnover 측정 결과에 따라 (a) 의견 캐싱(2주 TTL) 도입 또는 (b) 스크리닝에 hysteresis 도입 중 선택. 본 단계는 turnover 데이터를 받아 결정만 반영
 - [ ] `data_quality_flags`를 프롬프트에 미노출하기로 결정(§2.1.2)했으나, 결측이 너무 많은 종목은 *호출 자체를 스킵*해야 할 수도 있음 — 첫 주간 실행에서 결측 분포 본 후 임계값 결정
+- [ ] **DeepEval judge 의 cross-vendor 다양성** (§11.5 baseline 의 self-preference bias 검증) — 현재 평가 setup 은 Bull/Bear 본 호출과 judge 가 모두 Sonnet 4.6 (동일 family). Zheng et al. *"Judging LLM-as-a-Judge"* (NeurIPS 2023) 등 후속 연구에서 동일 family judge 가 자기 출력을 체계적으로 후하게 평가하는 **self-preference bias** 가 반복 확인됨. baseline (§11.5) 의 0.7~1.0 점수 분포에 이 bias 가 얼마나 반영됐는지 미측정.
+  - **검증 시점**: M3 진입 후 운영 데이터 4주 누적 시점 1회 cross-validation. GPT-4o (또는 Gemini) judge 로 동일 골든 8건 × 3 criteria 재평가 → §11.5 baseline 대비 점수 변동 분포 측정. 비용 ~$0.4 (일회성).
+  - **판단 기준**:
+    - ±0.05 이내 → bias 미미, Sonnet judge 단독 유지 (Pattern A 유지)
+    - ±0.15 이상 → criteria 문구 또는 시스템 프롬프트가 vendor 의존적이라는 신호 → 양쪽 judge 병행 검토 (Pattern B: 변경 시점 이중 검증) 또는 앙상블 (Pattern C: 매 평가 다중 judge)
+    - 특정 criterion 만 크게 벌어지면 → 해당 criteria 문구 재검토 (vendor 의존성 신호)
+  - **운영 비용**:
+    - Pattern A (분기 1회 cross-check): +~$1.5/년
+    - Pattern B (변경 시점 이중): 평소 비용 동일, 변경 시 +100%
+    - Pattern C (매회 앙상블 3 judge): +200% (Sonnet 단독 대비)
+  - **추가 복잡도**: API 키 1→2개 (CHARTER §2.2 비밀 관리 표면 ↑), 청구·rate limit 별도. DeepEval 은 OpenAI native 지원이라 코드 변경 작음 (~50 LOC, 한나절).
+  - **Bedrock 추론 전환과의 긴장**: Bedrock 은 GPT/Gemini 미호스팅. 추론을 Bedrock 으로 옮기면서 cross-vendor judge 도 도입하면 **"추론은 Bedrock, judge 는 OpenAI/Google 직접 호출"** 의 혼합 구조 — vendor 단순화 의도와 충돌. M3 에서 두 결정 통합 검토 필요.
+  - **현 단계 권장**: 본 단계에서는 결정 보류 (PoC 효과 vs 운영 비용 trade-off 가 4주 운영 데이터 없이는 평가 불가). M3 entry 와 동기.
 - [x] ~~**max_tokens 1024 의 적절성**~~ ✅ **2026-04-30 골든 1차 실행 후 2048 로 상향**. AAPL_bear 가 정확히 1024 hit 하며 잘림 → §5.2.1 참조. 출력 평균 ~900, 최대 1024 (잘림) → 1024 too tight. 비용 영향 없음 (실제 사용량 청구).
 - [x] ~~**추천 어휘 자동 가드 정규식**~~ ✅ **2026-04-30 정밀화 완료**. 1차 실행에서 NVDA_bull 의 `key_risks_to_thesis` "NVDA's ability to **sell** advanced AI chips" 가 false-positive (LLM 추천이 아니라 회사의 비즈니스 동사). `\b(buy|sell|hold)\b` 단독 매치를 제거하고 추천 *컨텍스트* 명시 표현(target price, outperform, recommend buy, rate as sell, rating: hold 등) 만 매치하도록 좁힘. 골든 회귀 가드는 [`tests/test_bullbear_golden.py`](../src/tests/test_bullbear_golden.py) `RECOMMENDATION_WORDS`.
 - [x] ~~**Anthropic rate limit 처방**~~ ✅ **2026-04-30 1차 dry-run 결과 후 적용**. 1차 (MaxConcurrency=5) 에서 VLO/NEE/DAL 등 5종목이 Sonnet primary+retry 모두 429 (`This request would exceed your organization's rate limit of 8,000 output tokens per minute`) → Haiku 폴백 → schema 위반 → `BullBearAgentError` → Map 전체 중단. **원인**: Anthropic 이 호출 시점에 `max_tokens=2048` 을 *예약* 해 한도 산정. 동시 = MaxConcurrency × 2 stance × 2048 = 5×2×2048 = **20,480 tokens 예약** > 8,000. **처방**: ASL `MaxConcurrency: 5 → 1` (§5.2.2 산정 공식). **검증 (2차 dry-run)**: 20종목 모두 1차 성공, retry 0회. 한도 상향 시 점진적 증가 가능.
@@ -585,6 +598,8 @@ baseline 리포트 전문 (judge reasoning 포함): [`tests/golden/bullbear/repo
 - `evidence_grounded` 0.9 케이스 4건의 공통 감점: *derived calculation* (예: AAPL_bear `"29% premium"`, NVDA_bear `"growth rates 7.1%, 16.7%, 8.6%"`) — fabrication 이 아니라 input 수치에서 도출된 계산값. 시스템 프롬프트 룰의 회색 영역.
 
 **임계값 정책**: M2 종료 직후 PoC 기준 보수적 유지. 4주 운영 데이터 누적 후 분포 보고 조정 — NVDA_bear/XOM 사례가 일관 반복되면 임계값 0.65 로 완화 또는 시스템 프롬프트 보강 (예: "key_risks_to_thesis 의 catalyst 는 input data 에서 도출 가능한 메커니즘으로 한정"). 단일 sample 8건은 통계적으로 적음.
+
+**Judge family 단일성의 한계**: 본 baseline 은 judge 도 Sonnet 4.6 (Bull/Bear 본 호출과 동일 family) — self-preference bias 위험이 미측정. M3 진입 시점 cross-vendor (GPT-4o/Gemini) judge 로 1회 재평가 후 baseline 신뢰도 확정. 상세 결정 프레임 (Pattern A/B/C, ±0.05/±0.15 임계, Bedrock 전환과의 긴장) 은 [§10 "DeepEval judge 의 cross-vendor 다양성"](#10-미해결--다음-결정-필요) 항목 참조.
 
 **fail 시 대응 흐름**:
 1. judge reasoning (리포트의 `reason` 필드) 검토 — 어느 argument/risk 가 어떤 룰을 어떻게 위반했는지.
