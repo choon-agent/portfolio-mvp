@@ -58,6 +58,7 @@
 | 저장 포맷 | Parquet (S3) |
 | 배포 | GitHub Actions + OIDC → Lambda direct upload |
 | 스키마 검증 | Pydantic |
+| 응답 품질 평가 | DeepEval G-Eval (judge = Sonnet 4.6, 3 criteria — Bull/Bear hard rule 회귀 가드) |
 
 ---
 
@@ -69,7 +70,7 @@ portfolio-mvp/
 ├── CLAUDE.md                        # 개발 규칙 (Claude Code 자동 로드)
 ├── README.md                        # 이 파일
 ├── requirements.txt                 # Lambda 번들용 (pydantic·pyarrow·requests·bs4·anthropic)
-├── requirements-dev.txt             # 로컬 개발용 (pytest, boto3)
+├── requirements-dev.txt             # 로컬 개발용 (pytest, boto3, deepeval)
 ├── docs/
 │   ├── 01-screening.md              # 1단계 스크리닝 설계 (M1 운영 중)
 │   └── 02-bull-bear.md              # 2단계 Bull/Bear 설계 (v0.7, M2 종료)
@@ -95,7 +96,10 @@ portfolio-mvp/
 │   │   │   ├── context_builder.py   # OHLCV/펀더멘털 → PriceSummary/Fundamentals + to_prompt_markdown 화이트리스트
 │   │   │   ├── agent.py             # 사다리 (Sonnet→retry→Haiku) + 검증 + context_input_hash
 │   │   │   ├── anthropic_adapter.py # AnthropicCaller Protocol 구현
-│   │   │   └── lambda_core.py       # Lambda 공유 코어 (캐시 hit/miss 분기 + S3 저장)
+│   │   │   ├── lambda_core.py       # Lambda 공유 코어 (캐시 hit/miss 분기 + S3 저장)
+│   │   │   └── evaluation/          # 응답 품질 평가 (DeepEval G-Eval — M2 종료 후 PoC)
+│   │   │       ├── criteria.py      # G-Eval criteria (hard rule 1·3·4 인코딩, lazy import)
+│   │   │       └── adapters.py      # AnthropicJudge + 골든 스냅샷 → LLMTestCase 변환
 │   │   └── prompts/
 │   │       ├── bull_system.md       # Bull 시스템 프롬프트 (strict schema 섹션 포함)
 │   │       ├── bear_system.md       # Bear 시스템 프롬프트 (미러 구조)
@@ -106,17 +110,19 @@ portfolio-mvp/
 │   │   ├── run_screening/handler.py          # 매주 월 스크리닝 (M1)
 │   │   ├── agent_bullbear_bull/handler.py    # thin wrapper, stance="bull" (M2 신규)
 │   │   └── agent_bullbear_bear/handler.py    # thin wrapper, stance="bear" (M2 신규)
-│   ├── tests/                       # pytest 332 케이스 (M2 종료)
-│   └── pytest.ini                   # marker 등록 (golden — 골든 회귀 가드)
+│   ├── tests/                       # pytest 332 케이스 (M2 종료) + DeepEval 24 케이스 (PoC)
+│   └── pytest.ini                   # marker 등록 (golden, deepeval)
 ├── scripts/
 │   ├── deploy_lambda.sh             # Lambda 패키징·배포 (agents/ 포함)
 │   ├── deploy_step_functions.sh     # ASL placeholder 3개 치환·배포
 │   ├── backfill_ohlcv.py            # OHLCV 초기 백필
 │   ├── dry_run_screening.py         # pipeline 로컬 검증
 │   ├── probe_fmp_fundamentals.py    # FMP 엔드포인트 가용성 점검
-│   └── run_bullbear_golden.py       # 골든 케이스 실행 (M2 신규 — 4종목 fixture)
+│   ├── run_bullbear_golden.py       # 골든 케이스 실행 (M2 신규 — 4종목 fixture)
+│   └── run_bullbear_deepeval.py     # DeepEval 단발 실행 + 리포트 저장 (PoC)
 ├── tests/
 │   └── golden/bullbear/             # 골든 스냅샷 (AAPL/XOM/NVDA/JPM × bull/bear, 8개)
+│       └── reports/                 # DeepEval 리포트 (deepeval_report.json — judge reasoning 포함)
 └── .github/
     └── workflows/
         ├── deploy-lambdas.yml       # CI/CD: src/agents/** path 트리거 추가
@@ -202,7 +208,8 @@ portfolio-mvp/
 - **골든 케이스 4종목** (AAPL/XOM/NVDA/JPM, sector 다양성 — 비용 $0.144) — 응답 품질 baseline
 - **운영 첫 dry-run** (2026-04-30, 20종목): 40 invoke, retry 0회, **총 비용 $0.083**, cache hit 87.5%
 - **응답 품질 인간 검토** (5 sub-sector sample): 5 hard rule 모두 통과, sector 보강 효과 6 sub-sector 최종 검증
-- **332 단위 테스트 + 48 골든 회귀 가드**
+- **응답 품질 자동 평가 baseline** (2026-05-24 PoC — [docs/02-bull-bear.md §11.5](docs/02-bull-bear.md)): DeepEval G-Eval, judge = Sonnet 4.6, 골든 8건 × 3 criteria (`evidence_grounded` / `risks_are_company_specific` / `signals_not_primary_evidence`) **24 판정 전수 통과** (비용 $0.37). hard rule #2 "No recommendations" 는 기존 정규식 가드가 결정적으로 차단해 평가 셋에서 제외. 리포트: [`tests/golden/bullbear/reports/deepeval_report.json`](tests/golden/bullbear/reports/deepeval_report.json)
+- **332 단위 테스트 + 48 골든 회귀 가드 + 24 DeepEval 평가**
 
 ### ✅ Bull/Bear 인프라 (M2)
 - **두 Lambda** (`agent_bullbear_bull`, `agent_bullbear_bear`) — 공유 `lambda_core.handle` + thin wrapper로 stance만 다르게 주입
@@ -239,7 +246,7 @@ portfolio-mvp/
 ### M2 운영 안정화 항목 (M2 종료 후 4주 데이터 누적 시점에 평가)
 - **종목 풀 turnover** — 너무 높으면 의견 캐싱 2주 TTL 또는 스크리닝 hysteresis 도입 ([docs/02-bull-bear.md §10](docs/02-bull-bear.md))
 - **사다리 retry/fallback 빈도** — 5% 이상이면 Anthropic 한도 상향 신청 또는 max_tokens 조정
-- **응답 품질 회귀 sample** — 매월 1-2 종목 sector-specific 검토
+- **응답 품질 회귀** — DeepEval G-Eval 자동 평가 ([scripts/run_bullbear_deepeval.py](scripts/run_bullbear_deepeval.py), baseline §11.5) 가 1차 가드. criterion fail 시 judge reasoning 검토 → 동일 패턴 2건 이상이면 시스템 프롬프트 보강. 분기별 인간 sector sample 검토 병행
 - 상세 모니터링 정책: [docs/02-bull-bear.md §11](docs/02-bull-bear.md)
 
 ---

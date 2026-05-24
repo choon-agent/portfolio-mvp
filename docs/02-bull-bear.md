@@ -520,7 +520,7 @@ M2 마일스톤 종료 후 자동 운영 진입 (다음 월요일 06:00 ET) — 
 | **월 LLM 비용** | AWS Cost Explorer (모델별 분리) + Anthropic Console usage | **$200 hard cap** — 초과 시 Lambda 자동 중단 (CHARTER §6 명시 정책). 사전 알람: $50/$100/$150/$180 단계 (§11.3 권장 후속) | CHARTER §2.2 |
 | **주간 실행 성공률** | Step Functions execution history (콘솔 또는 `aws stepfunctions list-executions`) | **3개월 연속 ≥90%** = 실전 전환 자격. 미달 시 페이퍼 유지 | CHARTER §4.1 |
 | **종목 turnover** | 매주 `s3://{bucket}/agents/bullbear/dt=*/` 의 selected 비교 (이전 주 대비 added/removed) | **4주 누적 후 평가** — turnover 너무 높으면 (a) 의견 캐싱 2주 TTL 또는 (b) 스크리닝 hysteresis 도입 | docs §10, 01-screening.md §10 |
-| **응답 품질 회귀** | 매월 1회 sector-specific sample 검토 (1~2 종목 신규/변경 sub_sector 우선) | 추천 어휘 출현 / schema 위반 / sector 부적합 reasoning 발견 시 system prompt 강화 | docs §10 [x] 응답 품질 항목 |
+| **응답 품질 회귀** | **DeepEval G-Eval 자동 평가** (`scripts/run_bullbear_deepeval.py`, judge = Sonnet 4.6, 기본 3 criteria — §11.5) + 분기별 인간 sector sample 검토 (1~2 종목 신규/변경 sub_sector 우선) | criterion fail (= §11.5 baseline threshold 미만) → judge reasoning 검토 후 system prompt 강화. 추천 어휘 / schema 위반은 기존 정규식 가드·Pydantic 이 결정적으로 차단 | docs §10 [x] 응답 품질 항목, **§11.5** |
 | **사다리 retry / fallback 빈도** | CloudWatch Logs Insights 쿼리: `fields @timestamp, stage, error \| filter stage in ['primary_retry', 'fallback']` | **5% 이상이면** rate limit 한도 상향 신청 또는 `max_tokens` 조정 (§5.2.2 산정 공식) | docs §5.2.2 |
 | **결정성 정책** | 같은 dt 내 재실행 시 cache hit 비율 | 동일 input_hash 재호출 시 100% cache hit 유지 (LLM 호출 0회) | docs §10 [x] 결정성 항목 |
 | **CHARTER §6 리스크 — 할루시네이션** | 매매 결정이 LLM 출력에 *직접* 의존하는지 점검 | 매매는 룰 기반, LLM 은 근거 생성만 — 본 단계 출력은 시나리오 모델링(M3)/리밸런서(M4) 의 *입력 컨텍스트* 로만 사용. 위반 발견 시 다운스트림 단계 재설계 | CHARTER §6 |
@@ -554,7 +554,47 @@ M2 마일스톤 종료 후 자동 운영 진입 (다음 월요일 06:00 ET) — 
 | Schema 강제 | Pydantic `BullBearOpinion` + system prompt strict schema | LLM 응답 형식 위반 차단 |
 | 추천 어휘 자동 가드 | `tests/test_bullbear_golden.py` `RECOMMENDATION_WORDS` 정규식 | Buy/Sell/Target 등 추천 표현 차단 |
 | Sector 보강 | system prompt `Sector context` 섹션 + LLM 도메인 지식 | 6 sub-sector 검증 완료 (§10) |
+| **응답 품질 자동 평가** | DeepEval G-Eval 3 criteria (evidence_grounded / risks_are_company_specific / signals_not_primary_evidence), judge = Sonnet 4.6 | criterion threshold 미만 발견 시 §11.5 baseline 비교 후 대응 |
 | 비용 hard cap | (수동 대응) Anthropic Console / AWS Lambda 환경변수 disable | 월 $200 초과 (CHARTER §6) |
+
+### 11.5 응답 품질 자동 평가 — DeepEval G-Eval baseline (2026-05-24 PoC)
+
+LLM-as-judge 기반 hard rule 회귀 검증. 시스템 프롬프트의 hard rule 1·3·4 (Evidence-bound / Self-critique / Signals not as primary evidence) 를 G-Eval criteria 로 인코딩, Sonnet 4.6 judge 가 채점.
+
+**기본 셋에서 제외한 항목**:
+- hard rule #2 "No recommendations" → 기존 정규식 가드 [`RECOMMENDATION_WORDS`](../src/tests/test_bullbear_golden.py) 가 결정적으로 차단. PoC 골든 8건 전수 1.0/1.0 만점 — judge 호출이 새 시그널 0건 추가. 필요 시 [`build_no_recommendation_language`](../src/agents/bull_bear/evaluation/criteria.py) 를 명시 import 해 일회성 평가 가능 (예: regex 가드 회피 가능한 새 추천 표현 패턴 의심 시).
+- hard rule #5 "JSON only" → Pydantic `BullBearOpinion` 검증이 모듈 경계 ([`agent._parse_opinion`](../src/agents/bull_bear/agent.py)) 에서 강제. judge 호출 추가는 비용만 증가.
+
+**도구·비용**: DeepEval `>=2.0`, judge = `claude-sonnet-4-6`, 골든 8건 × 3 criteria ≈ **$0.37/회**. M3+ 운영 환산 (20종목 × 2 stance × 3 criteria × 주간) ≈ $11/월 — CHARTER §2.2 $200/월 상한 대비 5.5%.
+
+**Baseline (2026-05-24, 골든 8건 × 3 criteria = 24 judge calls, 전수 통과)**:
+
+| Criterion | Threshold | 8건 점수 분포 | 최저 | Margin |
+|---|---|---|---|---|
+| `evidence_grounded` | 0.8 | 0.9 × 4, 1.0 × 4 | 0.9 | +0.1 |
+| `risks_are_company_specific` | 0.7 | 0.7 × 3, 0.8 × 2, 0.9 × 2, 1.0 × 1 | **0.7** | **0** |
+| `signals_not_primary_evidence` | 0.8 | 0.8 × 1, 0.9 × 4, 1.0 × 3 | 0.8 | 0 |
+
+baseline 리포트 전문 (judge reasoning 포함): [`tests/golden/bullbear/reports/deepeval_report.json`](../tests/golden/bullbear/reports/deepeval_report.json). 리포트는 골든 디렉토리 *하위* `reports/` 에 저장 — top-level 에 두면 [`test_bullbear_golden`](../src/tests/test_bullbear_golden.py) 의 `glob("*.json")` 이 리포트를 snapshot 으로 잘못 픽업.
+
+**관찰**:
+- `risks_are_company_specific` 가 가장 약한 차원 — 3건 (NVDA_bear, XOM_bear, XOM_bull) 이 임계값 정확히 동률. 공통 패턴 두 가지:
+  - (a) 외부 정보 도입: `iPhone 17` (AAPL_bear), `Pioneer acquisition` (XOM 양쪽) — input 에 명시되지 않은 catalyst 를 risk 시나리오에 사용.
+  - (b) Generic macro risk: `OPEC+ disruption`, `dollar strength`, `hyperscaler AI capex` 등 회사 메커니즘으로 연결 안 됨.
+- `signals_not_primary_evidence` XOM_bear 0.8 동률 — argument 4 의 momentum framing 이 borderline 평가. 시스템 프롬프트의 의도된 동작 (JPM 골든 EV/EBITDA·FCF Yield 0회 인용, docs §10) 이 운영에서도 유지되는지 모니터링 차원.
+- `evidence_grounded` 0.9 케이스 4건의 공통 감점: *derived calculation* (예: AAPL_bear `"29% premium"`, NVDA_bear `"growth rates 7.1%, 16.7%, 8.6%"`) — fabrication 이 아니라 input 수치에서 도출된 계산값. 시스템 프롬프트 룰의 회색 영역.
+
+**임계값 정책**: M2 종료 직후 PoC 기준 보수적 유지. 4주 운영 데이터 누적 후 분포 보고 조정 — NVDA_bear/XOM 사례가 일관 반복되면 임계값 0.65 로 완화 또는 시스템 프롬프트 보강 (예: "key_risks_to_thesis 의 catalyst 는 input data 에서 도출 가능한 메커니즘으로 한정"). 단일 sample 8건은 통계적으로 적음.
+
+**fail 시 대응 흐름**:
+1. judge reasoning (리포트의 `reason` 필드) 검토 — 어느 argument/risk 가 어떤 룰을 어떻게 위반했는지.
+2. 동일 패턴이 2건 이상이면 시스템 프롬프트 보강 후보로 §10 미해결 항목에 등록.
+3. 단발 fail 이면 LLM 응답 변동 가능성 — 다음 주 운영 결과로 재확인.
+
+**실행**:
+- 로컬 PoC: `PYTHONPATH=src ANTHROPIC_API_KEY=... .venv/bin/python scripts/run_bullbear_deepeval.py`
+- pytest 게이트: `pytest -m deepeval` (개발자가 프롬프트 수정 후 회귀 확인)
+- M3+ Lambda 자동화: [`src/agents/bull_bear/evaluation/`](../src/agents/bull_bear/evaluation/) 패키지를 그대로 import. lazy import 정책 (deepeval/anthropic 모두 함수 본문 import) 으로 cold start 무영향. ASL 확장 시 `BullBearMap` 후속에 `EvaluationMap` 추가 (MaxConcurrency=1, §5.2.2 rate limit 산정 동일 적용).
 
 ---
 

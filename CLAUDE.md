@@ -17,8 +17,9 @@ LLM 에이전트 오케스트레이션을 활용한 주식 포트폴리오 관�
 - **데이터 소스**: Financial Modeling Prep (FMP) API
 - **LLM**: Anthropic Claude API (Sonnet 4.6 기본, Haiku 4.5 폴백)
 - **IaC**: Plain ASL JSON + AWS CLI 스크립트 (M1 — `infra/step_functions/`, `scripts/deploy_step_functions.sh`). SAM/CDK 재검토는 M2 이후 워크플로우 복잡도 증가 시점.
-- **테스트**: pytest (단위 테스트, 154 케이스 통과). 통합 테스트(moto/AWS 모킹)는 M2 이후 도입 예정.
-- **의존성 관리**: `requirements.txt` (Lambda 번들) + `requirements-dev.txt` (로컬 — pytest, boto3) 분리
+- **테스트**: pytest (단위 테스트). 통합 테스트(moto/AWS 모킹)는 M2 이후 도입 예정.
+- **LLM 응답 품질 평가**: DeepEval G-Eval (judge = Sonnet 4.6, 기본 3 criteria — `docs/02-bull-bear.md §11.5` baseline). PoC 단계는 로컬 pytest, M3+ Lambda 자동화 예정.
+- **의존성 관리**: `requirements.txt` (Lambda 번들) + `requirements-dev.txt` (로컬 — pytest, boto3, deepeval) 분리
 
 ## 디렉토리 구조 (목표)
 
@@ -64,6 +65,7 @@ portfolio-mvp/
 - 모든 LLM 호출은 다음을 로깅: `timestamp, model, input_tokens, output_tokens, cost_usd, purpose`
 - 에이전트 출력은 Pydantic 모델로 검증 (JSON mode 활용)
 - **비용 상한**: 월 $200 (Charter §2.2). 단일 에이전트 호출이 $1 초과 예상 시 중단하고 설계 재검토.
+- **응답 품질 회귀 게이트**: Bull/Bear 프롬프트 (`src/agents/prompts/{bull,bear}_system.md`) 또는 평가 criteria (`src/agents/bull_bear/evaluation/criteria.py`) 수정 시 DeepEval 회귀 실행 후 커밋 — `pytest -m deepeval` 또는 `scripts/run_bullbear_deepeval.py` (judge 호출 비용 발생). baseline 은 `docs/02-bull-bear.md §11.5`.
 
 ## 커밋 컨벤션
 
@@ -87,6 +89,9 @@ portfolio-mvp/
 - LLM 호출 함수는 **목 테스트**(Mock API response) 작성
 - AWS 리소스 호출은 `moto`로 모킹
 - 통합 테스트는 `tests/integration/`에 분리 (CI에서 별도 실행)
+- 마커 분리:
+  - `golden` — 실제 LLM 호출 없이 저장된 스냅샷 JSON 검증 (CI 기본 제외)
+  - `deepeval` — judge LLM 호출 발생하는 응답 품질 평가 (CI 기본 제외, `ANTHROPIC_API_KEY` 필요)
 
 ## Claude Code 작업 규칙
 

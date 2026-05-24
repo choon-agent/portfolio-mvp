@@ -25,3 +25,6 @@ build/
 
 # OS
 .DS_Store
+
+# DeepEval 로컬 산출물 (judge response cache + telemetry — 재생성 가능)
+.deepeval/
