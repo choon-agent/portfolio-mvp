@@ -3,8 +3,13 @@
 > **단계**: 2단계 — Bull/Bear 리서치 (LLM 핵심 사용 지점)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/01-screening.md`](01-screening.md) — 본 단계 입력원, M1에서 운영 중
-> **버전**: v0.7 (2026-04-30)
-> **상태**: **M2 마일스톤 §9 #1~#9 모두 완료**. 다음 월요일 06:00 ET (CHARTER §2.4) 부터 EventBridge 자동 트리거로 운영 진입. 운영 모니터링 정책은 §11.
+> **버전**: v0.8 (2026-05-25)
+> **상태**: **M2 운영 4주 누적 완료** (Week 1~4, 2026-05-04 ~ 2026-05-25). 160 invoke 모두 1차 성공, 비용 $2.76 (월), turnover 평가 결과 hysteresis 불필요. M3 진입 준비.
+>
+> **v0.8 변경 (4주 운영 누적 평가 — 2026-05-25)**:
+> ① §9 #9 운영 결과 추가 — Week 1~4 메트릭 (160 invoke 100% 성공, retry/fallback 0건, 누적 비용 $2.76 = hard cap 1.4%),
+> ② §10 "종목 풀 turnover" ✅ 완료 — 4주 누적 turnover **20%** (Week 1 vs Week 4 비교). **research turnover vs portfolio turnover 구분** 명시 — 본 단계가 측정한 20%는 *Bull/Bear 검토 후보* 변경률이지 실제 매매가 아님. *hysteresis / 의견 캐싱 모두 불필요*. portfolio turnover 정책은 M3 5단계 리밸런서 (`docs/05-rebalancing.md`) 에서 별도 다룸,
+> ③ 4주 코어 종목 13/20 (65%) 일관 — APA/MU/NEM/CRL/ADM/TPR/WBD/GM/VTRS/NTRS/SPG/HII/BDX. yo-yo 4종목 (NEE/EIX/SYF/IVZ) 식별.
 >
 > **v0.7 변경 (M2 종료 + 운영 모니터링 정책)**:
 > ① §9 #9 ✅ *완전* 완료 표기 — EventBridge 정기 트리거 연동 사용자 작업으로 완료, 다음 월요일부터 자동 운영,
@@ -438,11 +443,23 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 6. **golden 케이스 4개** ✅ **완료 (2026-04-30)** — AAPL/XOM/NVDA + JPM (금융 sector 추가) 실제 호출, 비용 $0.166 (9 attempts, 1회 retry — `output_tokens=1024` 잘림 → max_tokens 1024→2048 갱신 §5.2.1). false-positive 정정 후 회귀 가드 48 검증 통과. 결과: [`tests/golden/bullbear/`](../tests/golden/bullbear/), 실행 스크립트 [`scripts/run_bullbear_golden.py`](../scripts/run_bullbear_golden.py). 인간 검토 결과는 §10 sector-specific 항목 참조
 7. **Lambda 핸들러 + S3 캐싱** ✅ **완료 (2026-04-30)** — 분할 진행: (#7-A) FMP 분기 statement 메서드 + cache-aside (`fetch_income/cashflow_quarterly_with_cache`), (#7-B) [`agents/bull_bear/lambda_core.py`](../src/agents/bull_bear/lambda_core.py) (입력 파싱 → OHLCV/statements 로드 → `build_context` → `context_input_hash` → 캐시 hit/miss 분기 → S3 저장) + thin wrapper [`agent_bullbear_bull/handler.py`](../src/lambdas/agent_bullbear_bull/handler.py), [`agent_bullbear_bear/handler.py`](../src/lambdas/agent_bullbear_bear/handler.py), (#7-C) 12개 단위 테스트 (cache miss/hit/stale, env/event 검증, wrapper 라우팅). 운영 invoke 검증: APA bull+bear 1차 cache=miss $0.039 → 2차 cache=hit $0 (§10 결정성 정책 운영 검증 항목 참조). 배포 인프라 갱신: `agents/` 패키징 + GitHub Actions path 트리거.
 8. **Step Functions ASL 확장** ✅ **완료 (2026-04-30)** — 기존 [`screening_workflow.asl.json`](../infra/step_functions/screening_workflow.asl.json) 에 `BullBearMap` 추가 (`MaxConcurrency: 1` — §5.2.2 rate limit 산정 공식 근거), `ItemSelector` 로 ScreenedStock + lineage 4필드 매핑, `ItemProcessor` 안에 `BullBearParallel` (Bull/Bear 동시 호출). 한 종목 실패 격리를 위해 `BullBearParallel.Catch[States.ALL]` → `RecordItemFailure` Pass state 추가. `deploy_step_functions.sh` 가 placeholder 3개(`<<RUN_SCREENING_LAMBDA>>`, `<<BULL_LAMBDA>>`, `<<BEAR_LAMBDA>>`) 치환. 1차 dry-run 후 rate limit + Haiku schema 위반 발견 → 2차에서 정정 검증 (#9 참조).
-9. **20종목 주간 배치 첫 실행 + EventBridge 자동 트리거** ✅ **완전 완료 (2026-04-30)**. M2 종료.
-   - **첫 dry-run** (2026-04-30): 40 invoke (Bull+Bear × 20), cache hit 35 (87.5%) / cache miss 5 (VLO/DAL/NEE), 사다리 retry 0회, Haiku 폴백 0회, 총 비용 $0.083, 처리 시간 ~100초, Catch 격리 발동 0건
-   - **응답 품질 인간 검토** (§10 [x] 항목): 5 sub-sector sample (IVZ/NTRS/SPG/NEE/MU) 통과, sector 보강 효과 6 sub-sector 최종 검증
-   - **EventBridge 정기 트리거 연동**: Step Functions state machine `portfolio-mvp-screening` 에 사용자 작업으로 매주 월 06:00 ET cron 연결됨 — **다음 월요일부터 자동 운영**
-   - 흥미 신호: NEE 가 bull miss / bear hit 비대칭 — 캐시 키가 stance 별 분리된 덕분에 한쪽만 재호출 (의도대로)
+9. **20종목 주간 배치 첫 실행 + EventBridge 자동 트리거 + 4주 누적 운영** ✅ **완료 (2026-04-30 ~ 2026-05-25)**.
+   - **첫 dry-run** (2026-04-30): 40 invoke (Bull+Bear × 20), cache hit 35 (87.5%), 총 비용 $0.083, retry 0회
+   - **응답 품질 인간 검토** (§10 [x] 항목): 5 sub-sector sample, sector 보강 효과 6 sub-sector 최종 검증
+   - **EventBridge 정기 트리거 연동**: 매주 월 06:00 ET cron
+   - **4주 누적 운영 실측 (Week 1~4, 2026-05-04 ~ 2026-05-25)**:
+
+     | 항목 | Week 1 | Week 2 | Week 3 | Week 4 | **4주 합계/평균** |
+     |---|---|---|---|---|---|
+     | 실행 성공률 | 100% | 100% | 100% | 100% | **160/160 = 100%** |
+     | retry/fallback | 0회 | 0회 | 0회 | 0회 | **0/160** |
+     | Catch 격리 | 0건 | 0건 | 0건 | 0건 | **0건** |
+     | 주간 비용 | $0.676 | $0.692 | $0.691 | $0.696 | **$2.756 (월)** |
+     | 주간 turnover | 5% | 20% | 20% | 10% | 평균 13.75%/주 |
+
+     - **4주 누적 비용 $2.76 — CHARTER §2.2 hard cap $200 의 1.38%**
+     - 코어 13종목 (65%) 4주 일관 — APA/MU/NEM/CRL/ADM/TPR/WBD/GM/VTRS/NTRS/SPG/HII/BDX
+     - yo-yo 4종목 식별: NEE / EIX / SYF / IVZ (§10 turnover 항목 [x] 분석)
    - 운영 진입 후 모니터링은 **§11 운영 모니터링 정책** 참조
 
 ---
@@ -454,7 +471,28 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 - [ ] v2 Debate 패턴 실험 시점 — 본 단계 단일 호출 패턴이 4주 안정 운영 후 도입 (M3 후반 후보)
 - [ ] 의견 출력의 한국어 vs 영어 — 일관성 차원에서 영어가 무난하지만 산출물(블로그) 관점에서 한국어 이점 존재 → 골든 케이스 3건에서 양쪽 비교 후 결정
 - [x] ~~**Sector-specific 팩터 보강 효과 측정**~~ ✅ **2026-04-30 골든 케이스 (JPM) 검증 완료**. ([`docs/01-screening.md` §10](01-screening.md#10-미해결--다음-결정-필요)에서 본 단계로 위임된 항목 — 금융 sector EV/EBITDA·FCF Yield 의 구조적 왜곡). 결과: JPM 골든 입력에 `EV/EBITDA=32.00` (피어 28~35의 구조적 왜곡), `FCF Yield=-20.00%` (모든 피어 음수) 명시했음에도 **Bull/Bear 모두 두 멀티플을 evidence 에 0회 인용**. P/E (13.0x vs 피어 10.0~14.5x), 분기별 매출/EPS 추세, 5Y CAGR (revenue +6%, EPS +10%) 로만 reasoning. 시스템 프롬프트의 `Sector context: standard multiples ... structurally distorted` 섹션이 효과적으로 작동. **결론**: 추가 sector 별 프롬프트 분기 또는 sector 가중치 조정 *불필요*. 단일 시스템 프롬프트로 충분. 골든 스냅샷 [`tests/golden/bullbear/JPM_{bull,bear}.json`](../tests/golden/bullbear/) 참조.
-- [ ] **종목 풀 turnover의 호출량 영향**: 01-screening §10 "선정 종목 안정성" 평가가 4주 운영 후 진행됨. turnover 높으면 Bull/Bear는 매주 신규 종목에 대해 1회차 의견을 내야 함 → 캐시 적중률 0% 가정. turnover 측정 결과에 따라 (a) 의견 캐싱(2주 TTL) 도입 또는 (b) 스크리닝에 hysteresis 도입 중 선택. 본 단계는 turnover 데이터를 받아 결정만 반영
+- [x] ~~**종목 풀 turnover의 호출량 영향**~~ ✅ **2026-05-25 4주 누적 평가 완료** ([§9 #9](#9-구현-순서-m2-마일스톤) 표 참조).
+
+  **두 가지 turnover 구분 — 결정적 명료화**:
+
+  | 구분 | 정의 | 측정값 |
+  |---|---|---|
+  | **Research turnover** (본 단계 측정 대상) | Bull/Bear 가 *의견 만드는 종목* 의 주간 변경률 = ScreeningResult.selected 변경률 | **주간 평균 13.75%, 4주 누적 20%** |
+  | **Portfolio turnover** (M3 5단계 책임) | 실제 *보유 종목* 의 매수·매도 빈도 | 아직 측정 불가 (5단계 리밸런서 미구현) |
+
+  → 본 단계가 측정한 20% 는 *검토 후보* 변경률이지 실제 매매가 아님. CHARTER §3.3 (LLM 사용 지점) 의 흐름상 selected → 시나리오 모델링 → 최적화(섹터 ≤35% 등 제약) → 리밸런서가 실제 매매 종목을 결정. **portfolio turnover 정책은 M3 [`docs/05-rebalancing.md`](05-rebalancing.md) 가 담당** (예: 매도 hysteresis = 보유 종목이 상위 25위까지면 유지 / 신규 매수 임계 / 분기별 turnover 한도 / 거래비용 제약).
+
+  **4주 운영 데이터로 본 research turnover 패턴**:
+  - 코어 13/20 (65%) — APA, MU, NEM, CRL, ADM, TPR, WBD, GM, VTRS, NTRS, SPG, HII, BDX (4주 내내 selected)
+  - yo-yo 4종목 — NEE (✗✓✗✗), EIX (✗✓✓), SYF (✓✓✗✓), IVZ (✗✗✗✓) — 경계선 composite_score 종목
+  - 4주 누적 turnover Week 1 ↔ Week 4 = **20%** (4종목 교체: DAL/CF/HST/VLO 편출, HAL/ZBH/EXPE/WTW 자리잡음)
+  - 주간 평균 13.75% vs 누적 20% → 매주 변동의 대부분이 yo-yo (같은 종목 진입/이탈 반복), *진짜 신규 자리잡음*은 적음
+
+  **두 후보 처방 모두 불필요 — 결정**:
+  - (a) **의견 캐싱 2주 TTL**: 비용 절감 효과 (~$0.5/월) 미미. 현재 월 $2.76 = hard cap 의 1.38%로 비용 여유 큼. 데이터 신선도 손실의 단점이 더 큼 → **도입 안 함**
+  - (b) **스크리닝 hysteresis** (research 층): yo-yo 차단 가능하지만 *Bull/Bear 비용 영향 미미*. 더 적절한 위치는 portfolio 층의 매도 hysteresis (M3) → **본 단계 불필요**
+
+  **운영 함의**: research turnover 13.75%/주 = 연 ~700% 환산이지만 *portfolio turnover와 무관*. 일반 액티브 펀드 portfolio turnover 목표 50~100%/년 (~주 1~2%) 은 M3 리밸런서가 별도 정책으로 달성.
 - [ ] `data_quality_flags`를 프롬프트에 미노출하기로 결정(§2.1.2)했으나, 결측이 너무 많은 종목은 *호출 자체를 스킵*해야 할 수도 있음 — 첫 주간 실행에서 결측 분포 본 후 임계값 결정
 - [ ] **DeepEval judge 의 cross-vendor 다양성** (§11.5 baseline 의 self-preference bias 검증) — 현재 평가 setup 은 Bull/Bear 본 호출과 judge 가 모두 Sonnet 4.6 (동일 family). Zheng et al. *"Judging LLM-as-a-Judge"* (NeurIPS 2023) 등 후속 연구에서 동일 family judge 가 자기 출력을 체계적으로 후하게 평가하는 **self-preference bias** 가 반복 확인됨. baseline (§11.5) 의 0.7~1.0 점수 분포에 이 bias 가 얼마나 반영됐는지 미측정.
   - **검증 시점**: M3 진입 후 운영 데이터 4주 누적 시점 1회 cross-validation. GPT-4o (또는 Gemini) judge 로 동일 골든 8건 × 3 criteria 재평가 → §11.5 baseline 대비 점수 변동 분포 측정. 비용 ~$0.4 (일회성).
@@ -543,7 +581,7 @@ M2 마일스톤 종료 후 자동 운영 진입 (다음 월요일 06:00 ET) — 
 | 시점 | 이벤트 | 본 단계 입력 |
 |---|---|---|
 | **매주 월 ~07:30 ET** | Step Functions execution 종료 직후 결과 검토 | 비용·실행 성공·실패 종목 |
-| **4주 누적** | turnover 평가 및 hysteresis 의사결정 | docs §10 turnover 항목 |
+| **4주 누적** ✅ 2026-05-25 완료 | turnover 평가 → research 20%, hysteresis 불필요 결론. portfolio turnover 는 M3 5단계로 위임 | docs §10 turnover 항목 [x] |
 | **CHARTER M2 말** (M2 → M3 전환) | 페이퍼 트레이딩 안정성 + 비용 + tracking error 종합 | CHARTER §7 체크포인트 |
 | **CHARTER M3 말** | 실전 전환 vs 페이퍼 유지 결정 | CHARTER §4.1 4개 기준 |
 
