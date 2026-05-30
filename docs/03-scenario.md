@@ -4,8 +4,18 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.6 (2026-05-28)
+> **버전**: v0.8 (2026-05-28)
 > **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+>
+> **v0.8 변경 (§6.1 ASL — 실파일 교차검증 교정 3건)**:
+> ① **G1 체이닝 교정** — 현재 커밋된 ASL 의 `BullBearMap` 은 `End:true` + `ResultPath` 없음 → Map 출력이 `$.result` 를 덮어써 ScenarioMap 의 `ItemsPath:$.result.selected` 불가. `Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` 보존 필수. §6.1 에 교정 ASL 박제.
+> ② **G2 Catch·Retry 위치** — ScenarioMap 은 Parallel 없는 단일 Task → Catch[States.ALL]→RecordItemFailure 를 *Task 직착*, M2 와 동일한 Lambda throttle Retry 블록 (4종 에러) 적용. §9 교정.
+> ③ **G3 MaxConcurrency 1→2** — single-stance 라 `2×2048=4,096 < 8,000` = M2 BullBearMap(=1, 2 stance) 과 동일 부하, M2 4주 안정 운영으로 검증된 수준. 시나리오 단계 wall-clock 2x 단축.
+>
+> **v0.7 변경 (§5 비용 — M2 실측 교차검증 주석)**:
+> ① §5.1 — 입력 토큰 추정이 *golden(#8) 전 미검증* 임을 명시. M2 실측 (추정 ~3,250 → 실제 1,551, 2x 과대) 근거로 시나리오 실측은 ~2,400~2,700 예상 — 추정이 보수적(상향)이라 예산 안전.
+> ② §5.2 — 재시도 +20% 가 *보수 ceiling* 임을 M2 실측 (160 invoke retry/fallback 0건) 으로 박제. S3 result cache 는 *재실행 폭주 방어용* (주간 정규 호출은 80 calls 풀 카운트) 명확화. v2 헤드룸 정량화 (Self-Consistency 5샘플 = $7.25/월 = cap 3.6%).
+> ③ 결론: §5 추정 모두 보수적, 과소추정·누락 위험 없음 — 주석만 추가, 수치 변경 없음.
 >
 > **v0.6 변경 (§4.2 ScenarioPricingConfig 충분성 검토 — 3건)**:
 > ① **잉여 제거** — `historical_window_days` 삭제. §4.1 산식이 `ctx.return_52w_*` (사전 계산값) 만 쓰고 이 파라미터를 읽는 함수가 없는 *phantom knob* 이었음. 9→8 필드. multi-window 실제 구현 시 재추가 (§12 park).
@@ -663,6 +673,10 @@ class ExpectedReturnsBundle(BaseModel):
 Sonnet 4.6 단가 (2026-04 기준): 입력 $3/1M, 출력 $15/1M
 - 호출당 비용: 3,350 × $3/1M + 500 × $15/1M ≈ **$0.018**
 
+> **⚠ 추정 미검증 (golden #8 전) — M2 실측 교차검증** (v0.7):
+> M2 Bull/Bear 는 입력을 **2x 과대추정** (추정 ~3,250 → 실측 1,551, [02 §5.2.1](02-bull-bear.md#521-max_tokens-상한)). 시나리오 `ScenarioContext ~2,500` 도 동일 추정 스타일 → 구조 분석상 실측 **~2,400~2,700** 예상 (2 opinion whitelist 직렬화 ~1,200~1,600 + price ~200 + system ~700 + 지시 ~150).
+> per-call $0.018 이 M2 실측 ($0.0181) 과 일치하나 *구성 반대* (시나리오: 입력↑출력↓ / M2: 입력↓출력↑). **추정이 보수적(상향)이라 예산엔 안전** — golden(#8) 에서 실측 확정.
+
 ### 5.2 월 비용 추정
 
 | 시나리오 | 종목/주 | 호출/주 | 호출/월 | 월 비용 |
@@ -674,7 +688,16 @@ Sonnet 4.6 단가 (2026-04 기준): 입력 $3/1M, 출력 $15/1M
 **합계 (2단계 Bull/Bear + 3단계 시나리오)**:
 - Bull/Bear $2.76 + 시나리오 $1.45 = **월 ~$4.20** (hard cap $200 의 2.1%)
 
-CHARTER §3.3 "월 $30~$80" 추정 대비 매우 여유. v2 Debate / Self-Consistency 실험 여력 충분.
+> **재시도 +20% 는 보수 ceiling** (v0.7) — M2 운영 4주 160 invoke 중 **retry/fallback 0건** ([02 §9](02-bull-bear.md)). golden 1회 retry 도 max_tokens 1024 잘림이 원인 → 2048 상향 후 0. 시나리오는 2048 + 출력 ~500 이라 잘림 위험 없음. 검증이 더 엄격(3 label·prob합·enum)하나 Sonnet 4.6 JSON 신뢰성 입증됨 → **실제 재시도 ~0% 예상**.
+>
+> **S3 result cache 의 비용 의미** (v0.7) — cache (§6.2 lambda_core hit/miss) 는 *재실행(디버깅·Lambda retry·Step Functions 재실행) 폭주 방어* 용이지 steady-state 절감 아님. 주간 정규 배치는 매주 새 데이터라 cache-miss 가 정상 → 위 표의 **80 calls 풀 카운트가 정확**. (M2 dry-run 의 87.5% cache hit 은 같은 종목 재호출 테스트 효과)
+
+CHARTER §3.3 "월 $30~$80" 추정 대비 매우 여유.
+
+> **v2 헤드룸 정량화** (v0.7) — "여력 충분" 의 구체 수치:
+> - **Self-Consistency** (5 샘플 majority vote): 시나리오 5× = ~$7.25/월 → 2단계 포함 ~$10/월 = **cap $200 의 ~5%**
+> - **Debate** (bull↔bear 2 라운드 반박): 시나리오 2~3× = ~$3~4.4/월
+> - 둘 다 동시 실험해도 hard cap 의 10% 미만 — 학습(CHARTER 1순위) 여력 충분
 
 ### 5.3 max_tokens
 
@@ -694,12 +717,12 @@ EventBridge (Mon 06:00 ET)
         ▼
 [Step Functions]
   ├─ RunScreening                            ← M1
-  ├─ BullBearMap (MaxConcurrency=1)          ← M2
+  ├─ BullBearMap (MaxConcurrency=1)          ← M2  *Next:ScenarioMap + ResultPath 교정 (G1)*
   │     for each ScreenedStock:
   │       Parallel: Bull / Bear → S3
-  ├─ ScenarioMap (MaxConcurrency=1)          ← M3 추가
+  ├─ ScenarioMap (MaxConcurrency=2)          ← M3 추가
   │     for each ScreenedStock:
-  │       ScenarioAgent Lambda
+  │       ScenarioAgent Lambda  [Task: Catch→RecordItemFailure + Lambda throttle Retry]
   │         → fetch BullBearOpinion × 2 from S3
   │         → fetch price context (OHLCV, key-metrics-ttm, peer_pe)
   │         → LLM call → ScenarioOpinion
@@ -708,9 +731,62 @@ EventBridge (Mon 06:00 ET)
   └─ (다음 state: 4단계 최적화 — M3 후반)
 ```
 
-**MaxConcurrency=1** — Anthropic 8K tok/min 한도 산정 (02-bull-bear §5.2.2 공식):
-- ScenarioMap 동시 = 1 종목 × max_tokens 2048 = **2,048 tok 예약** ≤ 8,000 ✓
-- BullBearMap 종료 후 ScenarioMap 시작이라 동시 호출 없음 — 사실상 한도 여유 더 큼
+**MaxConcurrency=2** (G3) — Anthropic 8K tok/min 한도 산정 (02-bull-bear §5.2.2 공식). 시나리오는 **single-stance** (Bull/Bear 와 달리 stance 분리 없음):
+- ScenarioMap 동시 = 2 종목 × max_tokens 2048 = **4,096 tok 예약** ≤ 8,000 ✓
+- 이는 M2 `BullBearMap`(=1 × 2 stance × 2048 = 4,096) 과 **동일 부하** — M2 4주 안정 운영으로 검증된 수준. retry burst 여유 3,904 tok
+- 공식상 floor(8000/2048)=3 까지 가능하나 retry burst 여유(=3 시 1,856)·M2 429 교훈으로 =2 채택. 한도 상향 시 `floor(N / 2048)`
+
+**G1 — BullBearMap 체이닝 교정 (필수)**:
+현재 커밋된 ASL ([screening_workflow.asl.json](../infra/step_functions/screening_workflow.asl.json)) 의 `BullBearMap` 은 M2 종착(`End:true`)이고 `ResultPath` 가 없어 **Map 출력(per-item 결과 배열)이 `$` 를 덮어씀** → `$.result.selected` 소멸. ScenarioMap 이 같은 종목을 순회하려면:
+```jsonc
+// BullBearMap 수정
+"End": true            →  "Next": "ScenarioMap",
+                          "ResultPath": "$.bullbear_results"   // $.result 보존
+```
+→ 이후 ScenarioMap 이 `"ItemsPath": "$.result.selected"` 로 동일 selected 순회 가능.
+
+**ScenarioMap state (교정 ASL — G2 Catch/Retry 는 Task 직착)**:
+```jsonc
+"ScenarioMap": {
+  "Type": "Map",
+  "ItemsPath": "$.result.selected",
+  "MaxConcurrency": 2,
+  "ItemSelector": {                          // agent_scenario 가 bull/bear S3 키 결정적 재구성 (G4)
+    "screened_stock.$": "$$.Map.Item.Value",
+    "as_of_date.$": "$.result.as_of_date",
+    "run_id.$": "$.result.run_id"
+  },
+  "ItemProcessor": {
+    "ProcessorConfig": { "Mode": "INLINE" },
+    "StartAt": "ScenarioAgent",
+    "States": {
+      "ScenarioAgent": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "Parameters": { "FunctionName": "<<SCENARIO_LAMBDA>>", "Payload.$": "$" },
+        "ResultSelector": { "result.$": "$.Payload" },
+        "Retry": [{                          // M2 와 동일 Lambda throttle retry (LLM 사다리와 별개)
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException",
+                          "Lambda.SdkClientException", "Lambda.TooManyRequestsException"],
+          "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2.0
+        }],
+        "Catch": [{                          // Parallel 없음 → Task 직착 (BullBear 와 다른 점)
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "RecordScenarioFailure"
+        }],
+        "End": true
+      },
+      "RecordScenarioFailure": {
+        "Type": "Pass",
+        "Parameters": { "status": "failed", "symbol.$": "$.screened_stock.symbol", "error.$": "$.error" },
+        "End": true
+      }
+    }
+  },
+  "End": true                                // 4단계 추가 시 Next 로 교체 (G5: 4단계는 S3 prefix 로드, state 스레딩 불필요)
+}
+```
 
 ### 6.2 구성 요소 매핑
 - **Step Functions**: 기존 워크플로우에 `ScenarioMap` state 1개 추가
@@ -722,7 +798,9 @@ EventBridge (Mon 06:00 ET)
 
 ### 6.3 IaC
 - 기존 `deploy_lambda.sh` 가 `src/agents/scenario/` 자동 포함 (deploy_lambda v2 의 `agents/` 패키징 그대로)
-- `screening_workflow.asl.json` 에 `ScenarioMap` state + placeholder `<<SCENARIO_LAMBDA>>` 추가
+- `screening_workflow.asl.json` 변경:
+  - **`BullBearMap` 수정 (G1)** — `End:true` → `Next:"ScenarioMap"` + `ResultPath:"$.bullbear_results"` (`$.result` 보존). *기존 state 수정* 이라 M2 회귀 주의 — ASL 변경 후 5종목 dry-run 재검증 (#10)
+  - **`ScenarioMap` state 추가** + placeholder `<<SCENARIO_LAMBDA>>`
 - `deploy_step_functions.sh` 에 placeholder 1개 (`SCENARIO_LAMBDA`) 추가
 
 ---
@@ -842,7 +920,7 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 | `current_price=0` 또는 음수 | 명백한 데이터 오류 — `ScenarioContextError`, 종목 스킵 |
 | Bull 또는 Bear `BullBearOpinion` 누락 (Bull/Bear 단계 실패) | 본 단계 스킵 + 로그. 4단계 최적화에 expected_return 없는 종목으로 전달 |
 
-ASL 의 `BullBearParallel.Catch` 와 동일 패턴으로 `ScenarioMap` 안 `Catch[States.ALL]` → `RecordItemFailure` 추가.
+**격리 패턴 (G2 — M2 와 위치 다름)**: M2 의 `Catch` 는 `BullBearParallel`(Parallel state)에 부착되나, ScenarioMap 은 Parallel 없는 단일 Task → `Catch[States.ALL]` 을 **`ScenarioAgent` Task 에 직접** 부착 → `RecordScenarioFailure`(Pass). 한 종목 실패가 Map 전체를 막지 않음. Task 의 **Lambda throttle Retry** (ServiceException 등 4종, M2 동일) 는 *LLM 사다리 retry(Sonnet→Haiku, Lambda 내부)* 와 별개로 둘 다 적용. 교정 ASL 은 §6.1 참조.
 
 ---
 
@@ -901,7 +979,7 @@ ASL 의 `BullBearParallel.Catch` 와 동일 패턴으로 `ScenarioMap` 안 `Catc
    - **P2-D 결정** (§2.4): `guidance_change` 자동화 방법 — (1) transcript 키워드 정규식 / (2) 추가 LLM 호출 요약 / (3) 인간 회고만. 시작은 `requires_human_review=True` fallback, M3 후반 자동화 검토
 8. **golden 케이스 4건** — AAPL/XOM/NVDA/JPM 실제 호출 + 스냅샷
 9. **Lambda 핸들러** — `src/lambdas/agent_scenario/handler.py` + `lambda_core.py` 공유 코어
-10. **Step Functions ASL 확장** — `ScenarioMap` state 추가 + `Catch` 격리. 5종목 dry-run
+10. **Step Functions ASL 확장** (§6.1 교정 ASL) — (a) `BullBearMap` 교정: `End`→`Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` (G1 — 안 하면 `$.result.selected` 소멸로 ScenarioMap 실패), (b) `ScenarioMap` state 추가 + Task 직착 `Catch`/Retry (G2). **M2 회귀 주의** (기존 BullBearMap 수정) → 5종목 dry-run 재검증
 11. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M3 회고
 12. **(M3 후반)** ExpectedReturnsBundle sensitivity 로깅 활성화
 13. **(M3 후반)** 트리거 자동 검증 — 분기 발표 후 자동 평가 batch
