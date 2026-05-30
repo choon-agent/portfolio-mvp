@@ -4,8 +4,34 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.1 (2026-05-25 초안)
+> **버전**: v0.6 (2026-05-28)
 > **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+>
+> **v0.6 변경 (§4.2 ScenarioPricingConfig 충분성 검토 — 3건)**:
+> ① **잉여 제거** — `historical_window_days` 삭제. §4.1 산식이 `ctx.return_52w_*` (사전 계산값) 만 쓰고 이 파라미터를 읽는 함수가 없는 *phantom knob* 이었음. 9→8 필드. multi-window 실제 구현 시 재추가 (§12 park).
+> ② **검증 하드닝 2건** — (a) `model_validator` 로 `peer_pe_bear ≤ base ≤ bull percentile` 강제 (config 레벨 가격 역전 사전 차단, §4.1 `_validate_price_order` 의 근본 원인). (b) `base_price_cap_pct` 에 `ge=-0.5, le=1.0` bound (무경계 latent bug 제거).
+> ③ **누락 검토 — 확률 floor 거부** — `min_scenario_probability` 는 옵션 C 의 "LLM 확률 신뢰" 철학과 충돌 + cap 이 이미 임시 가드라 불신 이중화. §12 에 calibration 결과 tail 과소평가 확인 시 도입 후보로 park. variance floor 는 4단계 책임으로 §부록 B 경계 메모.
+>
+> **v0.5 변경 (§2.4 검토 마무리 — P1-G 확정 + 잔여 위임)**:
+> ① **P1-G 확정** — `invalidation_trigger` 의 평가 윈도우를 *tripwire* (다음 분기 발표 1회 고정) 로 결정. schema 무변경 (`evaluation_window` 필드 미도입). §7.1 에 윈도우 의미 박제, §12 에 다중 윈도우 v2 후보 추가.
+> ② **잔여 4건 구현 티켓 위임** — schema 구조를 바꾸지 않는 항목 (P1-E unit validator → #1 schemas.py / P2-H label↔direction 의미 → #5 prompts / P2-D guidance_change 자동화 → #7 trigger_evaluator / P2-C peer_announcement 정책 → 운영 5주차 회고) 은 §11 구현 순서 해당 티켓에서 결정. §12 에 결정 시점 박제. *이유*: 모두 기존 필드 위에 얹는 validator·프롬프트·evaluator 로직 → 첫 운영(#11) 전에는 무손실 추가 가능.
+> ③ §2.4 Metric Enum 검토 종료 — P1-A(enum 확장, v0.4) + P1-E/P1-G(v0.5) + P2-C/D/H(위임) 처리 완료.
+>
+> **v0.4 변경 (§2.4 Metric Enum 확장 P1-A — 2건)**:
+> ① §2.2 `InvalidationTrigger.metric` Literal 8 → 10 확장 — `earnings_surprise` (vs 컨센서스, FMP `earnings-surprises` 신규) + `net_debt_yoy` (BS 캐시 재활용, 인프라 0 추가).
+> ② §2.4 자동 측정 비율 6/8 = 75% → 8/10 = 80% 향상. §3.2 시스템 프롬프트에 `net_debt_yoy` 의 Financials/Utilities sub_sector 사용 자제 명시. §12 미해결 항목에 *거부 후보 5개* (valuation_multiple / analyst_estimate_revision / dividend·buyback / sector_specific / macroeconomic) 거부 근거 박제. P1-E (metric↔unit validator) 와 P1-G (트리거 시간 축) 는 별도 박제 예정.
+>
+> **v0.3 변경 (§4 가격 산정 공식 정밀화 — 4건)**:
+> ① §4.1 `combine()` 의 *bear case 의미 분기* — `bear_conservatism='conservative'` 는 *작은 하락* (= `max(historical, peer)`) 을 의미. `is_bear=True` 플래그로 bull/bear 비대칭 처리. (이전 v0.2 산식은 bear 에서 `conservative=min` 으로 *큰 하락* 을 산출하는 의미 불일치).
+> ② §4.1 `_apply_probability_cap` 의 *잉여 확률 재분배* 동작 명시 — 나머지 시나리오의 *원래 비율* 로 비례 분배. `bear_probability_cap` 대칭 추가 (§4.2).
+> ③ §4.1 *bull/base/bear 가격 순서 검증* — `_validate_price_order` 가 위반 시 warning 로그 + `ExpectedReturn.data_quality_flags` 기록. 산식 자동 보정 없음 (lineage 보존 우선).
+> ④ §2.3 `ExpectedReturn` 에 `data_quality_flags: list[str]` 필드 신설 — 위 #3 + 향후 데이터 품질 신호 누적용. §10.1 단위 테스트 항목에 분기·재분배·순서 검증 추가.
+>
+> **v0.2 변경 (§1.4 옵션 비교 보강 — 기록 보존)**:
+> ① §1.4.1 신설 — 옵션 C 의 *잠재 약점 4건* 명시적 박제 (확률 calibration 사전 검증 불가 / `invalidation_trigger` 생성 불가 케이스 / 가격 산식 보수성 / 5단계 cross-validation 부재). 각 약점에 완화책·측정 시점 명기.
+> ② §1.4.2 신설 — *옵션 C 채택의 사전 성공 기준 3건*. 회고 시점 (M3 말, 12주 누적) 정량 측정: (1) 확률 calibration Brier score < 0.25, (2) 트리거 적중률 ≥ 60%, (3) portfolio outcome 옵션 B baseline 대비 동등 또는 우월. 측정 인프라는 `trigger_evaluator` + `ExpectedReturnsBundle.alternatives["option_b_baseline"]`.
+> ③ §4.4 ExpectedReturnsBundle 에 옵션 B baseline 슬롯 정의 추가 (§1.4.2 #3 인프라).
+> ④ §12 미해결 항목에 *옵션 C 성공 기준 측정* + *§1.4.1 약점별 완화책 활성화 시점* 추가.
 
 ---
 
@@ -58,6 +84,51 @@ Bull/Bear 의견을 입력으로 받아 *3 시나리오 (bull/base/bear) × 확�
 
 옵션 C의 결정적 강점: **LLM 추론 영역(시나리오·확률·narrative) ≠ 가격 산정 영역(결정적 산식)** 의 깔끔한 분리. CHARTER §3.3 LLM 사용 충족 + §6 할루시네이션 리스크 보수 + Self-Verification 패턴 학습.
 
+#### 1.4.1 옵션 C 의 잠재 약점 (명시적 박제)
+
+옵션 C 채택의 정직성을 위해 잠재 약점을 박제. 이는 §12 미해결 항목과 §1.4.2 성공 기준의 *측정 대상*.
+
+1. **확률 calibration 의 사전 검증 불가**
+   - LLM 이 "Bull 시나리오 60%" 라고 산출해도 *실제로 그 빈도로 발생하는지*는 회고 시점 (최소 8~12주 운영 데이터 누적) 에야 측정 가능
+   - 시작 시점에는 *unverified*. 시간이 지나야 §1.4.2 의 Brier score 등으로 정량 측정
+   - 완화책: §11 구현 순서에 트리거 자동 검증 (#13) 포함 — 분기 발표 후 적중률 누적
+
+2. **`invalidation_trigger` 생성 불가 케이스**
+   - Enum (§2.4) 은 *정량적·재무 metric* 위주 — M&A, 경영진 교체, 규제·소송, supply chain 차단 같은 *비정량 이벤트* 는 `peer_announcement` 외에 표현 불가
+   - 이런 종목 (예: 인수 루머 있는 종목) 의 시나리오는 *invalidation_trigger 의 description 에만 자유 텍스트로* 표현되어 자동 검증이 어려움
+   - 완화책: §12 미해결 항목 "peer_announcement 트리거 정책" — M3 5주차 운영 데이터로 enum 확장 결정
+
+3. **가격 산식의 보수성**
+   - §4.1 공식은 `peer P/E + historical 52w high/low` 만 사용 → *새로운 모멘텀·acceleration* (예: 갑작스러운 R&D 성과·신규 수주) 을 가격 범위에 직접 반영 못 함
+   - Bull 시나리오 narrative 에 그런 신호가 있어도 *가격은 peer 75th P/E × TTM EPS* 같은 정적 산식이 결정
+   - 완화책: `bull_aggressiveness=aggressive` config 또는 §12 의 v2 Monte Carlo (현재 단순 단일 시점 → distribution 전환)
+
+4. **5단계 (리밸런서) 와의 cross-validation 부재**
+   - 옵션 C 산출이 *4단계 최적화에 좋은가* 는 본 단계 단독으로 평가 어려움 — 5단계까지 가야 portfolio outcome 측정 가능
+   - 4주 운영으로는 부족. M3 말 (Phase 1 종료, 12주 누적) 회고에서 판단
+
+#### 1.4.2 성공 기준 (사전 정의)
+
+옵션 C 가 *잘 작동했다* 고 판단할 정량 기준을 회고 시점 (M3 말) 측정 대상으로 박제. 이 기준은 *Charter §4.1 실전 전환 기준* 의 본 단계 구체화.
+
+| # | 측정 항목 | 측정 방법 | 합격 임계 (잠정) |
+|---|---|---|---|
+| 1 | **확률 calibration (Brier score)** | M3 12주 동안의 시나리오 출력 vs 분기 발표 후 실제 발생 비율. `BS = Σ (probability - 1_{realized})²` | < 0.25 (uniform predictor `0.33` 보다 우수) |
+| 2 | **트리거 적중률** | invalidation_trigger 가 발생한 종목 (자동 측정 metric 만): 시나리오의 *경로* 가 실제와 일치했나 (예: bear 트리거 발동 → 가격 하락 동반) | ≥ 60% (단순 우연 50% 보다 유의) |
+| 3 | **Portfolio outcome (vs B baseline)** | 옵션 B (LLM 호출 없는 코드 점수화) 를 *parallel* 로 산출해 4단계 최적화에 넣은 가상 portfolio 와 옵션 C portfolio 의 12주 누적 수익률·tracking error 비교 | 옵션 C 가 *동등 또는 우월* (degradation 없음). 우월하면 옵션 C 유지, 동등이면 비용 트레이드오프 재평가 |
+
+**측정 인프라**:
+- #1, #2 — `trigger_evaluator.py` (§7) 가 분기 발표 후 자동 누적
+- #3 — `ExpectedReturnsBundle` (§4.4) 의 `alternatives` 슬롯에 *옵션 B baseline* 도 동시 산출. 추가 LLM 호출 없음, 추가 비용 0
+- 모두 §11 구현 순서의 #12 (sensitivity 로깅) 와 #13 (트리거 자동 평가) 활성화 시 자동 수집
+
+**판단 분기 — M3 말 회고 시**:
+- 3 기준 *모두 합격* → 옵션 C 유지 + 기본 config 미세 조정 (§12 미해결 항목)
+- 1~2 기준만 합격 → 옵션 C 유지 + 약점 보강 (§1.4.1 의 완화책 도입)
+- *모두 미달* → 옵션 A (가격 타깃) 또는 옵션 B (LLM 호출 제거) 로 전환 검토. v0.x 재설계.
+
+이 기준은 *Phase 1 종료 시 실전 전환 판단* (CHARTER §4.1) 의 본 단계 입력.
+
 ---
 
 ## 2. 입출력 스키마
@@ -108,6 +179,8 @@ class InvalidationTrigger(BaseModel):
     metric: Literal[
         "revenue_yoy", "revenue_qoq", "eps_yoy", "fcf_yoy",
         "gross_margin_yoy", "operating_margin_yoy",
+        "earnings_surprise",      # v0.4 — vs 컨센서스, T+0 측정
+        "net_debt_yoy",           # v0.4 — BS 기반 레버리지 변화
         "guidance_change", "peer_announcement",
     ]
     direction: Literal["less_than", "greater_than"]
@@ -171,10 +244,18 @@ class ExpectedReturn(BaseModel):
     # 사용된 파라미터 (sensitivity 분석 필수)
     pricing_config: ScenarioPricingConfig
 
+    # 데이터 품질 플래그 (v0.3 §4.1 결정 — 가격 순서 위반·peer_pe 결측 등)
+    data_quality_flags: list[str] = Field(default_factory=list)
+
     # Lineage
     scenario_opinion_s3_key: str
     computed_at: datetime
 ```
+
+**`data_quality_flags` 운영 가치**:
+- Athena 조회 가능 — *어떤 종목·주차에 어떤 품질 이슈* 가 누적되는지 회고
+- 4단계 최적화가 *이 플래그 기준 종목 제외/가중 감소* 정책 도입 가능 (M3 후반 검토)
+- §4.1 가격 순서 위반 + (향후) peer_pe insufficient / ttm_eps_missing 같은 신호 누적용
 
 ### 2.4 Metric Enum — 자동 측정 가능 여부
 
@@ -186,10 +267,18 @@ class ExpectedReturn(BaseModel):
 | `fcf_yoy` | `cash-flow-statement-quarterly` `freeCashFlow` | ✅ |
 | `gross_margin_yoy` | `grossProfit / revenue` 비교 | ✅ |
 | `operating_margin_yoy` | `operatingIncome / revenue` 비교 | ✅ |
+| `earnings_surprise` *(v0.4)* | FMP `earnings-surprises` — actualEarningResult vs estimatedEarning | ✅ T+0 (분기 발표 직후) |
+| `net_debt_yoy` *(v0.4)* | BS quarterly: `totalDebt - cashAndShortTermInvestments`, 전년 동기 대비 | ✅ — Financials/Utilities sub_sector 제외 권장 (§3.2) |
 | `guidance_change` | FMP earnings transcript / press release 텍스트 | ⚠ semi-auto (텍스트 분석 필요, M3 후반 또는 인간 검토) |
 | `peer_announcement` | 외부 뉴스 | ❌ 인간 검토 only |
 
+자동 측정 비율: **8/10 = 80%** (v0.3 까지 75% — v0.4 에서 +5%p).
+
 시스템 프롬프트가 *자동 측정 가능 metric 선호* 를 명시 (§3.2). LLM 이 `peer_announcement` 를 남발하면 사후 검증 자동화 불가.
+
+**v0.4 추가 metric 의미**:
+- `earnings_surprise`: *상대 (vs 컨센서스)* 차원. `eps_yoy` 의 *절대 (vs 전년)* 차원과 보완. 분기 발표 T+0 측정 → 빠른 회고 데이터 누적
+- `net_debt_yoy`: BS 기반 *레버리지 변화*. bear "레버리지 위험" / bull "balance sheet 정리" 가설 검증. Financials (부채가 비즈니스) / Utilities (구조적 고부채) 는 의미 다름 → 시스템 프롬프트가 사용 자제 명시
 
 ---
 
@@ -229,8 +318,10 @@ src/agents/
 2. **Probabilities sum to 1.0**. 3개 시나리오 확률 합은 1.0 (±0.01 허용).
 3. **Triggers must be measurable**. invalidation_trigger.metric 은 정해진
    enum 에서만 선택. 가능하면 자동 측정 가능한 metric (revenue_yoy, eps_yoy,
-   margin_yoy 등) 을 선호. peer_announcement 같은 qualitative 트리거는
-   다른 측정 가능한 metric 으로 표현 불가능할 때만 사용.
+   margin_yoy, earnings_surprise, net_debt_yoy 등) 을 선호. peer_announcement
+   같은 qualitative 트리거는 다른 측정 가능한 metric 으로 표현 불가능할 때만
+   사용. `net_debt_yoy` 는 Financials/Utilities sub_sector 종목에서는 부채
+   자체가 비즈니스 모델이므로 사용 자제 (v0.4).
 4. **Narratives reference Bull/Bear evidence**. 각 시나리오의 narrative 는
    입력의 Bull 또는 Bear 의견에서 구체 evidence 를 인용해야 한다 (예:
    "Bull #2 의 FCF margin 확장 가설이 사실이면").
@@ -248,6 +339,7 @@ src/agents/
       "invalidation_trigger": {
         "metric": "revenue_yoy" | "revenue_qoq" | "eps_yoy" | "fcf_yoy" |
                   "gross_margin_yoy" | "operating_margin_yoy" |
+                  "earnings_surprise" | "net_debt_yoy" |
                   "guidance_change" | "peer_announcement",
         "direction": "less_than" | "greater_than",
         "threshold": number | null,
@@ -323,16 +415,23 @@ def compute_bull_price(
     )
     return combine(historical_target, peer_target, mode=cfg.bull_aggressiveness)
 
-def combine(a, b, mode):
+def combine(a, b, mode, *, is_bear=False):
     """둘 중 하나만 있으면 그 값. 둘 다 있으면 mode 에 따라 결합.
-    둘 다 None 이면 current_price 반환 (fallback)."""
+    둘 다 None 이면 None (호출자가 current_price fallback).
+
+    v0.3 §4.1 결정 — bear case 의미 분기:
+    - bull (is_bear=False): conservative=min(a,b) (작은 상승), aggressive=max(a,b)
+    - bear (is_bear=True):  conservative=max(a,b) (작은 하락), aggressive=min(a,b)
+    balanced 는 두 케이스 모두 산술평균 — 의미 비대칭 없음.
+    """
     if a is None and b is None:
         return None
     if a is None: return b
     if b is None: return a
-    if mode == "conservative": return min(a, b)
-    if mode == "aggressive":   return max(a, b)
-    return (a + b) / 2   # balanced
+    if mode == "balanced": return (a + b) / 2
+    if is_bear:
+        return max(a, b) if mode == "conservative" else min(a, b)
+    return min(a, b) if mode == "conservative" else max(a, b)
 ```
 
 #### Base case price
@@ -372,7 +471,7 @@ def compute_bear_price(
         percentile(peer_pe, cfg.peer_pe_bear_percentile) * ttm_eps
         if (ttm_eps and ttm_eps > 0 and peer_pe) else None
     )
-    return combine(historical_target, peer_target, mode=cfg.bear_conservatism)
+    return combine(historical_target, peer_target, mode=cfg.bear_conservatism, is_bear=True)
 ```
 
 #### Expected return + variance
@@ -389,8 +488,11 @@ def compute_expected_return(
     }
     sc = {s.label: s for s in opinion.scenarios}
 
-    # LLM 확률에 cap 적용 (cfg.bull_probability_cap)
+    # LLM 확률에 cap 적용 (cfg.bull_probability_cap / bear_probability_cap)
     probs = _apply_probability_cap(sc, cfg)
+
+    # 가격 순서 검증 — 위반은 lineage 보존, 산식 자동 보정 없음
+    flags = _validate_price_order(prices, opinion.symbol)
 
     expected = sum(probs[lbl] * prices[lbl] for lbl in ("bull", "base", "bear"))
     variance = sum(
@@ -405,12 +507,64 @@ def compute_expected_return(
         variance=variance,
         scenario_prices=prices,
         pricing_config=cfg,
+        data_quality_flags=flags,
         scenario_opinion_s3_key=ctx.scenario_s3_key,
         computed_at=datetime.now(timezone.utc),
     )
+
+
+def _apply_probability_cap(sc, cfg) -> dict[str, float]:
+    """v0.3 §4.1 결정 — bull/bear cap 적용 후 잉여 확률을
+    *나머지 시나리오의 원래 비율* 로 비례 분배.
+
+    예: bull=0.7, base=0.2, bear=0.1, bull_probability_cap=0.5
+        → 잉여 0.2 를 base:bear = 0.2:0.1 (2:1) 비율로 분배
+        → bull=0.5, base=0.333, bear=0.167 (합 = 1.0)
+
+    bull 과 bear cap 둘 다 활성 시 bull 먼저, 이어서 bear (cfg 정의 순서).
+    cap 후 합은 항상 1.0±부동소수점 오차.
+    """
+    p = {label: sc[label].probability for label in ("bull", "base", "bear")}
+    for label, cap in (("bull", cfg.bull_probability_cap),
+                       ("bear", cfg.bear_probability_cap)):
+        if cap is None or p[label] <= cap:
+            continue
+        excess = p[label] - cap
+        p[label] = cap
+        others = [k for k in p if k != label]
+        total_others = sum(p[k] for k in others)
+        if total_others > 0:
+            for k in others:
+                p[k] += excess * (p[k] / total_others)
+        else:
+            # 나머지 모두 0 — 잉여를 균등 분배 (edge case)
+            for k in others:
+                p[k] += excess / len(others)
+    return p
+
+
+def _validate_price_order(prices, symbol) -> list[str]:
+    """v0.3 §4.1 결정 — bear ≤ base ≤ bull 검증, 위반 시 warning + flag.
+    expected_return 산식엔 영향 없음 (확률 가중 합은 그대로 산출).
+    lineage 보존 우선 — 자동 swap·보정 없음.
+    """
+    bull, base, bear = prices["bull"], prices["base"], prices["bear"]
+    if bear <= base <= bull:
+        return []
+    flag = (
+        f"price_order_violation: bear={bear:.2f}, base={base:.2f}, "
+        f"bull={bull:.2f}"
+    )
+    logger.warning(flag, extra={"symbol": symbol})
+    return [flag]
 ```
 
-### 4.2 ScenarioPricingConfig — 보수성 파라미터 5개
+**`_validate_price_order` 의 운영 의미** (CLAUDE.md "발생 안 하는 시나리오 validation 금지" 와의 정합성):
+- 단순 assertion 이 아닌 *데이터 품질 신호 누적* 용도 — `base_price_cap_pct=None` 도입 시 또는 `aggressive` mode 사용 시 실제 발생 가능
+- 위반 시에도 산식 진행 (CLAUDE.md 원칙 "내부 함수 신뢰") — 4단계 최적화가 *flag 기준 종목 weight 조정* 정책 도입 가능 (M3 후반)
+- 4주 운영 후 위반 빈도가 0 이면 §12 미해결 항목에 *검증 제거 검토* 추가
+
+### 4.2 ScenarioPricingConfig — 보수성 파라미터 (8 필드 / 4 그룹)
 
 ```python
 class ScenarioPricingConfig(BaseModel):
@@ -421,26 +575,44 @@ class ScenarioPricingConfig(BaseModel):
     bull_aggressiveness: Literal["conservative", "balanced", "aggressive"] = "conservative"
     bear_conservatism: Literal["conservative", "balanced", "aggressive"] = "conservative"
 
-    # 2. Peer P/E percentile 폭
+    # 2. Peer P/E percentile 폭 (순서: bear ≤ base ≤ bull — validator 강제)
     peer_pe_bull_percentile: float = Field(default=75.0, ge=50.0, le=95.0)
     peer_pe_base_percentile: float = Field(default=50.0, ge=40.0, le=60.0)
     peer_pe_bear_percentile: float = Field(default=25.0, ge=5.0, le=50.0)
 
-    # 3. Historical return window (현재는 52w 고정 — 추후 확장 시 사용)
-    historical_window_days: int = Field(default=252, ge=63, le=756)
-
-    # 4. Base price cap (현재가 대비 fair value 상한)
-    base_price_cap_pct: float | None = Field(default=0.0)
+    # 3. Base price cap (현재가 대비 fair value 상한)
+    base_price_cap_pct: float | None = Field(default=0.0, ge=-0.5, le=1.0)
     # 0.0:  base ≤ 현재가 (보수)
     # None: cap 없음
+    # bound: -0.5 (현재가 50% 하한) ~ 1.0 (200% 상한) — v0.6 무경계 latent bug 제거
 
-    # 5. LLM 확률 가중치 자체 보정 (마지막 가드)
+    # 4. LLM 확률 가중치 자체 보정 (마지막 가드 — bull/bear 대칭)
     bull_probability_cap: float | None = Field(default=None, ge=0.0, le=1.0)
-    # 0.5: LLM bull 0.7 적어도 0.5 로 cap
-    # None: LLM 출력 그대로
+    bear_probability_cap: float | None = Field(default=None, ge=0.0, le=1.0)
+    # 둘 다 기본 None — LLM 출력 그대로 사용
+    # cap 활성 시: 잉여 확률을 *나머지 시나리오의 원래 비율* 로 비례 분배 (§4.1 _apply_probability_cap)
+    # 적용 순서: bull → bear. bull/bear 둘 다 cap 활성도 정합 (분배 후 ≤ cap 보장)
+    # 비고: cap 은 §1.4.2 #1 (확률 calibration) 측정 전 *임시 가드*. M3 말 회고 시 cap 필요성 재평가
+
+    @model_validator(mode="after")
+    def _validate_percentile_order(self) -> Self:
+        """v0.6 — config 레벨 가격 역전 사전 차단.
+        Field bound 가 겹쳐 (bear le=50, base ge=40) 순서 역전 가능 →
+        bear peer target > base peer target 같은 §4.1 가격 순서 위반의 근본 원인."""
+        if not (self.peer_pe_bear_percentile
+                <= self.peer_pe_base_percentile
+                <= self.peer_pe_bull_percentile):
+            raise ValueError(
+                f"percentile 순서 위반: bear={self.peer_pe_bear_percentile}, "
+                f"base={self.peer_pe_base_percentile}, "
+                f"bull={self.peer_pe_bull_percentile} — bear ≤ base ≤ bull 필요"
+            )
+        return self
 ```
 
 **기본값은 보수적 셋팅** — CHARTER §6 할루시네이션 리스크 보수.
+
+> **v0.6 충분성 결산**: 파라미터는 *충분하되 1개 과잉 (제거) + 검증 2건 보강*. 누락 후보 (확률 floor / historical haircut / variance floor / missing-data policy) 는 모두 거부 또는 타 단계 이관 — §12 참조. `historical_window_days` 제거로 9→8 필드.
 
 ### 4.3 Config 변경 채널
 
@@ -460,12 +632,19 @@ Lambda 핸들러가 환경변수·입력 JSON → `ScenarioPricingConfig.model_v
 class ExpectedReturnsBundle(BaseModel):
     primary: ExpectedReturn                          # 기본 config — 4단계 최적화 입력
     alternatives: dict[str, ExpectedReturn]          # 비교용 (LLM 호출 없음, 비용 0)
+    # 키 예시: "balanced", "aggressive", "option_b_baseline"
 ```
 
 저장: `s3://{bucket}/expected_returns/dt={...}/symbol={SYM}.json`
 
 → **추가 LLM 호출 없음**. 같은 ScenarioOpinion + 다른 config 만 적용. 비용 0.
 → 회고 시 "보수적 config 가 expected $X 예측 → 실제 $Y. 공격적 config 였다면 $Z" 분석 가능.
+
+**옵션 B baseline 슬롯** (§1.4.2 #3 측정 인프라):
+- `alternatives["option_b_baseline"]` 에 *LLM 호출 없는 코드 점수화* 결과를 동일 시점에 저장
+- 산식: Bull/Bear opinion 의 `arguments[].confidence` 가중합 → `(bull_score - bear_score) / total` 을 *경험적 확률 proxy* 로 사용
+- 같은 가격 산정 공식 (§4.1) 에 다른 확률 가중치 입력 → 옵션 B baseline 의 ExpectedReturn 산출
+- M3 말 회고 시 옵션 C primary vs option_b_baseline 의 12주 portfolio outcome 비교 (§1.4.2 #3 합격 기준)
 
 ---
 
@@ -554,16 +733,25 @@ EventBridge (Mon 06:00 ET)
 
 분기 발표 후 (FMP statement 캐시 갱신 시점) 자동 실행. 별도 Lambda 또는 batch 스크립트.
 
+**평가 윈도우 — tripwire (v0.5 P1-G 확정)**:
+- 모든 `invalidation_trigger` 는 *다음 분기 발표 시점에 1회* 평가된다 (tripwire = 조기 경보).
+- YoY metric 은 *동기 전년 분기* 대비, QoQ 는 *직전 분기* 대비.
+- 시나리오 의미: "다음 분기에 *이미 깨졌나*" — 장기 thesis 도 다음 분기에 이미 무효 신호가 보이면 invalidation 으로 간주.
+- `evaluation_window` 같은 가변 호라이즌 필드는 **미도입** — 다중 윈도우는 §12 v2 후보.
+
 ```python
 def evaluate_trigger(
     trigger: InvalidationTrigger,
     symbol: str,
-    income_quarterly: list[dict],     # FMP 분기 응답
-    cashflow_quarterly: list[dict],
+    income_quarterly: list[dict],         # FMP income-statement-quarterly
+    cashflow_quarterly: list[dict],       # FMP cash-flow-statement-quarterly
+    balance_quarterly: list[dict],        # v0.4 net_debt_yoy 용 (BS)
+    earnings_surprises: list[dict],       # v0.4 earnings_surprise 용
+    sub_sector: str | None = None,        # v0.4 net_debt_yoy sector 가드
 ) -> TriggerEvaluation:
     if trigger.metric == "revenue_yoy":
         latest = income_quarterly[0]["revenue"]
-        prior_year = income_quarterly[4]["revenue"]   # 4분기 전
+        prior_year = income_quarterly[4]["revenue"]   # 4분기 전 (tripwire: 다음 발표 시점)
         if prior_year and prior_year > 0:
             actual = (latest / prior_year - 1) * 100
             met = (
@@ -572,11 +760,20 @@ def evaluate_trigger(
             )
             return TriggerEvaluation(actual=actual, threshold=trigger.threshold, met=met)
 
+    elif trigger.metric == "net_debt_yoy":
+        # v0.4 — Financials/Utilities 는 시스템 프롬프트가 자제시켰으나 위반 케이스 감지
+        if sub_sector in {"Financials", "Utilities"}:
+            return TriggerEvaluation(met=None, requires_human_review=True)
+        # totalDebt - cashAndShortTermInvestments 의 전년 동기 대비
+        # ... (BS 산식)
+
     elif trigger.metric in {"peer_announcement", "guidance_change"}:
         return TriggerEvaluation(met=None, requires_human_review=True)
 
-    # ... 다른 metric
+    # ... 다른 metric (earnings_surprise 는 earnings_surprises 응답 사용)
 ```
+
+> **v0.4 인터페이스 메모**: `earnings_surprise` / `net_debt_yoy` 추가로 `evaluate_trigger` 가 `balance_quarterly` / `earnings_surprises` / `sub_sector` 입력을 추가로 받는다. 구현(#7 티켓) 시 시그니처 확정.
 
 ### 7.2 회고 데이터 누적
 
@@ -592,6 +789,8 @@ def evaluate_trigger(
 | metric | 자동 측정 | 회고 시 처리 |
 |---|---|---|
 | revenue / eps / fcf / margin yoy / qoq | ✅ | 분기 발표 후 자동 평가 → met/not_met 기록 |
+| `earnings_surprise` *(v0.4)* | ✅ T+0 | 분기 발표 직후 FMP `earnings-surprises` 캐시 갱신 시 즉시 평가 — 회고 데이터 누적 가장 빠름 |
+| `net_debt_yoy` *(v0.4)* | ✅ | 분기 BS 캐시 갱신 시 평가. Financials/Utilities sub_sector 종목은 `requires_human_review=True` 로 분기 (시스템 프롬프트 위반 케이스 감지) |
 | `guidance_change` | ⚠ semi-auto | M3 후반 텍스트 분석 모듈 또는 인간 검토 |
 | `peer_announcement` | ❌ | 분기 회고 시 인간 검토. 가능하면 다른 metric 으로 표현 권장 (system prompt 명시) |
 
@@ -650,9 +849,16 @@ ASL 의 `BullBearParallel.Catch` 와 동일 패턴으로 `ScenarioMap` 안 `Catc
 ## 10. 테스트 전략 (CLAUDE.md 준수)
 
 ### 10.1 단위 테스트
-- `pricing.py`: 가격 산정 공식 — `combine` 모드 3 가지, percentile, None fallback, base cap, probability cap
-- `pricing_config.py`: 기본값, 환경변수 파싱, 입력 JSON override 병합
-- `schemas.py`: ScenarioOpinion Pydantic — 확률 합, 라벨 unique, narrative 길이, trigger threshold null 조건
+- `pricing.py`:
+  - `combine` 모드 3 가지 × `is_bear` flag — bull 의 conservative=min vs bear 의 conservative=max 동작 분기 (v0.3 §4.1)
+  - percentile (numpy linear), `ttm_eps=None`/`peer_pe=[]` fallback
+  - `base_price_cap_pct=0.0` 가 base ≤ current 강제, `None` 일 때 cap 미적용
+  - `_apply_probability_cap` — bull cap 단독 / bear cap 단독 / 둘 다 / 비례 분배 정확성 / 합 = 1.0 (v0.3 §4.1)
+  - `_validate_price_order` — 정상 순서 (flag=[]), 위반 (flag 메시지 포맷) (v0.3 §4.1)
+- `pricing_config.py`: 기본값, 환경변수 파싱, 입력 JSON override 병합, `bear_probability_cap` 범위 검증
+  - `_validate_percentile_order` — bear ≤ base ≤ bull 정상 통과 / 역전 config (bear=50, base=40) → ValidationError (v0.6)
+  - `base_price_cap_pct` bound — `-0.6`/`1.5` 등 범위 밖 → ValidationError (v0.6)
+- `schemas.py`: ScenarioOpinion Pydantic — 확률 합, 라벨 unique, narrative 길이, trigger threshold null 조건, `ExpectedReturn.data_quality_flags` 기본값 = `[]`
 - `trigger_evaluator.py`: 각 metric 별 자동 평가 (픽스처 분기 데이터 입력)
 
 ### 10.2 LLM 호출 모킹
@@ -682,12 +888,17 @@ ASL 의 `BullBearParallel.Catch` 와 동일 패턴으로 `ScenarioMap` 안 `Catc
 > M2 종료 후 진입. 각 단계 별도 커밋. LLM 호출 추가 커밋은 비용 추정 명시 (CLAUDE.md).
 
 1. **schemas.py** — `ScenarioContext` / `ScenarioOpinion` / `InvalidationTrigger` / `ExpectedReturn` / `ScenarioPricingConfig` + 단위 테스트
+   - **P1-E 결정** (§2.4): `metric ↔ threshold_unit` mapping validator 도입 여부. 권장 — `model_validator` 로 무효 조합 차단 (`revenue_yoy`+`qualitative` 등). 거부 시 시스템 프롬프트 명시만. 기존 필드 위 validator 라 무손실
 2. **pricing.py** — `compute_bull/base/bear_price` + `compute_expected_return` 순수 함수. config 3 mode × percentile 테스트
 3. **pricing_config.py** — 기본값, 환경변수 파싱, 입력 JSON override 병합
 4. **context_builder.py** — Bull/Bear S3 로드 + 가격 컨텍스트 조립 + `to_prompt_markdown` 화이트리스트 직렬화
 5. **프롬프트 파일 2종** — `scenario_system.md` + `scenario_user.md` (placeholder 4개)
+   - **P2-H 결정** (§2.4): `label ↔ trigger direction` 의미 — bull 시나리오의 `invalidation_trigger` 는 *시나리오를 부정하는 방향* 이어야 함. 시스템 프롬프트에 "이 트리거 충족 시 해당 시나리오 무효화" 의미 강화. golden(#8) 전 확정 필요 (스냅샷 일관성)
 6. **agent.py 골격** — Bull/Bear `agent.py` 패턴 재사용. AnthropicCaller / 사다리 / Pydantic 검증 / 로깅
 7. **trigger_evaluator.py** — metric 별 자동 평가 함수 + 단위 테스트
+   - tripwire 윈도우 (다음 분기 발표 1회) 전제로 구현 (§7.1 v0.5 확정)
+   - v0.4 metric (`earnings_surprise`, `net_debt_yoy`) 입력 시그니처 확정 (§7.1 메모 — `balance_quarterly` / `earnings_surprises` / `sub_sector` 추가)
+   - **P2-D 결정** (§2.4): `guidance_change` 자동화 방법 — (1) transcript 키워드 정규식 / (2) 추가 LLM 호출 요약 / (3) 인간 회고만. 시작은 `requires_human_review=True` fallback, M3 후반 자동화 검토
 8. **golden 케이스 4건** — AAPL/XOM/NVDA/JPM 실제 호출 + 스냅샷
 9. **Lambda 핸들러** — `src/lambdas/agent_scenario/handler.py` + `lambda_core.py` 공유 코어
 10. **Step Functions ASL 확장** — `ScenarioMap` state 추가 + `Catch` 격리. 5종목 dry-run
@@ -706,6 +917,31 @@ ASL 의 `BullBearParallel.Catch` 와 동일 패턴으로 `ScenarioMap` 안 `Catc
 - [ ] **시나리오 sensitivity 의 portfolio 영향** — 같은 LLM 출력에 다른 config 적용 시 4단계 최적화 결과가 얼마나 달라지나. ExpectedReturnsBundle 로 측정 가능
 - [ ] **TTM EPS 결측 종목 정책** — peer-implied 가격 산정 불가. historical-only fallback 의 정확도 영향. 첫 운영 시 결측 분포 본 후 결정
 - [ ] **`v2` Monte Carlo 시나리오** — 3 scenarios 단일 시점 대신 distribution. 본 단계 단순 옵션 C 가 4주 안정 운영 후 도입 (M3 후반 후보)
+- [ ] **확률 cap 필요성 재평가** (v0.3 §4.2) — `bull_probability_cap` / `bear_probability_cap` 은 §1.4.2 #1 (calibration Brier score) 측정 전 *임시 가드*. M3 말 회고 시 calibration 결과로 cap 유지/제거/조정 결정. bull bias 발견 시에만 활성화 후보
+- [ ] **`_validate_price_order` 위반 빈도 모니터링** (v0.3 §4.1) — 4주 운영 후 위반 0 이면 검증 자체 제거 검토 (CLAUDE.md "발생 안 하는 시나리오 validation 금지"). `aggressive` mode 또는 `base_price_cap_pct=None` 도입 시 빈도 재측정
+- [x] **P1-G 트리거 평가 윈도우** (v0.5 §2.4 확정) — *tripwire* (다음 분기 발표 1회 고정) 결정. schema 무변경. 다중 윈도우(`evaluation_window` Optional 필드)는 아래 v2 후보로 이월
+- [ ] **다중 평가 윈도우 (`evaluation_window`)** (v0.5 §7.1 P1-G 이월 — v2 후보) — 장기 thesis 의 조기 false-negative 빈도가 운영 데이터에서 높으면 `Literal["next_quarter","next_year"]` Optional 필드 추가. Optional+default 라 무손실 마이그레이션. M3 말 회고 시 tripwire 의 적중률(§1.4.2 #2)로 판단
+- [ ] **P1-E `metric ↔ threshold_unit` validator** (v0.5 §2.4 — #1 schemas.py 티켓 위임) — 무효 조합(`revenue_yoy`+`qualitative` 등) 차단 `model_validator` 도입 여부. 권장 도입. 기존 필드 위 validator 라 무손실
+- [ ] **P2-H `label ↔ trigger direction` 의미** (v0.5 §2.4 — #5 prompts 티켓 위임) — bull 시나리오 트리거가 *시나리오 부정 방향* 임을 시스템 프롬프트로 강화. golden(#8) 전 확정. (P2-C `peer_announcement` 정책·P2-D `guidance_change` 자동화는 위 별도 항목 참조)
+- [ ] **확률 floor (`min_scenario_probability`)** (v0.6 §4.2 거부 박제) — bull=0.95/bear=0.01 같은 tail 과소평가가 variance 를 왜곡할 수 있으나, 옵션 C 는 LLM 확률 신뢰가 기본. §1.4.2 #1 calibration (Brier score) 결과 tail 계통 과소평가 확인 시에만 floor 도입 검토. M3 말 회고
+- [ ] **`historical_window_days` 재추가** (v0.6 §4.2 제거 박제) — multi-window 가격 산정 (52w 외 126/378d 등) 실제 구현 시 재추가. ScenarioContext 가 `return_Nw_high/low` 를 context_builder 에서 OHLCV 기반 제공해야 함. 위 *다중 평가 윈도우* (§7.1 P1-G 이월) 와 함께 v2 검토
+- [ ] **variance floor 책임 경계** (v0.6 §4.2 → §부록 B) — scenario 가격이 클러스터되면 variance ~0 → 4단계 optimizer 가 riskless 로 오판. 3단계 config 가 아닌 **4단계 covariance 대각 구성 시 floor** — §부록 B 경계 메모 참조
+- [ ] **§2.4 enum 거부 후보 5개 재검토** (v0.4 §2.4 결정 박제 — M3 운영 4주 이후 또는 v2):
+  - `valuation_multiple` (P/E, EV/EBITDA): peer_pe 가 *입력* 인 동시에 트리거 *출력* 이면 자기 참조 — bull 시나리오 실현 = 트리거 자동 충족 발생. 의미 명확화 후 v2 검토
+  - `analyst_estimate_revision`: 후행 지표 (가격 반영 후 컨센서스 변경) + estimate snapshot 시계열 캐시 인프라 추가 필요 → M3 범위 외
+  - `dividend_yield_change` / `buyback_yield`: S&P 500 universe 중 income 종목 점유율 제한적. 첫 운영 시 universe 분석 후 결정
+  - `sector_specific` (NIM, ARR, production): sub_sector × metric 매트릭스 필요 — M2 §10 미해결 "sector-specific factor" 와 통합 결정 (v2)
+  - `macroeconomic` (Fed rate, oil, USD): 종목별 트리거 schema 에 *전 시장 metric* 부적합 — 별도 macro_trigger schema 또는 sector overlay 분리 (v2)
+- [ ] **옵션 C 성공 기준 측정** (§1.4.2 박제 항목, M3 말 회고에서 평가):
+  - (1) 확률 calibration Brier score < 0.25 — `trigger_evaluator` (#13) 가 자동 누적
+  - (2) 트리거 적중률 ≥ 60% — 자동 측정 가능 metric 한정
+  - (3) Portfolio outcome 옵션 B baseline 대비 동등 또는 우월 — `ExpectedReturnsBundle.alternatives` 슬롯에 옵션 B 산출 (추가 LLM 비용 0)
+  - 측정 데이터 누적은 §11 구현 순서 #12/#13 활성화 시 자동. 12주 누적 후 판단
+- [ ] **§1.4.1 잠재 약점 별 완화책 활성화 시점**:
+  - 약점 1 (calibration unverified) — §11 #13 트리거 자동 검증 항상 활성화
+  - 약점 2 (M&A 등 비정량 이벤트) — Enum 확장 또는 `peer_announcement` 사용 빈도 모니터링 후 결정 (M3 5주차)
+  - 약점 3 (가격 산식 보수성) — `aggressive` config 또는 Monte Carlo (위 v2 항목)
+  - 약점 4 (5단계 cross-validation) — M3 말 portfolio outcome 평가 (§1.4.2 #3)
 
 ---
 
@@ -748,7 +984,7 @@ tests/
 |---|---|---|
 | `expected_return` (per symbol) | `ExpectedReturn.expected_return` | 직접 사용 |
 | `expected_price` (per symbol) | `ExpectedReturn.expected_price` | 직접 사용 |
-| `variance` (per symbol) | `ExpectedReturn.variance` | covariance matrix 의 *대각* 입력. 비대각 (종목 간 상관) 은 4단계가 OHLCV 에서 별도 계산 |
+| `variance` (per symbol) | `ExpectedReturn.variance` | covariance matrix 의 *대각* 입력. 비대각 (종목 간 상관) 은 4단계가 OHLCV 에서 별도 계산. **variance floor 는 4단계 책임** (v0.6 §4.2 경계) — scenario 가격 클러스터로 variance~0 인 종목을 4단계가 riskless 로 오판하지 않도록 covariance 대각 구성 시 floor 적용 |
 | 시나리오별 가격 (선택) | `ExpectedReturn.scenario_prices` | sensitivity 분석 / portfolio stress test |
 | 사용된 config (lineage) | `ExpectedReturn.pricing_config` | 4단계도 이를 로깅해 어떤 config 의 산출이 최적화에 사용됐는지 추적 |
 
