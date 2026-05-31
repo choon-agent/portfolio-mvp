@@ -1,0 +1,188 @@
+{
+  "scenario_opinion": {
+    "symbol": "XOM",
+    "as_of_date": "2026-04-27",
+    "scenarios": [
+      {
+        "label": "bull",
+        "probability": 0.3,
+        "narrative": "Bull's 14% EPS CAGR and $56B TTM FCF hold as Pioneer synergies accelerate Permian output, FCF yield of 8.50% re-rates toward CVX's 7.50% as market recognizes XOM's superior scale and margin expansion story.",
+        "invalidation_trigger": {
+          "metric": "fcf_yoy",
+          "direction": "less_than",
+          "threshold": -10.0,
+          "threshold_unit": "percent",
+          "description": "Annual FCF declines more than 10% YoY, negating the durable cash-generation thesis and Pioneer synergy narrative."
+        }
+      },
+      {
+        "label": "base",
+        "probability": 0.45,
+        "narrative": "XOM muddles through with modest FCF around current run-rate; Bear's flat revenue CAGR of +4% and sequential Q1-2026 revenue dip to $88B offset by Bull's P/E discount to CVX and integrated downstream diversification providing earnings stability.",
+        "invalidation_trigger": {
+          "metric": "revenue_qoq",
+          "direction": "less_than",
+          "threshold": -5.0,
+          "threshold_unit": "percent",
+          "description": "Revenue falls more than 5% QoQ for two consecutive quarters, signaling structural deterioration beyond the Bear's one-quarter dip concern."
+        }
+      },
+      {
+        "label": "bear",
+        "probability": 0.25,
+        "narrative": "Bear's case materializes: FCF peaked at $16B in Q4-2025 and continues declining, commodity price weakness compresses revenue below the $85B-$92B range, and XOM's P/E premium over COP/MPC/PSX erodes as cheaper peers with higher FCF yields attract capital.",
+        "invalidation_trigger": {
+          "metric": "eps_yoy",
+          "direction": "greater_than",
+          "threshold": 10.0,
+          "threshold_unit": "percent",
+          "description": "EPS grows more than 10% YoY, indicating commodity tailwinds or Pioneer synergies have reversed the peak-FCF bear thesis."
+        }
+      }
+    ],
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 3085,
+    "output_tokens": 581,
+    "cost_usd": 0.01797
+  },
+  "expected_return": {
+    "symbol": "XOM",
+    "as_of_date": "2026-04-27",
+    "expected_price": 97.4,
+    "expected_return": -0.11454545454545449,
+    "variance": 21.24,
+    "scenario_prices": {
+      "bull": 104.0,
+      "base": 96.0,
+      "bear": 92.0
+    },
+    "pricing_config": {
+      "bull_aggressiveness": "conservative",
+      "bear_conservatism": "conservative",
+      "peer_pe_bull_percentile": 75.0,
+      "peer_pe_base_percentile": 50.0,
+      "peer_pe_bear_percentile": 25.0,
+      "base_price_cap_pct": 0.0,
+      "bull_probability_cap": null,
+      "bear_probability_cap": null
+    },
+    "data_quality_flags": [],
+    "scenario_opinion_s3_key": "scenarios/dt=2026-04-27/symbol=XOM.json",
+    "computed_at": "2026-05-31T13:48:28.013979Z"
+  },
+  "scenario_context": {
+    "symbol": "XOM",
+    "company_name": "Exxon Mobil Corporation",
+    "sector": "Energy",
+    "sub_sector": "Oil & Gas Integrated",
+    "as_of_date": "2026-04-27",
+    "bull_opinion": {
+      "symbol": "XOM",
+      "stance": "bull",
+      "as_of_date": "2026-04-27",
+      "summary": "XOM's 5Y EPS CAGR of +14% and TTM FCF of ~$56B underpin a durable cash-generation story at a peer-reasonable valuation.",
+      "arguments": [
+        {
+          "claim": "ExxonMobil has compounded EPS at 14% annually over five years, demonstrating sustained earnings power well above its revenue growth rate of 4% CAGR, reflecting meaningful margin expansion.",
+          "evidence": "5Y CAGR: Revenue +4.00%, EPS +14.00% — EPS growth is 3.5x the revenue growth rate, indicating structural margin improvement over the period.",
+          "confidence": "high"
+        },
+        {
+          "claim": "XOM generates substantial and growing free cash flow, with TTM FCF summing to approximately $56B across the last four quarters, providing ample capacity for dividends, buybacks, and debt reduction.",
+          "evidence": "FCF across last 4 quarters: $14.00B + $16.00B + $13.50B + $12.50B = $56.00B TTM; 5Y FCF CAGR of +9.00% confirms the upward trajectory.",
+          "confidence": "high"
+        },
+        {
+          "claim": "XOM's FCF Yield of 8.50% is competitive within its peer group, sitting between CVX (7.50%) and COP (9.00%), while its P/E of 12.00x is below CVX (13.50x), suggesting the market is not pricing in XOM's superior scale and FCF generation.",
+          "evidence": "Peer table: CVX P/E 13.50 / FCF Yield 7.50%; XOM P/E 12.00 / FCF Yield 8.50% — XOM trades at a P/E discount to CVX despite a higher FCF yield.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Price momentum is constructive but not extended: XOM is up 12% over one year and +18% from its 52-week low, yet still 8% below its 52-week high, leaving room for re-rating without chasing an overextended move.",
+          "evidence": "Price Summary: 1Y return +12.00%, from 52w low +18.00%, from 52w high -8.00%.",
+          "confidence": "medium"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "A sustained decline in crude oil and natural gas prices — driven by OPEC+ supply increases or a sharper-than-expected global demand slowdown — would compress XOM's revenue and FCF directly, given that the last four quarters already show revenue ranging only $85B–$92B with no demonstrated ability to grow volumes independently of commodity prices.",
+        "XOM's EV/EBITDA of 6.50x is in line with peers (CVX 7.00x, COP 5.80x), meaning there is limited multiple-expansion upside; if EPS growth decelerates from the 14% 5Y CAGR — for example due to the Pioneer acquisition integration costs or capital overruns — the valuation re-rating thesis collapses.",
+        "The 6-month return of -3.00% signals near-term price weakness; if macro headwinds (e.g., dollar strength, refining margin compression visible in MPC/PSX trading at lower multiples) persist, XOM's premium to downstream peers could erode further rather than close."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1512,
+      "output_tokens": 878,
+      "cost_usd": 0.017706
+    },
+    "bear_opinion": {
+      "symbol": "XOM",
+      "stance": "bear",
+      "as_of_date": "2026-04-27",
+      "summary": "XOM trades at a premium to most peers while revenue growth is modest and recent momentum has stalled, suggesting limited upside relative to cheaper integrated-oil alternatives.",
+      "arguments": [
+        {
+          "claim": "XOM commands a P/E premium over most peers despite no clear earnings-growth advantage, making its relative valuation difficult to justify.",
+          "evidence": "XOM P/E TTM of 12.00 is above COP (11.00), MPC (8.50), and PSX (10.00); only CVX (13.50) is higher. Yet XOM's 5Y EPS CAGR of +14% is not materially differentiated from peers who trade at steeper discounts, meaning investors are paying up without a clear growth premium.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Revenue growth has been essentially flat over the trailing four quarters, with the most recent quarter showing a sequential decline from the prior-quarter peak.",
+          "evidence": "Revenue was $85.00B (Q2-2025), $87.00B (Q3-2025), $92.00B (Q4-2025), then fell back to $88.00B (Q1-2026) — a $4B sequential drop — and the 5Y revenue CAGR is only +4.00%, indicating structural top-line stagnation.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "FCF declined sequentially in the most recent quarter, reversing a prior build-up and suggesting the peak FCF generation may already be behind us.",
+          "evidence": "FCF peaked at $16.00B in Q4-2025 and fell to $14.00B in Q1-2026, a $2B quarter-over-quarter decline, while revenue also contracted — both metrics moving in the same negative direction simultaneously.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Near-term price momentum has turned negative, with the stock down 3% over the last six months and sitting 8% below its 52-week high, indicating the market is already de-rating the name.",
+          "evidence": "6M return of -3.00% and current price -8.00% from the 52-week high, despite a still-positive 1Y return of +12.00% — the more recent trend is clearly deteriorating.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "XOM's FCF yield of 8.50% is below cheaper peers COP (9.00%), MPC (11.00%), and PSX (9.50%), meaning investors receive less cash-return compensation per dollar invested relative to alternatives in the same sector.",
+          "evidence": "FCF Yield TTM: XOM 8.50% vs. COP 9.00%, MPC 11.00%, PSX 9.50% — XOM is the second-lowest FCF yield in the peer group while carrying a higher P/E than three of the four peers.",
+          "confidence": "medium"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "XOM's Pioneer Natural Resources acquisition could deliver synergies and Permian production growth that materially accelerates FCF above the current run-rate, invalidating the 'peak FCF' argument if Q1-2026 proves to be a one-quarter dip rather than a trend.",
+        "A sustained rebound in crude oil prices (driven by OPEC+ supply discipline or geopolitical disruption) could rapidly expand EPS and FCF, compressing the P/E and FCF-yield gap versus peers and making the current valuation look cheap in hindsight.",
+        "XOM's integrated downstream and chemicals segments provide earnings diversification that pure-play E&P peers like COP lack; if refining margins recover from a trough, XOM's earnings quality advantage over peers could justify its persistent P/E premium."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1600,
+      "output_tokens": 954,
+      "cost_usd": 0.01911
+    },
+    "current_price": 110.0,
+    "ttm_eps": 8.0,
+    "peer_pe": [
+      12.0,
+      14.0,
+      11.0
+    ],
+    "return_52w_high": 0.15,
+    "return_52w_low": -0.18,
+    "run_id": "golden-2026-04-27",
+    "scenario_s3_key": "scenarios/dt=2026-04-27/symbol=XOM.json",
+    "bullbear_s3_keys": {
+      "bull": "agents/bullbear/dt=2026-04-27/symbol=XOM/stance=bull.json",
+      "bear": "agents/bullbear/dt=2026-04-27/symbol=XOM/stance=bear.json"
+    },
+    "data_quality_flags": []
+  },
+  "attempts": [
+    {
+      "model": "claude-sonnet-4-6",
+      "stage": "primary",
+      "input_tokens": 3085,
+      "output_tokens": 581,
+      "cost_usd": 0.01797,
+      "succeeded": true,
+      "error": null
+    }
+  ],
+  "prompt_user": "# XOM — Exxon Mobil Corporation\n- Sector: Energy / Oil & Gas Integrated\n- As-of: 2026-04-27\n\n## Price Context\n- Current price: $110.00\n- TTM EPS: 8.00\n- Peer P/E (3): 12.0, 14.0, 11.0\n- Return to 52w high: +15.00%\n- Return to 52w low: -18.00%\n\n## Bull Opinion\nXOM's 5Y EPS CAGR of +14% and TTM FCF of ~$56B underpin a durable cash-generation story at a peer-reasonable valuation.\n\nArguments:\n- [high] ExxonMobil has compounded EPS at 14% annually over five years, demonstrating sustained earnings power well above its revenue growth rate of 4% CAGR, reflecting meaningful margin expansion. — 5Y CAGR: Revenue +4.00%, EPS +14.00% — EPS growth is 3.5x the revenue growth rate, indicating structural margin improvement over the period.\n- [high] XOM generates substantial and growing free cash flow, with TTM FCF summing to approximately $56B across the last four quarters, providing ample capacity for dividends, buybacks, and debt reduction. — FCF across last 4 quarters: $14.00B + $16.00B + $13.50B + $12.50B = $56.00B TTM; 5Y FCF CAGR of +9.00% confirms the upward trajectory.\n- [medium] XOM's FCF Yield of 8.50% is competitive within its peer group, sitting between CVX (7.50%) and COP (9.00%), while its P/E of 12.00x is below CVX (13.50x), suggesting the market is not pricing in XOM's superior scale and FCF generation. — Peer table: CVX P/E 13.50 / FCF Yield 7.50%; XOM P/E 12.00 / FCF Yield 8.50% — XOM trades at a P/E discount to CVX despite a higher FCF yield.\n- [medium] Price momentum is constructive but not extended: XOM is up 12% over one year and +18% from its 52-week low, yet still 8% below its 52-week high, leaving room for re-rating without chasing an overextended move. — Price Summary: 1Y return +12.00%, from 52w low +18.00%, from 52w high -8.00%.\n\nKey risks to thesis:\n- A sustained decline in crude oil and natural gas prices — driven by OPEC+ supply increases or a sharper-than-expected global demand slowdown — would compress XOM's revenue and FCF directly, given that the last four quarters already show revenue ranging only $85B–$92B with no demonstrated ability to grow volumes independently of commodity prices.\n- XOM's EV/EBITDA of 6.50x is in line with peers (CVX 7.00x, COP 5.80x), meaning there is limited multiple-expansion upside; if EPS growth decelerates from the 14% 5Y CAGR — for example due to the Pioneer acquisition integration costs or capital overruns — the valuation re-rating thesis collapses.\n- The 6-month return of -3.00% signals near-term price weakness; if macro headwinds (e.g., dollar strength, refining margin compression visible in MPC/PSX trading at lower multiples) persist, XOM's premium to downstream peers could erode further rather than close.\n\n## Bear Opinion\nXOM trades at a premium to most peers while revenue growth is modest and recent momentum has stalled, suggesting limited upside relative to cheaper integrated-oil alternatives.\n\nArguments:\n- [medium] XOM commands a P/E premium over most peers despite no clear earnings-growth advantage, making its relative valuation difficult to justify. — XOM P/E TTM of 12.00 is above COP (11.00), MPC (8.50), and PSX (10.00); only CVX (13.50) is higher. Yet XOM's 5Y EPS CAGR of +14% is not materially differentiated from peers who trade at steeper discounts, meaning investors are paying up without a clear growth premium.\n- [medium] Revenue growth has been essentially flat over the trailing four quarters, with the most recent quarter showing a sequential decline from the prior-quarter peak. — Revenue was $85.00B (Q2-2025), $87.00B (Q3-2025), $92.00B (Q4-2025), then fell back to $88.00B (Q1-2026) — a $4B sequential drop — and the 5Y revenue CAGR is only +4.00%, indicating structural top-line stagnation.\n- [medium] FCF declined sequentially in the most recent quarter, reversing a prior build-up and suggesting the peak FCF generation may already be behind us. — FCF peaked at $16.00B in Q4-2025 and fell to $14.00B in Q1-2026, a $2B quarter-over-quarter decline, while revenue also contracted — both metrics moving in the same negative direction simultaneously.\n- [medium] Near-term price momentum has turned negative, with the stock down 3% over the last six months and sitting 8% below its 52-week high, indicating the market is already de-rating the name. — 6M return of -3.00% and current price -8.00% from the 52-week high, despite a still-positive 1Y return of +12.00% — the more recent trend is clearly deteriorating.\n- [medium] XOM's FCF yield of 8.50% is below cheaper peers COP (9.00%), MPC (11.00%), and PSX (9.50%), meaning investors receive less cash-return compensation per dollar invested relative to alternatives in the same sector. — FCF Yield TTM: XOM 8.50% vs. COP 9.00%, MPC 11.00%, PSX 9.50% — XOM is the second-lowest FCF yield in the peer group while carrying a higher P/E than three of the four peers.\n\nKey risks to thesis:\n- XOM's Pioneer Natural Resources acquisition could deliver synergies and Permian production growth that materially accelerates FCF above the current run-rate, invalidating the 'peak FCF' argument if Q1-2026 proves to be a one-quarter dip rather than a trend.\n- A sustained rebound in crude oil prices (driven by OPEC+ supply discipline or geopolitical disruption) could rapidly expand EPS and FCF, compressing the P/E and FCF-yield gap versus peers and making the current valuation look cheap in hindsight.\n- XOM's integrated downstream and chemicals segments provide earnings diversification that pure-play E&P peers like COP lack; if refining margins recover from a trough, XOM's earnings quality advantage over peers could justify its persistent P/E premium.\n\n\n---\n\nTask: based on the Bull/Bear opinions and price context above, generate **exactly three** scenarios (bull / base / bear) for **XOM** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Do NOT estimate prices — only `probability`, `narrative`, and `invalidation_trigger`. Prices are computed downstream.\n- The three probabilities must sum to 1.0.\n- Each `narrative` must cite specific evidence from the Bull or Bear opinion above.\n- Each `invalidation_trigger` must be a measurable event that would *negate that scenario*. Prefer auto-measurable metrics; `threshold` is null only for qualitative triggers.\n\nReturn only the JSON object matching the schema.\n",
+  "input_hash": "e8d13fcea215beece71adc0b8d7e22b83aa48f84f96cac9267e96ff83aa62ad5"
+}
