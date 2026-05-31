@@ -10,16 +10,17 @@
 #   AWS_REGION           — 기본 ap-northeast-2
 #   STATE_MACHINE_NAME   — 기본 portfolio-mvp-screening
 #   LAMBDA_NAME_PREFIX   — 기본 portfolio-mvp (deploy_lambda.sh 와 동일 규칙).
-#                          정의 파일의 placeholder 3개 치환:
+#                          정의 파일의 placeholder 4개 치환:
 #                            <<RUN_SCREENING_LAMBDA>> → ${PREFIX}-run_screening
 #                            <<BULL_LAMBDA>>          → ${PREFIX}-agent_bullbear_bull
 #                            <<BEAR_LAMBDA>>          → ${PREFIX}-agent_bullbear_bear
+#                            <<SCENARIO_LAMBDA>>      → ${PREFIX}-agent_scenario
 #
 # 사전 조건:
-#   - run_screening, agent_bullbear_bull, agent_bullbear_bear Lambda 모두 배포됨
-#     (deploy_lambda.sh + GitHub Actions)
+#   - run_screening, agent_bullbear_bull, agent_bullbear_bear, agent_scenario
+#     Lambda 모두 배포됨 (deploy_lambda.sh + GitHub Actions)
 #   - IAM role 이 infra/README.md 의 권한으로 생성되어 있어야 함
-#     (위 3개 Lambda invoke 권한 포함)
+#     (위 4개 Lambda invoke 권한 포함)
 #
 # 출력: 배포된 state machine 의 ARN.
 
@@ -32,6 +33,7 @@ PREFIX="${LAMBDA_NAME_PREFIX:-portfolio-mvp}"
 RUN_SCREENING_LAMBDA="${PREFIX}-run_screening"
 BULL_LAMBDA="${PREFIX}-agent_bullbear_bull"
 BEAR_LAMBDA="${PREFIX}-agent_bullbear_bear"
+SCENARIO_LAMBDA="${PREFIX}-agent_scenario"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFINITION_TEMPLATE="$REPO_ROOT/infra/step_functions/screening_workflow.asl.json"
@@ -51,6 +53,7 @@ trap 'rm -f "$TMP_DEF"' EXIT
 sed -e "s|<<RUN_SCREENING_LAMBDA>>|${RUN_SCREENING_LAMBDA}|g" \
     -e "s|<<BULL_LAMBDA>>|${BULL_LAMBDA}|g" \
     -e "s|<<BEAR_LAMBDA>>|${BEAR_LAMBDA}|g" \
+    -e "s|<<SCENARIO_LAMBDA>>|${SCENARIO_LAMBDA}|g" \
     "$DEFINITION_TEMPLATE" > "$TMP_DEF"
 
 # 치환 누락 가드 — << 가 남아 있으면 정의 오류
@@ -66,6 +69,7 @@ echo "    State machine       : $NAME"
 echo "    RunScreening Lambda : $RUN_SCREENING_LAMBDA"
 echo "    Bull Lambda         : $BULL_LAMBDA"
 echo "    Bear Lambda         : $BEAR_LAMBDA"
+echo "    Scenario Lambda     : $SCENARIO_LAMBDA"
 echo "    Execution role      : $ROLE_ARN"
 
 # 기존 state machine ARN 조회

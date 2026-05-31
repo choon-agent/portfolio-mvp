@@ -1,0 +1,183 @@
+{
+  "scenario_opinion": {
+    "symbol": "AAPL",
+    "as_of_date": "2026-04-27",
+    "scenarios": [
+      {
+        "label": "bull",
+        "probability": 0.3,
+        "narrative": "Bull's FCF-margin-expansion claim holds: EPS CAGR of +10% outpacing revenue at +7.5% continues, and an AI-driven iPhone upgrade cycle breaks non-holiday quarters above the $85–95B band, validating the premium over GOOGL and META.",
+        "invalidation_trigger": {
+          "metric": "eps_yoy",
+          "direction": "less_than",
+          "threshold": 5.0,
+          "threshold_unit": "percent",
+          "description": "EPS YoY growth falls below 5%, breaking the structural margin-expansion thesis cited by Bull"
+        }
+      },
+      {
+        "label": "base",
+        "probability": 0.45,
+        "narrative": "AAPL sustains its $103B TTM FCF engine and modest EPS growth, but non-holiday quarters remain clustered in the $85–95B band per Bear's seasonal-dependence argument, keeping valuation range-bound relative to peers.",
+        "invalidation_trigger": {
+          "metric": "revenue_yoy",
+          "direction": "greater_than",
+          "threshold": 12.0,
+          "threshold_unit": "percent",
+          "description": "Revenue YoY exceeds 12%, signaling a supercycle breakout that invalidates the base-case stagnation assumption"
+        }
+      },
+      {
+        "label": "bear",
+        "probability": 0.25,
+        "narrative": "Bear's valuation-compression case materializes: AAPL's EV/EBITDA of 22x vs. GOOGL 17x and META 15.5x, combined with a lower FCF yield of 3.80%, triggers multiple contraction as market rotates to faster-growing, higher-yielding software peers.",
+        "invalidation_trigger": {
+          "metric": "fcf_yoy",
+          "direction": "greater_than",
+          "threshold": 15.0,
+          "threshold_unit": "percent",
+          "description": "FCF grows more than 15% YoY, closing the FCF yield gap with META and GOOGL and negating the bear's capital-return-efficiency argument"
+        }
+      }
+    ],
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 3064,
+    "output_tokens": 573,
+    "cost_usd": 0.017787
+  },
+  "expected_return": {
+    "symbol": "AAPL",
+    "as_of_date": "2026-04-27",
+    "expected_price": 181.5125,
+    "expected_return": -0.04467105263157901,
+    "variance": 36.20296875,
+    "scenario_prices": {
+      "bull": 188.5,
+      "base": 182.0,
+      "bear": 172.25
+    },
+    "pricing_config": {
+      "bull_aggressiveness": "conservative",
+      "bear_conservatism": "conservative",
+      "peer_pe_bull_percentile": 75.0,
+      "peer_pe_base_percentile": 50.0,
+      "peer_pe_bear_percentile": 25.0,
+      "base_price_cap_pct": 0.0,
+      "bull_probability_cap": null,
+      "bear_probability_cap": null
+    },
+    "data_quality_flags": [],
+    "scenario_opinion_s3_key": "scenarios/dt=2026-04-27/symbol=AAPL.json",
+    "computed_at": "2026-05-31T13:48:06.997280Z"
+  },
+  "scenario_context": {
+    "symbol": "AAPL",
+    "company_name": "Apple Inc.",
+    "sector": "Technology",
+    "sub_sector": "Consumer Electronics",
+    "as_of_date": "2026-04-27",
+    "bull_opinion": {
+      "symbol": "AAPL",
+      "stance": "bull",
+      "as_of_date": "2026-04-27",
+      "summary": "Apple's consistent FCF generation, EPS CAGR outpacing revenue, and near-52w-high price momentum support a durable compounding thesis.",
+      "arguments": [
+        {
+          "claim": "Apple's EPS growth is outpacing revenue growth, demonstrating sustained margin expansion and capital efficiency over the long run.",
+          "evidence": "5Y CAGR: EPS +10.00% versus Revenue +7.50%, a 250bps spread indicating structural margin improvement beyond top-line growth.",
+          "confidence": "high"
+        },
+        {
+          "claim": "Apple generates substantial and consistent free cash flow across all four reported quarters, underscoring the durability of its cash conversion.",
+          "evidence": "FCF over the last four quarters: $25.00B, $35.00B, $22.00B, $21.00B — totaling ~$103B TTM with no quarter below $21B, reflecting a resilient cash engine.",
+          "confidence": "high"
+        },
+        {
+          "claim": "Apple's valuation is at a discount to its closest large-cap peer MSFT on both P/E and EV/EBITDA, while offering a superior FCF yield.",
+          "evidence": "AAPL P/E 29.50 vs. MSFT 33.00; AAPL EV/EBITDA 22.00 vs. MSFT 23.50; AAPL FCF Yield 3.80% vs. MSFT 3.00% — AAPL is cheaper on all three metrics versus its most direct mega-cap comparable.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Price momentum remains intact without being dangerously extended, suggesting the stock is in a healthy uptrend with room to continue.",
+          "evidence": "1Y return +18.00%, 6M return +8.00%, and currently only -3.00% from its 52-week high — strong trend without the overextension that typically precedes sharp reversals.",
+          "confidence": "medium"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "Apple's December quarter ($120.00B revenue, $2.10 EPS) is dramatically larger than the other three quarters, meaning any structural weakening in holiday-cycle consumer demand would disproportionately impair annual earnings and FCF, potentially breaking the EPS CAGR trend.",
+        "GOOGL and META trade at materially lower EV/EBITDA (17.00 and 15.50 respectively) with higher FCF yields (4.50% and 5.00%), so if the market rotates toward software-driven peers with faster AI monetization, AAPL's premium over those names could compress significantly.",
+        "Apple's 5Y FCF CAGR of +6.00% trails its EPS CAGR of +10.00%, suggesting buybacks and accounting factors are flattering EPS; if share repurchase capacity is constrained by regulatory action or a shift in capital allocation priorities, the EPS growth story weakens materially."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1511,
+      "output_tokens": 775,
+      "cost_usd": 0.016158
+    },
+    "bear_opinion": {
+      "symbol": "AAPL",
+      "stance": "bear",
+      "as_of_date": "2026-04-27",
+      "summary": "AAPL trades at a premium to most peers despite below-peer FCF yield and decelerating revenue growth, leaving limited margin of safety at current valuation.",
+      "arguments": [
+        {
+          "claim": "AAPL's FCF yield of 3.80% is the lowest among peers except MSFT, yet AAPL's 5Y revenue CAGR of +7.5% does not justify a premium over higher-yielding, faster-growing peers like META (FCF yield 5.00%) and GOOGL (FCF yield 4.50%).",
+          "evidence": "FCF Yield TTM: AAPL 3.80% vs. META 5.00% and GOOGL 4.50%; AAPL 5Y Revenue CAGR +7.5% vs. META and GOOGL which carry higher FCF yields implying better capital return efficiency at lower implied multiples.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "AAPL's P/E of 29.50x sits above the peer median (~28.5x blended, but above GOOGL at 24x and META at 26x) while its 5Y EPS CAGR of +10% is not materially superior to justify the premium over those cheaper peers.",
+          "evidence": "P/E TTM: AAPL 29.50 vs. GOOGL 24.00 and META 26.00; AAPL 5Y EPS CAGR +10.00% — a modest growth premium that does not clearly warrant a 13–23% P/E premium over GOOGL and META respectively.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Sequential revenue deceleration outside the December quarter reveals heavy dependence on a single seasonal peak, with the most recent quarter (Mar-2026 $95B) only modestly above the Jun-2025 trough ($85B), suggesting limited organic growth momentum.",
+          "evidence": "Revenue: Dec-2025 $120.0B (peak) vs. Mar-2026 $95.0B, Sep-2025 $89.0B, Jun-2025 $85.0B — the non-holiday quarters cluster tightly in an $85–95B band, indicating the 5Y Revenue CAGR of +7.5% is heavily skewed by seasonal spikes rather than broad-based growth.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "AAPL's EV/EBITDA of 22.0x is above GOOGL (17.0x) and META (15.5x), meaning investors are paying a significant enterprise-value premium for a business with a lower FCF yield and comparable or slower growth.",
+          "evidence": "EV/EBITDA TTM: AAPL 22.00 vs. GOOGL 17.00 (29% premium) and META 15.50 (42% premium); AAPL FCF Yield 3.80% is lower than both GOOGL (4.50%) and META (5.00%).",
+          "confidence": "high"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "Apple Intelligence / AI-driven upgrade cycle: If the on-device AI features embedded in the iPhone 17 series trigger a supercycle, revenue in non-holiday quarters could break materially above the $85–95B band, invalidating the stagnation argument and justifying the premium multiple.",
+        "Services segment re-rating: If Apple's high-margin Services revenue (not broken out in the data but a known mix-shift driver) accelerates its share of total revenue, the market could assign a software-like multiple to the blended business, making the current EV/EBITDA of 22x look cheap relative to pure-play SaaS peers.",
+        "Aggressive capital return expansion: Apple has historically used its massive FCF ($21–35B per quarter) for buybacks that structurally reduce share count and lift EPS; an announced acceleration of buybacks or a special dividend could compress the P/E faster than earnings growth alone, supporting the current valuation."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1599,
+      "output_tokens": 1025,
+      "cost_usd": 0.020172
+    },
+    "current_price": 190.0,
+    "ttm_eps": 6.5,
+    "peer_pe": [
+      28.0,
+      30.0,
+      25.0
+    ],
+    "return_52w_high": 0.08,
+    "return_52w_low": -0.25,
+    "run_id": "golden-2026-04-27",
+    "scenario_s3_key": "scenarios/dt=2026-04-27/symbol=AAPL.json",
+    "bullbear_s3_keys": {
+      "bull": "agents/bullbear/dt=2026-04-27/symbol=AAPL/stance=bull.json",
+      "bear": "agents/bullbear/dt=2026-04-27/symbol=AAPL/stance=bear.json"
+    },
+    "data_quality_flags": []
+  },
+  "attempts": [
+    {
+      "model": "claude-sonnet-4-6",
+      "stage": "primary",
+      "input_tokens": 3064,
+      "output_tokens": 573,
+      "cost_usd": 0.017787,
+      "succeeded": true,
+      "error": null
+    }
+  ],
+  "prompt_user": "# AAPL — Apple Inc.\n- Sector: Technology / Consumer Electronics\n- As-of: 2026-04-27\n\n## Price Context\n- Current price: $190.00\n- TTM EPS: 6.50\n- Peer P/E (3): 28.0, 30.0, 25.0\n- Return to 52w high: +8.00%\n- Return to 52w low: -25.00%\n\n## Bull Opinion\nApple's consistent FCF generation, EPS CAGR outpacing revenue, and near-52w-high price momentum support a durable compounding thesis.\n\nArguments:\n- [high] Apple's EPS growth is outpacing revenue growth, demonstrating sustained margin expansion and capital efficiency over the long run. — 5Y CAGR: EPS +10.00% versus Revenue +7.50%, a 250bps spread indicating structural margin improvement beyond top-line growth.\n- [high] Apple generates substantial and consistent free cash flow across all four reported quarters, underscoring the durability of its cash conversion. — FCF over the last four quarters: $25.00B, $35.00B, $22.00B, $21.00B — totaling ~$103B TTM with no quarter below $21B, reflecting a resilient cash engine.\n- [medium] Apple's valuation is at a discount to its closest large-cap peer MSFT on both P/E and EV/EBITDA, while offering a superior FCF yield. — AAPL P/E 29.50 vs. MSFT 33.00; AAPL EV/EBITDA 22.00 vs. MSFT 23.50; AAPL FCF Yield 3.80% vs. MSFT 3.00% — AAPL is cheaper on all three metrics versus its most direct mega-cap comparable.\n- [medium] Price momentum remains intact without being dangerously extended, suggesting the stock is in a healthy uptrend with room to continue. — 1Y return +18.00%, 6M return +8.00%, and currently only -3.00% from its 52-week high — strong trend without the overextension that typically precedes sharp reversals.\n\nKey risks to thesis:\n- Apple's December quarter ($120.00B revenue, $2.10 EPS) is dramatically larger than the other three quarters, meaning any structural weakening in holiday-cycle consumer demand would disproportionately impair annual earnings and FCF, potentially breaking the EPS CAGR trend.\n- GOOGL and META trade at materially lower EV/EBITDA (17.00 and 15.50 respectively) with higher FCF yields (4.50% and 5.00%), so if the market rotates toward software-driven peers with faster AI monetization, AAPL's premium over those names could compress significantly.\n- Apple's 5Y FCF CAGR of +6.00% trails its EPS CAGR of +10.00%, suggesting buybacks and accounting factors are flattering EPS; if share repurchase capacity is constrained by regulatory action or a shift in capital allocation priorities, the EPS growth story weakens materially.\n\n## Bear Opinion\nAAPL trades at a premium to most peers despite below-peer FCF yield and decelerating revenue growth, leaving limited margin of safety at current valuation.\n\nArguments:\n- [medium] AAPL's FCF yield of 3.80% is the lowest among peers except MSFT, yet AAPL's 5Y revenue CAGR of +7.5% does not justify a premium over higher-yielding, faster-growing peers like META (FCF yield 5.00%) and GOOGL (FCF yield 4.50%). — FCF Yield TTM: AAPL 3.80% vs. META 5.00% and GOOGL 4.50%; AAPL 5Y Revenue CAGR +7.5% vs. META and GOOGL which carry higher FCF yields implying better capital return efficiency at lower implied multiples.\n- [medium] AAPL's P/E of 29.50x sits above the peer median (~28.5x blended, but above GOOGL at 24x and META at 26x) while its 5Y EPS CAGR of +10% is not materially superior to justify the premium over those cheaper peers. — P/E TTM: AAPL 29.50 vs. GOOGL 24.00 and META 26.00; AAPL 5Y EPS CAGR +10.00% — a modest growth premium that does not clearly warrant a 13–23% P/E premium over GOOGL and META respectively.\n- [medium] Sequential revenue deceleration outside the December quarter reveals heavy dependence on a single seasonal peak, with the most recent quarter (Mar-2026 $95B) only modestly above the Jun-2025 trough ($85B), suggesting limited organic growth momentum. — Revenue: Dec-2025 $120.0B (peak) vs. Mar-2026 $95.0B, Sep-2025 $89.0B, Jun-2025 $85.0B — the non-holiday quarters cluster tightly in an $85–95B band, indicating the 5Y Revenue CAGR of +7.5% is heavily skewed by seasonal spikes rather than broad-based growth.\n- [high] AAPL's EV/EBITDA of 22.0x is above GOOGL (17.0x) and META (15.5x), meaning investors are paying a significant enterprise-value premium for a business with a lower FCF yield and comparable or slower growth. — EV/EBITDA TTM: AAPL 22.00 vs. GOOGL 17.00 (29% premium) and META 15.50 (42% premium); AAPL FCF Yield 3.80% is lower than both GOOGL (4.50%) and META (5.00%).\n\nKey risks to thesis:\n- Apple Intelligence / AI-driven upgrade cycle: If the on-device AI features embedded in the iPhone 17 series trigger a supercycle, revenue in non-holiday quarters could break materially above the $85–95B band, invalidating the stagnation argument and justifying the premium multiple.\n- Services segment re-rating: If Apple's high-margin Services revenue (not broken out in the data but a known mix-shift driver) accelerates its share of total revenue, the market could assign a software-like multiple to the blended business, making the current EV/EBITDA of 22x look cheap relative to pure-play SaaS peers.\n- Aggressive capital return expansion: Apple has historically used its massive FCF ($21–35B per quarter) for buybacks that structurally reduce share count and lift EPS; an announced acceleration of buybacks or a special dividend could compress the P/E faster than earnings growth alone, supporting the current valuation.\n\n\n---\n\nTask: based on the Bull/Bear opinions and price context above, generate **exactly three** scenarios (bull / base / bear) for **AAPL** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Do NOT estimate prices — only `probability`, `narrative`, and `invalidation_trigger`. Prices are computed downstream.\n- The three probabilities must sum to 1.0.\n- Each `narrative` must cite specific evidence from the Bull or Bear opinion above.\n- Each `invalidation_trigger` must be a measurable event that would *negate that scenario*. Prefer auto-measurable metrics; `threshold` is null only for qualitative triggers.\n\nReturn only the JSON object matching the schema.\n",
+  "input_hash": "d608979dcdac9a0e5f04814668b96802fc2390d218dbe7d4f0201520bcd72228"
+}

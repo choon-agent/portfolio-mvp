@@ -1,0 +1,188 @@
+{
+  "scenario_opinion": {
+    "symbol": "NVDA",
+    "as_of_date": "2026-04-27",
+    "scenarios": [
+      {
+        "label": "bull",
+        "probability": 0.35,
+        "narrative": "Bull's sustained revenue ramp ($28B→$38B in four quarters, 5Y FCF CAGR +50%) continues as hyperscaler AI capex expands faster than consensus, validating the 65x P/E through accelerating EPS growth (+60% 5Y CAGR) and FCF expansion that compresses the 1.5% FCF yield toward peer levels.",
+        "invalidation_trigger": {
+          "metric": "revenue_qoq",
+          "direction": "less_than",
+          "threshold": 0.0,
+          "threshold_unit": "percent",
+          "description": "Sequential quarterly revenue declines from the $38B run-rate, signaling hyperscaler capex retrenchment as flagged in Bull's key risks."
+        }
+      },
+      {
+        "label": "base",
+        "probability": 0.4,
+        "narrative": "Revenue growth continues but decelerates (as Bear notes, sequential growth already stepped down from +16.7% to +8.6%), keeping NVDA's premium multiple under pressure. FCF yield remains near 1.5% vs. peer median ~3%, limiting re-rating while EPS growth sustains the thesis at a modest pace.",
+        "invalidation_trigger": {
+          "metric": "eps_yoy",
+          "direction": "less_than",
+          "threshold": 20.0,
+          "threshold_unit": "percent",
+          "description": "EPS growth falls below 20% YoY, breaking the structural margin-expansion narrative underpinning the base case."
+        }
+      },
+      {
+        "label": "bear",
+        "probability": 0.25,
+        "narrative": "Bear's valuation risk materializes: 65x P/E (2x peer median) and 1.5% FCF yield (one-third of QCOM's) leave no margin for error. With beta of 1.45 amplifying any market correction and sequential growth already decelerating, a guidance cut or export-control escalation triggers sharp de-rating.",
+        "invalidation_trigger": {
+          "metric": "guidance_change",
+          "direction": "greater_than",
+          "threshold": null,
+          "threshold_unit": "qualitative",
+          "description": "Management raises forward revenue guidance materially above current $38B quarterly run-rate, negating the deceleration and de-rating bear thesis."
+        }
+      }
+    ],
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 3154,
+    "output_tokens": 619,
+    "cost_usd": 0.018747
+  },
+  "expected_return": {
+    "symbol": "NVDA",
+    "as_of_date": "2026-04-27",
+    "expected_price": 111.89999999999999,
+    "expected_return": 0.017272727272727197,
+    "variance": 30.98999999999993,
+    "scenario_prices": {
+      "bull": 118.99999999999999,
+      "base": 110.0,
+      "bear": 105.0
+    },
+    "pricing_config": {
+      "bull_aggressiveness": "conservative",
+      "bear_conservatism": "conservative",
+      "peer_pe_bull_percentile": 75.0,
+      "peer_pe_base_percentile": 50.0,
+      "peer_pe_bear_percentile": 25.0,
+      "base_price_cap_pct": 0.0,
+      "bull_probability_cap": null,
+      "bear_probability_cap": null
+    },
+    "data_quality_flags": [],
+    "scenario_opinion_s3_key": "scenarios/dt=2026-04-27/symbol=NVDA.json",
+    "computed_at": "2026-05-31T13:48:39.894507Z"
+  },
+  "scenario_context": {
+    "symbol": "NVDA",
+    "company_name": "NVIDIA Corporation",
+    "sector": "Technology",
+    "sub_sector": "Semiconductors",
+    "as_of_date": "2026-04-27",
+    "bull_opinion": {
+      "symbol": "NVDA",
+      "stance": "bull",
+      "as_of_date": "2026-04-27",
+      "summary": "NVDA's four-quarter revenue acceleration to $38B and 5Y FCF CAGR of +50% reflect durable structural demand that justifies its premium over semiconductor peers.",
+      "arguments": [
+        {
+          "claim": "NVDA is executing a sustained, accelerating revenue ramp with no signs of deceleration across the last four reported quarters.",
+          "evidence": "Revenue grew sequentially from $28.00B (Jun-2025) → $30.00B (Sep-2025) → $35.00B (Dec-2025) → $38.00B (Mar-2026), a 36% cumulative increase over four quarters, supported by a 5Y revenue CAGR of +45%.",
+          "confidence": "high"
+        },
+        {
+          "claim": "FCF generation is exceptionally high in absolute terms and has expanded in lockstep with revenue, demonstrating strong operating leverage.",
+          "evidence": "FCF rose from $14.00B (Jun-2025) to $20.00B (Mar-2026) — a 43% increase in four quarters — against a 5Y FCF CAGR of +50%, outpacing even the already-elevated revenue CAGR of +45%.",
+          "confidence": "high"
+        },
+        {
+          "claim": "EPS growth is outpacing revenue growth, confirming margin expansion and improving earnings quality over the medium term.",
+          "evidence": "Diluted EPS grew from $3.80 (Jun-2025) to $5.20 (Mar-2026), a 37% increase over four quarters, while the 5Y EPS CAGR of +60% materially exceeds the 5Y revenue CAGR of +45%, indicating structural margin improvement.",
+          "confidence": "high"
+        },
+        {
+          "claim": "Price momentum remains intact without being dangerously extended, suggesting the market is still pricing in fundamental progress rather than pure speculation.",
+          "evidence": "1Y return of +85% and 6M return of +30% reflect strong trend, yet the stock sits only -5% from its 52-week high while +120% from its 52-week low — momentum is robust but not at a blow-off extreme.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "NVDA's valuation premium over peers is partially offset by its dramatically superior growth profile, making the multiple more defensible than a raw comparison suggests.",
+          "evidence": "NVDA's P/E TTM of 65x compares to AMD at 42x, AVGO at 38x, QCOM at 22x, and INTC at 28x; however, NVDA's 5Y EPS CAGR of +60% and four-quarter EPS growth of 37% far exceed what any peer in the table has demonstrated, providing a growth-adjusted basis for the premium.",
+          "confidence": "medium"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "Hyperscaler capex retrenchment: NVDA's revenue concentration in large cloud and AI infrastructure customers means any coordinated pullback in data-center GPU spending — visible in a sequential revenue decline from the current $38B quarterly run-rate — would directly invalidate the growth-acceleration thesis.",
+        "Competitive displacement in AI accelerators: AMD or a hyperscaler-developed custom ASIC gaining meaningful share in training or inference workloads could compress NVDA's pricing power and erode the EPS margin expansion that underpins the 5Y +60% EPS CAGR narrative.",
+        "Export control escalation: Tightened US restrictions on advanced chip exports to China or other markets could remove a material revenue segment, causing a visible step-down in quarterly revenue and FCF that the current four-quarter trend does not reflect."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1509,
+      "output_tokens": 939,
+      "cost_usd": 0.018612
+    },
+    "bear_opinion": {
+      "symbol": "NVDA",
+      "stance": "bear",
+      "as_of_date": "2026-04-27",
+      "summary": "NVDA trades at a steep premium to all semiconductor peers (P/E 65x vs. median ~30x) while its FCF yield of 1.5% is the lowest in the group, leaving little margin for any growth deceleration.",
+      "arguments": [
+        {
+          "claim": "NVDA's valuation is dramatically richer than every semiconductor peer on every metric, pricing in near-perfect execution with no room for error.",
+          "evidence": "P/E TTM of 65x versus peer median of ~30x (AMD 42x, AVGO 38x, QCOM 22x, INTC 28x); EV/EBITDA of 50x versus peer median of ~21x (AMD 30x, AVGO 25x, QCOM 15x, INTC 12x). NVDA trades at roughly 2x the peer median P/E and more than 2x the peer median EV/EBITDA.",
+          "confidence": "high"
+        },
+        {
+          "claim": "NVDA's FCF yield of 1.5% is the lowest among all listed peers, meaning investors are receiving the least cash-return compensation per dollar invested despite the highest valuation multiples.",
+          "evidence": "FCF Yield TTM of 1.5% versus QCOM 4.5%, AVGO 3.0%, INTC 2.5%, and AMD 2.0% — NVDA's yield is one-third of QCOM's and half of AVGO's, despite NVDA commanding the highest P/E and EV/EBITDA in the group.",
+          "confidence": "high"
+        },
+        {
+          "claim": "The stock's 120% gain from its 52-week low and 85% 1-year return embed an extremely optimistic growth trajectory; any sequential revenue growth deceleration from the current pace would likely trigger a sharp de-rating given the 65x P/E.",
+          "evidence": "Sequential quarterly revenue growth has been: $28B → $30B (+7.1%) → $35B (+16.7%) → $38B (+8.6%), showing the growth rate already stepped down meaningfully in the most recent quarter. The stock sits only 5% below its 52-week high after a +120% move from the low, leaving little technical cushion if fundamentals disappoint.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "With a beta of 1.45 versus SPY, NVDA amplifies broad market drawdowns by nearly 50%, meaning the elevated valuation multiple faces compounded risk from both multiple compression and market-level volatility.",
+          "evidence": "Beta (1Y vs SPY) of 1.45 combined with a P/E of 65x — if the market corrects and growth expectations moderate simultaneously, the high-beta, high-multiple combination creates outsized downside relative to lower-beta peers such as QCOM (implied lower beta, P/E 22x) or AVGO (P/E 38x).",
+          "confidence": "medium"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "NVDA's 5Y revenue CAGR of +45% and FCF CAGR of +50% could continue to accelerate if AI infrastructure capex by hyperscalers (cloud providers) expands faster than consensus expects, causing the current 65x P/E to prove justified or even cheap on a forward basis.",
+        "If NVDA's data-center GPU monopoly position allows it to sustain gross margins well above peers, the absolute FCF per share could grow fast enough to compress the FCF yield toward peer levels within 1–2 years, neutralizing the valuation-premium bear argument.",
+        "A major competitor (AMD, custom silicon from hyperscalers) failing to gain meaningful GPU market share would extend NVDA's pricing power and revenue growth runway, making the premium multiple durable rather than a risk."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1597,
+      "output_tokens": 972,
+      "cost_usd": 0.019371
+    },
+    "current_price": 110.0,
+    "ttm_eps": 2.8,
+    "peer_pe": [
+      40.0,
+      35.0,
+      45.0
+    ],
+    "return_52w_high": 0.2,
+    "return_52w_low": -0.4,
+    "run_id": "golden-2026-04-27",
+    "scenario_s3_key": "scenarios/dt=2026-04-27/symbol=NVDA.json",
+    "bullbear_s3_keys": {
+      "bull": "agents/bullbear/dt=2026-04-27/symbol=NVDA/stance=bull.json",
+      "bear": "agents/bullbear/dt=2026-04-27/symbol=NVDA/stance=bear.json"
+    },
+    "data_quality_flags": []
+  },
+  "attempts": [
+    {
+      "model": "claude-sonnet-4-6",
+      "stage": "primary",
+      "input_tokens": 3154,
+      "output_tokens": 619,
+      "cost_usd": 0.018747,
+      "succeeded": true,
+      "error": null
+    }
+  ],
+  "prompt_user": "# NVDA — NVIDIA Corporation\n- Sector: Technology / Semiconductors\n- As-of: 2026-04-27\n\n## Price Context\n- Current price: $110.00\n- TTM EPS: 2.80\n- Peer P/E (3): 40.0, 35.0, 45.0\n- Return to 52w high: +20.00%\n- Return to 52w low: -40.00%\n\n## Bull Opinion\nNVDA's four-quarter revenue acceleration to $38B and 5Y FCF CAGR of +50% reflect durable structural demand that justifies its premium over semiconductor peers.\n\nArguments:\n- [high] NVDA is executing a sustained, accelerating revenue ramp with no signs of deceleration across the last four reported quarters. — Revenue grew sequentially from $28.00B (Jun-2025) → $30.00B (Sep-2025) → $35.00B (Dec-2025) → $38.00B (Mar-2026), a 36% cumulative increase over four quarters, supported by a 5Y revenue CAGR of +45%.\n- [high] FCF generation is exceptionally high in absolute terms and has expanded in lockstep with revenue, demonstrating strong operating leverage. — FCF rose from $14.00B (Jun-2025) to $20.00B (Mar-2026) — a 43% increase in four quarters — against a 5Y FCF CAGR of +50%, outpacing even the already-elevated revenue CAGR of +45%.\n- [high] EPS growth is outpacing revenue growth, confirming margin expansion and improving earnings quality over the medium term. — Diluted EPS grew from $3.80 (Jun-2025) to $5.20 (Mar-2026), a 37% increase over four quarters, while the 5Y EPS CAGR of +60% materially exceeds the 5Y revenue CAGR of +45%, indicating structural margin improvement.\n- [medium] Price momentum remains intact without being dangerously extended, suggesting the market is still pricing in fundamental progress rather than pure speculation. — 1Y return of +85% and 6M return of +30% reflect strong trend, yet the stock sits only -5% from its 52-week high while +120% from its 52-week low — momentum is robust but not at a blow-off extreme.\n- [medium] NVDA's valuation premium over peers is partially offset by its dramatically superior growth profile, making the multiple more defensible than a raw comparison suggests. — NVDA's P/E TTM of 65x compares to AMD at 42x, AVGO at 38x, QCOM at 22x, and INTC at 28x; however, NVDA's 5Y EPS CAGR of +60% and four-quarter EPS growth of 37% far exceed what any peer in the table has demonstrated, providing a growth-adjusted basis for the premium.\n\nKey risks to thesis:\n- Hyperscaler capex retrenchment: NVDA's revenue concentration in large cloud and AI infrastructure customers means any coordinated pullback in data-center GPU spending — visible in a sequential revenue decline from the current $38B quarterly run-rate — would directly invalidate the growth-acceleration thesis.\n- Competitive displacement in AI accelerators: AMD or a hyperscaler-developed custom ASIC gaining meaningful share in training or inference workloads could compress NVDA's pricing power and erode the EPS margin expansion that underpins the 5Y +60% EPS CAGR narrative.\n- Export control escalation: Tightened US restrictions on advanced chip exports to China or other markets could remove a material revenue segment, causing a visible step-down in quarterly revenue and FCF that the current four-quarter trend does not reflect.\n\n## Bear Opinion\nNVDA trades at a steep premium to all semiconductor peers (P/E 65x vs. median ~30x) while its FCF yield of 1.5% is the lowest in the group, leaving little margin for any growth deceleration.\n\nArguments:\n- [high] NVDA's valuation is dramatically richer than every semiconductor peer on every metric, pricing in near-perfect execution with no room for error. — P/E TTM of 65x versus peer median of ~30x (AMD 42x, AVGO 38x, QCOM 22x, INTC 28x); EV/EBITDA of 50x versus peer median of ~21x (AMD 30x, AVGO 25x, QCOM 15x, INTC 12x). NVDA trades at roughly 2x the peer median P/E and more than 2x the peer median EV/EBITDA.\n- [high] NVDA's FCF yield of 1.5% is the lowest among all listed peers, meaning investors are receiving the least cash-return compensation per dollar invested despite the highest valuation multiples. — FCF Yield TTM of 1.5% versus QCOM 4.5%, AVGO 3.0%, INTC 2.5%, and AMD 2.0% — NVDA's yield is one-third of QCOM's and half of AVGO's, despite NVDA commanding the highest P/E and EV/EBITDA in the group.\n- [medium] The stock's 120% gain from its 52-week low and 85% 1-year return embed an extremely optimistic growth trajectory; any sequential revenue growth deceleration from the current pace would likely trigger a sharp de-rating given the 65x P/E. — Sequential quarterly revenue growth has been: $28B → $30B (+7.1%) → $35B (+16.7%) → $38B (+8.6%), showing the growth rate already stepped down meaningfully in the most recent quarter. The stock sits only 5% below its 52-week high after a +120% move from the low, leaving little technical cushion if fundamentals disappoint.\n- [medium] With a beta of 1.45 versus SPY, NVDA amplifies broad market drawdowns by nearly 50%, meaning the elevated valuation multiple faces compounded risk from both multiple compression and market-level volatility. — Beta (1Y vs SPY) of 1.45 combined with a P/E of 65x — if the market corrects and growth expectations moderate simultaneously, the high-beta, high-multiple combination creates outsized downside relative to lower-beta peers such as QCOM (implied lower beta, P/E 22x) or AVGO (P/E 38x).\n\nKey risks to thesis:\n- NVDA's 5Y revenue CAGR of +45% and FCF CAGR of +50% could continue to accelerate if AI infrastructure capex by hyperscalers (cloud providers) expands faster than consensus expects, causing the current 65x P/E to prove justified or even cheap on a forward basis.\n- If NVDA's data-center GPU monopoly position allows it to sustain gross margins well above peers, the absolute FCF per share could grow fast enough to compress the FCF yield toward peer levels within 1–2 years, neutralizing the valuation-premium bear argument.\n- A major competitor (AMD, custom silicon from hyperscalers) failing to gain meaningful GPU market share would extend NVDA's pricing power and revenue growth runway, making the premium multiple durable rather than a risk.\n\n\n---\n\nTask: based on the Bull/Bear opinions and price context above, generate **exactly three** scenarios (bull / base / bear) for **NVDA** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Do NOT estimate prices — only `probability`, `narrative`, and `invalidation_trigger`. Prices are computed downstream.\n- The three probabilities must sum to 1.0.\n- Each `narrative` must cite specific evidence from the Bull or Bear opinion above.\n- Each `invalidation_trigger` must be a measurable event that would *negate that scenario*. Prefer auto-measurable metrics; `threshold` is null only for qualitative triggers.\n\nReturn only the JSON object matching the schema.\n",
+  "input_hash": "e7d9d75415540a113464d76e27d401033bf42c975fdf8cb0db46705049d8551d"
+}

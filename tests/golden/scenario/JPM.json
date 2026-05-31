@@ -1,0 +1,183 @@
+{
+  "scenario_opinion": {
+    "symbol": "JPM",
+    "as_of_date": "2026-04-27",
+    "scenarios": [
+      {
+        "label": "bull",
+        "probability": 0.35,
+        "narrative": "Bull's 5Y EPS CAGR of +10% re-accelerates as higher-for-longer rates expand net interest income, revenue breaks above the $43.5B Q4 2025 peak, and JPM's franchise quality sustains its P/E premium over BAC, WFC, and C.",
+        "invalidation_trigger": {
+          "metric": "eps_yoy",
+          "direction": "less_than",
+          "threshold": 5.0,
+          "threshold_unit": "percent",
+          "description": "EPS growth falls below 5% YoY, undermining the 10% CAGR compounding thesis central to the bull case."
+        }
+      },
+      {
+        "label": "base",
+        "probability": 0.4,
+        "narrative": "JPM sustains modest top-line growth within the $40.5B–$43.5B revenue band cited by the Bear, with EPS compounding at a slower pace than the 5Y CAGR of +10%, while the P/E premium over peers remains modest but intact given franchise quality.",
+        "invalidation_trigger": {
+          "metric": "revenue_yoy",
+          "direction": "less_than",
+          "threshold": 2.0,
+          "threshold_unit": "percent",
+          "description": "Revenue growth drops below 2% YoY, signaling a stall beyond the Bear's sequential oscillation and breaking the base steady-growth assumption."
+        }
+      },
+      {
+        "label": "bear",
+        "probability": 0.25,
+        "narrative": "Bear's case materializes: sequential EPS decline from $5.20 to $4.80 deepens, revenue remains rangebound with no breakout above $43.5B, and the 8–30% P/E premium over peers compresses as credit provisions rise or Basel III capital demands curtail buybacks.",
+        "invalidation_trigger": {
+          "metric": "earnings_surprise",
+          "direction": "greater_than",
+          "threshold": 5.0,
+          "threshold_unit": "percent",
+          "description": "JPM reports an EPS beat of more than 5% versus consensus, signaling earnings momentum has reversed and invalidating the fading-earnings-power bear argument."
+        }
+      }
+    ],
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 2880,
+    "output_tokens": 592,
+    "cost_usd": 0.01752
+  },
+  "expected_return": {
+    "symbol": "JPM",
+    "as_of_date": "2026-04-27",
+    "expected_price": 204.85000000000002,
+    "expected_return": -0.0007317073170730598,
+    "variance": 42.6275,
+    "scenario_prices": {
+      "bull": 212.5,
+      "base": 204.0,
+      "bear": 195.5
+    },
+    "pricing_config": {
+      "bull_aggressiveness": "conservative",
+      "bear_conservatism": "conservative",
+      "peer_pe_bull_percentile": 75.0,
+      "peer_pe_base_percentile": 50.0,
+      "peer_pe_bear_percentile": 25.0,
+      "base_price_cap_pct": 0.0,
+      "bull_probability_cap": null,
+      "bear_probability_cap": null
+    },
+    "data_quality_flags": [],
+    "scenario_opinion_s3_key": "scenarios/dt=2026-04-27/symbol=JPM.json",
+    "computed_at": "2026-05-31T13:48:51.473305Z"
+  },
+  "scenario_context": {
+    "symbol": "JPM",
+    "company_name": "JPMorgan Chase & Co.",
+    "sector": "Financials",
+    "sub_sector": "Banks",
+    "as_of_date": "2026-04-27",
+    "bull_opinion": {
+      "symbol": "JPM",
+      "stance": "bull",
+      "as_of_date": "2026-04-27",
+      "summary": "JPM's consistent revenue growth, superior EPS trajectory, and premium-yet-reasonable P/E versus peers support a durable earnings-compounding bull case.",
+      "arguments": [
+        {
+          "claim": "JPM has delivered sustained revenue growth across all four reported quarters, with TTM revenue totaling approximately $167B and a 5Y revenue CAGR of +6%, demonstrating durable top-line momentum.",
+          "evidence": "Quarterly revenues of $40.50B, $41.00B, $43.50B, and $42.00B over the last four periods; 5Y Revenue CAGR +6.00%.",
+          "confidence": "high"
+        },
+        {
+          "claim": "EPS has compounded at a 5Y CAGR of +10%, outpacing revenue growth and signaling improving operating leverage and capital efficiency over time.",
+          "evidence": "5Y EPS CAGR +10.00% versus 5Y Revenue CAGR +6.00%; diluted EPS ranged from $4.55 to $5.20 across the last four quarters.",
+          "confidence": "high"
+        },
+        {
+          "claim": "JPM trades at a modest P/E premium to large-bank peers BAC, WFC, and C, which is justified by its superior earnings growth profile and franchise quality.",
+          "evidence": "JPM P/E TTM 13.00x versus BAC 12.00x, WFC 11.50x, and C 10.00x; JPM's 5Y EPS CAGR of +10% supports the relative premium.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Price momentum remains intact without being dangerously extended — the stock is only 2% below its 52-week high after a +20% 1-year return, suggesting sustained institutional demand rather than a speculative spike.",
+          "evidence": "1Y return +20.00%, from 52w high -2.00%, from 52w low +25.00%.",
+          "confidence": "medium"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "A sharp steepening or inversion of the yield curve could compress JPM's net interest margin materially, directly pressuring the revenue and EPS growth trend that underpins the bull case.",
+        "JPM's P/E premium over peers (13x vs. C at 10x) could compress if credit loss provisions surge — particularly in its large consumer and commercial loan books — eroding the EPS CAGR that justifies the valuation gap.",
+        "Regulatory capital requirement increases (e.g., Basel III endgame finalization demanding higher CET1 ratios) could force JPM to curtail buybacks and dividend growth, reducing the earnings-per-share compounding mechanism central to the thesis."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1497,
+      "output_tokens": 713,
+      "cost_usd": 0.015186
+    },
+    "bear_opinion": {
+      "symbol": "JPM",
+      "stance": "bear",
+      "as_of_date": "2026-04-27",
+      "summary": "JPM trades at a P/E premium to most large-bank peers while revenue growth has stalled sequentially and the stock sits near 52-week highs, leaving little margin of safety.",
+      "arguments": [
+        {
+          "claim": "JPM commands a P/E premium over most large-bank peers despite no clear earnings-growth advantage that justifies the gap.",
+          "evidence": "JPM P/E TTM of 13.0x versus BAC 12.0x, WFC 11.5x, and C 10.0x — JPM trades at a 8–30% premium to three of four peers. GS at 14.5x is the only peer trading higher, yet GS operates a more capital-markets-intensive model. JPM's 5Y EPS CAGR of +10% is solid but not exceptional enough to warrant a sustained premium across the peer group.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Sequential revenue momentum has stalled: the most recent quarter showed a meaningful decline from the prior quarter's peak.",
+          "evidence": "Revenue fell from $43.50B in Q4 2025 to $42.00B in Q1 2026, a sequential drop of ~$1.5B (~3.4%), after a prior-quarter peak. The trailing four quarters show revenue oscillating in a $40.5B–$43.5B band with no clear upward breakout, consistent with a 5Y revenue CAGR of only +6% — modest for a stock near 52-week highs.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "The stock is priced near its 52-week high with limited technical cushion, concentrating downside risk if fundamentals disappoint.",
+          "evidence": "JPM is only -2% from its 52-week high while up +25% from its 52-week low and +20% over the past year. With a beta of 1.05, any macro or credit-cycle deterioration would translate into at least market-level drawdowns from a near-peak entry point, with little valuation buffer given the peer-relative P/E premium.",
+          "confidence": "medium"
+        },
+        {
+          "claim": "Diluted EPS declined sequentially in the most recent quarter, suggesting near-term earnings momentum may be fading.",
+          "evidence": "Diluted EPS dropped from $5.20 in Q4 2025 to $4.80 in Q1 2026, a sequential decline of ~7.7%, reversing the prior quarter's high-water mark. While Q1 seasonality can be a factor, the EPS level also sits only modestly above the $4.55–$4.60 range seen in mid-2025, indicating limited incremental earnings power over the past three quarters.",
+          "confidence": "medium"
+        }
+      ],
+      "key_risks_to_thesis": [
+        "JPM's 5Y EPS CAGR of +10% could re-accelerate if net interest income expands in a higher-for-longer rate environment, compressing the peer-relative P/E premium organically and validating the current valuation.",
+        "A significant market-share gain in investment banking or wealth management — visible in a revenue rebound above the $43.5B Q4 2025 peak in coming quarters — would invalidate the stalling-revenue argument and support multiple expansion.",
+        "If credit losses at peers (BAC, WFC, C) rise materially while JPM's superior risk management keeps provisions contained, JPM's premium P/E would be justified by relative earnings resilience, undermining the valuation-gap bear case."
+      ],
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 1585,
+      "output_tokens": 897,
+      "cost_usd": 0.01821
+    },
+    "current_price": 205.0,
+    "ttm_eps": 17.0,
+    "peer_pe": [
+      12.0,
+      11.0,
+      13.0
+    ],
+    "return_52w_high": 0.1,
+    "return_52w_low": -0.2,
+    "run_id": "golden-2026-04-27",
+    "scenario_s3_key": "scenarios/dt=2026-04-27/symbol=JPM.json",
+    "bullbear_s3_keys": {
+      "bull": "agents/bullbear/dt=2026-04-27/symbol=JPM/stance=bull.json",
+      "bear": "agents/bullbear/dt=2026-04-27/symbol=JPM/stance=bear.json"
+    },
+    "data_quality_flags": []
+  },
+  "attempts": [
+    {
+      "model": "claude-sonnet-4-6",
+      "stage": "primary",
+      "input_tokens": 2880,
+      "output_tokens": 592,
+      "cost_usd": 0.01752,
+      "succeeded": true,
+      "error": null
+    }
+  ],
+  "prompt_user": "# JPM — JPMorgan Chase & Co.\n- Sector: Financials / Banks\n- As-of: 2026-04-27\n\n## Price Context\n- Current price: $205.00\n- TTM EPS: 17.00\n- Peer P/E (3): 12.0, 11.0, 13.0\n- Return to 52w high: +10.00%\n- Return to 52w low: -20.00%\n\n## Bull Opinion\nJPM's consistent revenue growth, superior EPS trajectory, and premium-yet-reasonable P/E versus peers support a durable earnings-compounding bull case.\n\nArguments:\n- [high] JPM has delivered sustained revenue growth across all four reported quarters, with TTM revenue totaling approximately $167B and a 5Y revenue CAGR of +6%, demonstrating durable top-line momentum. — Quarterly revenues of $40.50B, $41.00B, $43.50B, and $42.00B over the last four periods; 5Y Revenue CAGR +6.00%.\n- [high] EPS has compounded at a 5Y CAGR of +10%, outpacing revenue growth and signaling improving operating leverage and capital efficiency over time. — 5Y EPS CAGR +10.00% versus 5Y Revenue CAGR +6.00%; diluted EPS ranged from $4.55 to $5.20 across the last four quarters.\n- [medium] JPM trades at a modest P/E premium to large-bank peers BAC, WFC, and C, which is justified by its superior earnings growth profile and franchise quality. — JPM P/E TTM 13.00x versus BAC 12.00x, WFC 11.50x, and C 10.00x; JPM's 5Y EPS CAGR of +10% supports the relative premium.\n- [medium] Price momentum remains intact without being dangerously extended — the stock is only 2% below its 52-week high after a +20% 1-year return, suggesting sustained institutional demand rather than a speculative spike. — 1Y return +20.00%, from 52w high -2.00%, from 52w low +25.00%.\n\nKey risks to thesis:\n- A sharp steepening or inversion of the yield curve could compress JPM's net interest margin materially, directly pressuring the revenue and EPS growth trend that underpins the bull case.\n- JPM's P/E premium over peers (13x vs. C at 10x) could compress if credit loss provisions surge — particularly in its large consumer and commercial loan books — eroding the EPS CAGR that justifies the valuation gap.\n- Regulatory capital requirement increases (e.g., Basel III endgame finalization demanding higher CET1 ratios) could force JPM to curtail buybacks and dividend growth, reducing the earnings-per-share compounding mechanism central to the thesis.\n\n## Bear Opinion\nJPM trades at a P/E premium to most large-bank peers while revenue growth has stalled sequentially and the stock sits near 52-week highs, leaving little margin of safety.\n\nArguments:\n- [medium] JPM commands a P/E premium over most large-bank peers despite no clear earnings-growth advantage that justifies the gap. — JPM P/E TTM of 13.0x versus BAC 12.0x, WFC 11.5x, and C 10.0x — JPM trades at a 8–30% premium to three of four peers. GS at 14.5x is the only peer trading higher, yet GS operates a more capital-markets-intensive model. JPM's 5Y EPS CAGR of +10% is solid but not exceptional enough to warrant a sustained premium across the peer group.\n- [medium] Sequential revenue momentum has stalled: the most recent quarter showed a meaningful decline from the prior quarter's peak. — Revenue fell from $43.50B in Q4 2025 to $42.00B in Q1 2026, a sequential drop of ~$1.5B (~3.4%), after a prior-quarter peak. The trailing four quarters show revenue oscillating in a $40.5B–$43.5B band with no clear upward breakout, consistent with a 5Y revenue CAGR of only +6% — modest for a stock near 52-week highs.\n- [medium] The stock is priced near its 52-week high with limited technical cushion, concentrating downside risk if fundamentals disappoint. — JPM is only -2% from its 52-week high while up +25% from its 52-week low and +20% over the past year. With a beta of 1.05, any macro or credit-cycle deterioration would translate into at least market-level drawdowns from a near-peak entry point, with little valuation buffer given the peer-relative P/E premium.\n- [medium] Diluted EPS declined sequentially in the most recent quarter, suggesting near-term earnings momentum may be fading. — Diluted EPS dropped from $5.20 in Q4 2025 to $4.80 in Q1 2026, a sequential decline of ~7.7%, reversing the prior quarter's high-water mark. While Q1 seasonality can be a factor, the EPS level also sits only modestly above the $4.55–$4.60 range seen in mid-2025, indicating limited incremental earnings power over the past three quarters.\n\nKey risks to thesis:\n- JPM's 5Y EPS CAGR of +10% could re-accelerate if net interest income expands in a higher-for-longer rate environment, compressing the peer-relative P/E premium organically and validating the current valuation.\n- A significant market-share gain in investment banking or wealth management — visible in a revenue rebound above the $43.5B Q4 2025 peak in coming quarters — would invalidate the stalling-revenue argument and support multiple expansion.\n- If credit losses at peers (BAC, WFC, C) rise materially while JPM's superior risk management keeps provisions contained, JPM's premium P/E would be justified by relative earnings resilience, undermining the valuation-gap bear case.\n\n\n---\n\nTask: based on the Bull/Bear opinions and price context above, generate **exactly three** scenarios (bull / base / bear) for **JPM** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Do NOT estimate prices — only `probability`, `narrative`, and `invalidation_trigger`. Prices are computed downstream.\n- The three probabilities must sum to 1.0.\n- Each `narrative` must cite specific evidence from the Bull or Bear opinion above.\n- Each `invalidation_trigger` must be a measurable event that would *negate that scenario*. Prefer auto-measurable metrics; `threshold` is null only for qualitative triggers.\n\nReturn only the JSON object matching the schema.\n",
+  "input_hash": "a3dd5b9a9939bb0f611d17113bddd21597d532e9c7d39f78667dccf98524d405"
+}
