@@ -4,8 +4,14 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.10 (2026-05-28)
+> **버전**: v0.11 (2026-05-28)
 > **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+>
+> **v0.11 변경 (§10.3 golden 의미 정정 — CLAUDE.md 정합)**:
+> ① **생성 vs replay 분리** — CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 스냅샷 검증인데 §10.3 이 "실제 호출"과 혼동. *생성* (`run_scenario_golden.py` 스크립트, 1회 $0.072) ↔ *테스트* (스냅샷 replay, LLM 호출 0) 분리.
+> ② **assert 명세 추가** — M2 골든 패턴 따라 구조·정책 검증 열거. *scenario 는 M2 보다 강함* — 저장 ScenarioOpinion → `compute_expected_return` 재실행 시 `ExpectedReturn` 이 결정적으로 정확 재현 (exact assert). + narrative 가격숫자 미출현(hard rule #1)·prob 합·라벨/enum.
+> ③ **마커 기존재 정정** — `golden` 마커는 이미 `src/pytest.ini` 에 등록됨 (범용) → §10.3·§11 #8 의 "추가/등록" 을 "재사용" 으로 정정.
+> ④ (A context_builder / C 신규 트리거 로직 / D ExpectedReturnsBundle 테스트 갭은 검토했으나 이번 박제 범위 밖 — 필요 시 후속.)
 >
 > **v0.10 변경 (§7 트리거 자동 검증 — 스키마·calibration 정의)**:
 > ① **A `TriggerEvaluation` 스키마 + S3 저장** — §7.1 이 정의 없이 쓰던 `TriggerEvaluation` 을 Pydantic 모델로 박제 (`actual`/`threshold`/`met`/`requires_human_review`/lineage) + S3 레이아웃 `trigger_evaluations/dt=*/symbol=*.json`.
@@ -998,11 +1004,23 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 ### 10.2 LLM 호출 모킹
 - Bull/Bear `FakeAnthropicClient` 재사용. 정상/검증실패/5xx 시나리오
 
-### 10.3 골든 케이스 (수동)
-- 4종목 (Bull/Bear 골든 그대로: AAPL/XOM/NVDA/JPM) → 시나리오 호출 → 스냅샷 저장
-- `tests/golden/scenario/{symbol}.json` — `ScenarioOpinion` + `ExpectedReturn`
-- `pytest -m golden` 마커 (기존 `pytest.ini` 에 추가)
-- 비용 ~$0.072 (4 × $0.018)
+### 10.3 골든 케이스 (M2 패턴 — 생성/replay 분리)
+
+CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 두 단계로 분리:
+
+**(a) 스냅샷 생성 — 수동, 실제 호출** (`scripts/run_scenario_golden.py`):
+- 4종목 (Bull/Bear 골든 그대로: AAPL/XOM/NVDA/JPM) → 시나리오 실제 호출 → 스냅샷 저장
+- `tests/golden/scenario/{symbol}.json` — `ScenarioOpinion`(LLM 출력) + `ExpectedReturn`(산식)
+- **1회 비용 ~$0.072** (4 × $0.018, single-stance) — *CI 반복 아님*. 프롬프트/스키마 변경 시에만 재생성 + 인간 검토 후 커밋
+- P2-H (§11 #5) 의미 확정 후 생성 (스냅샷 일관성)
+
+**(b) golden 테스트 — replay, LLM 호출 0** (`pytest -m golden`, 마커는 이미 `src/pytest.ini` 등록 — 재사용):
+- 저장 스냅샷 JSON 만 검증. 스냅샷 없으면 parametrize 0건 → false-positive pass 없음 (M2 패턴)
+- 검증 항목:
+  1. `ScenarioOpinion` 스키마 통과 + prob 합 1.0 + 라벨 = bull/base/bear + trigger metric ∈ enum
+  2. **narrative 에 가격 숫자 미출현** (hard rule #1 "No price estimation" 회귀 — `$\d+`/price target 정규식)
+  3. **`ExpectedReturn` 결정성 exact** — 저장 `ScenarioOpinion` + `ScenarioContext` → `compute_expected_return` 재실행 → 저장 `ExpectedReturn` 과 정확 일치 (M2 엔 없던 강한 회귀 — 순수 산식)
+  4. 사다리 최소 1회 succeeded (메타 회귀)
 
 ### 10.4 통합 테스트
 - `lambda_core.py`: moto S3 모킹 + FakeAnthropicClient + 캐시 hit/miss 분기 (Bull/Bear lambda_core 패턴)
@@ -1033,7 +1051,7 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
    - tripwire 윈도우 (다음 분기 발표 1회) 전제로 구현 (§7.1 v0.5 확정)
    - v0.4 metric (`earnings_surprise`, `net_debt_yoy`) 입력 시그니처 확정 (§7.1 메모 — `balance_quarterly` / `earnings_surprises` / `sub_sector` 추가)
    - **P2-D 결정** (§2.4): `guidance_change` 자동화 방법 — (1) transcript 키워드 정규식 / (2) 추가 LLM 호출 요약 / (3) 인간 회고만. 시작은 `requires_human_review=True` fallback, M3 후반 자동화 검토
-8. **golden 케이스 4건** — AAPL/XOM/NVDA/JPM 실제 호출 + 스냅샷 + `pytest.ini` 에 `golden` 마커 등록 (§10.3). P2-H (#5) 의미 확정 후 진행 (스냅샷 일관성)
+8. **golden 케이스 4건** — `run_scenario_golden.py` 가 AAPL/XOM/NVDA/JPM 실제 호출 → 스냅샷 생성(1회 $0.072), `pytest -m golden` 은 replay 검증 (LLM 0, `golden` 마커 기존재 — 재사용). P2-H (#5) 의미 확정 후 진행 (스냅샷 일관성). 상세 §10.3
 9. **Lambda 핸들러** — `src/lambdas/agent_scenario/handler.py` + `lambda_core.py` 공유 코어
 10. **Step Functions ASL 확장** (§6.1 교정 ASL) — (a) `BullBearMap` 교정: `End`→`Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` (G1 — 안 하면 `$.result.selected` 소멸로 ScenarioMap 실패), (b) `ScenarioMap` state 추가 + Task 직착 `Catch`/Retry (G2). **M2 회귀 주의** (기존 BullBearMap 수정) → 5종목 dry-run 재검증
 11. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M3 회고
