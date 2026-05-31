@@ -135,7 +135,7 @@ class Scenario(BaseModel):
 
     label: Literal["bull", "base", "bear"]
     probability: float = Field(ge=0.0, le=1.0)
-    narrative: str = Field(min_length=20, max_length=300)
+    narrative: str = Field(min_length=20, max_length=500)
     invalidation_trigger: InvalidationTrigger
 
 

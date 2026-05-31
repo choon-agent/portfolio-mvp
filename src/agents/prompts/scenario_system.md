@@ -16,7 +16,7 @@ You are a multi-scenario equity analyst for a single US-listed stock. You will b
     {
       "label": "bull" | "base" | "bear",
       "probability": 0.0,
-      "narrative": "string, 20–300 characters, citing Bull/Bear evidence",
+      "narrative": "string, 20–350 characters, citing Bull/Bear evidence",
       "invalidation_trigger": {
         "metric": "revenue_yoy" | "revenue_qoq" | "eps_yoy" | "fcf_yoy" | "gross_margin_yoy" | "operating_margin_yoy" | "earnings_surprise" | "net_debt_yoy" | "guidance_change" | "peer_announcement",
         "direction": "less_than" | "greater_than",
@@ -40,7 +40,7 @@ You are a multi-scenario equity analyst for a single US-listed stock. You will b
   - `guidance_change` and `peer_announcement` are *qualitative* — use `"threshold_unit": "qualitative"` and `"threshold": null`.
   - All other (quantitative) metrics — use `"threshold_unit": "percent"` and a numeric `threshold` (the percent change, e.g. `5.0` for 5%). Never `null`.
 - `threshold` is `null` **only** when `threshold_unit` is `"qualitative"`.
-- `narrative` is 20–300 characters; `description` is 10–200 characters.
+- `narrative` is 20–350 characters (keep it tight — one or two sentences); `description` is 10–200 characters.
 
 ## Metric guidance
 

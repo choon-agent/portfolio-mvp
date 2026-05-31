@@ -4,8 +4,13 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.13 (2026-05-28)
-> **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+> **버전**: v0.14 (2026-05-31)
+> **상태**: 구현 #1~#10 완료 + M3 첫 운영 (20종목)
+>
+> **v0.14 변경 (M3 첫 운영 피드백 — narrative 길이 완화)**:
+> ① 첫 20종목 운영에서 `narrative` 300자 한계로 **3종목(CRL/WTW/EIX) 검증 실패** (Sonnet 2회+Haiku 폴백 전부 narrative >300자). evidence 인용(hard rule #3) narrative 가 구조적으로 300자 초과 빈번 — 골든 4종목은 우연히 통과한 케이스.
+> ② §2.2 `Scenario.narrative` max_length **300 → 500** (hard limit), 프롬프트 타깃 **350자** (타깃 < 상한 = overshoot 흡수). 골든 스냅샷(≤300)은 완화된 스키마에서도 유효 — 재생성 불필요.
+> ③ 부수 관찰 (M3 회고 입력, §12.3): 실운영 재시도율이 M2(0%)보다 높음 (§5.2 "+20% ceiling" 가정 검증) / expected_return 음수 skew (보수 config — 4주 누적 후 §12.3 config 조정 판단).
 >
 > **v0.13 변경 (전체 정독 — 누락 갭 3건 교정)**:
 > ① **bull/bear 가격 양쪽 결측 fallback** (§4.1/§9) — `compute_bull/bear_price` 가 `combine()` 결과를 그대로 반환해 *historical·peer 둘 다 결측 시 None → crash*. `current_price` fallback 추가 (base 선례). §9 에 "52w 결측"·"양쪽 결측" 행 추가.
@@ -229,7 +234,7 @@ class InvalidationTrigger(BaseModel):
 class Scenario(BaseModel):
     label: Literal["bull", "base", "bear"]
     probability: float = Field(ge=0.0, le=1.0)
-    narrative: str = Field(min_length=20, max_length=300)
+    narrative: str = Field(min_length=20, max_length=500)
     invalidation_trigger: InvalidationTrigger
 
 
@@ -259,7 +264,7 @@ class ScenarioOpinion(BaseModel):
 - `invalidation_trigger` 가 자유 텍스트가 아닌 **(metric, direction, threshold) 3-tuple** — 코드 자동 검증 가능 (§7)
 - `metric` Enum 8개는 *측정 가능한 것* 만 (§2.4 — 자동 측정 가능 6개 + 인간 검토 2개)
 - 확률 합 1.0±0.01 강제 (LLM 부동소수점 오차 허용)
-- `narrative` 20~300 자 — Bull/Bear summary 200 자보다 약간 큼 (시나리오 설명에 여유)
+- `narrative` 20~500 자 (hard limit) — 프롬프트 타깃은 350자. v0.14 M3 첫 운영에서 300 한계가 빡빡(evidence 인용 narrative 가 ~310~400자로 자주 초과 → 3/20 종목 검증 실패)해 완화. 타깃 350 < 상한 500 으로 overshoot 흡수
 
 ### 2.3 가격 산정 출력 (`ExpectedReturn`)
 
@@ -372,7 +377,7 @@ src/agents/
     {
       "label": "bull" | "base" | "bear",
       "probability": 0.0~1.0,
-      "narrative": "string, 20~300 chars, citing Bull/Bear evidence",
+      "narrative": "string, 20~350 chars, citing Bull/Bear evidence",
       "invalidation_trigger": {
         "metric": "revenue_yoy" | "revenue_qoq" | "eps_yoy" | "fcf_yoy" |
                   "gross_margin_yoy" | "operating_margin_yoy" |

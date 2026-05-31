@@ -156,6 +156,21 @@ def test_scenario_narrative_length() -> None:
         )
 
 
+def _narrative(n: int) -> Scenario:
+    return Scenario(
+        label="bull", probability=0.4, narrative="x" * n,
+        invalidation_trigger=_trigger(),
+    )
+
+
+def test_scenario_narrative_max_500() -> None:
+    # v0.14 — 300→500 완화 (M3 첫 운영 evidence 인용 narrative 초과 대응)
+    assert _narrative(400).narrative == "x" * 400  # 350 타깃 overshoot 흡수
+    assert _narrative(500).narrative == "x" * 500  # 경계
+    with pytest.raises(ValidationError):
+        _narrative(501)  # > 500
+
+
 @pytest.mark.parametrize("bad", [-0.1, 1.1])
 def test_scenario_probability_bounds(bad: float) -> None:
     with pytest.raises(ValidationError):
