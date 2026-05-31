@@ -99,10 +99,17 @@ IAM_ROLE_NAME=portfolio-mvp-step-functions-role scripts/deploy_step_functions.sh
   "Statement": [{
     "Effect": "Allow",
     "Action": "lambda:InvokeFunction",
-    "Resource": "arn:aws:lambda:ap-northeast-2:<ACCOUNT>:function:portfolio-mvp-run_screening:*"
+    "Resource": [
+      "arn:aws:lambda:ap-northeast-2:<ACCOUNT>:function:portfolio-mvp-run_screening:*",
+      "arn:aws:lambda:ap-northeast-2:<ACCOUNT>:function:portfolio-mvp-agent_bullbear_bull:*",
+      "arn:aws:lambda:ap-northeast-2:<ACCOUNT>:function:portfolio-mvp-agent_bullbear_bear:*",
+      "arn:aws:lambda:ap-northeast-2:<ACCOUNT>:function:portfolio-mvp-agent_scenario:*"
+    ]
   }]
 }
 ```
+> 워크플로우가 호출하는 모든 Lambda 를 나열한다 — M1 `run_screening`, M2 BullBearMap 의
+> `agent_bullbear_{bull,bear}`, M3 ScenarioMap 의 `agent_scenario`. 신규 state 추가 시 갱신.
 
 ### 3) EventBridge 호출 역할 (`portfolio-mvp-eventbridge-role`)
 
@@ -188,6 +195,96 @@ Step Functions 자동 배포를 위해 **다음 권한을 인라인으로 추가
 | `CACHE_MAX_AGE_DAYS` | `90` | 선택 (CLAUDE.md 분기 캐시 정책) |
 
 **Memory**: 1024 MB, **Timeout**: 15분 권장 (캐시 미스 첫 주 5~7분 + 마진).
+
+## LLM Lambda (bullbear / scenario) 생성 설정
+
+M1 의 `run_screening` 과 달리 LLM 에이전트 Lambda (`agent_bullbear_bull`,
+`agent_bullbear_bear`, `agent_scenario`) 는 **Anthropic 시크릿이 추가로 필요**하다.
+세 함수는 role·env·런타임 설정이 동일하므로 **하나를 만들면 나머지는 그대로 복사**
+한다.
+
+### 공통 설정
+
+| 옵션 | 값 | 비고 |
+|---|---|---|
+| Runtime | `python3.12` | `deploy_lambda.sh` 전제 |
+| Architecture | **`x86_64`** | 스크립트가 amazonlinux2023 x86_64 wheel 설치 (pyarrow) — 필수 일치 |
+| Handler | `lambdas.<dir>.handler.lambda_handler` | 예: `lambdas.agent_scenario.handler.lambda_handler` |
+| Memory | `1024` MB | |
+| Timeout | `900` s (15분) | LLM 사다리 + 캐시미스 마진 |
+| Role | LLM Lambda 실행 역할 (아래) | |
+
+### 실행 역할 — M1 role + Anthropic 시크릿
+
+M1 `portfolio-mvp-run_screening-role` 의 권한(S3 `/*` + CloudWatch + FMP 시크릿)에
+**Anthropic 시크릿 GetSecretValue 를 추가**한 role 을 LLM Lambda 가 공유한다.
+인라인 정책의 Secrets 문(§4-1) 을 다음처럼 확장:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "secretsmanager:GetSecretValue",
+  "Resource": [
+    "arn:aws:secretsmanager:ap-northeast-2:<ACCOUNT>:secret:<FMP_SECRET_ID>-*",
+    "arn:aws:secretsmanager:ap-northeast-2:<ACCOUNT>:secret:<ANTHROPIC_SECRET_ID>-*"
+  ]
+}
+```
+
+S3 정책은 `arn:aws:s3:::<S3_BUCKET>/*` (전 객체) 이므로 scenario 가 새로 쓰는
+`scenarios/`·`expected_returns/`·`scenario_contexts/` 와 읽는 `agents/bullbear/`·
+`ohlcv/`·income 캐시가 *이미 커버*된다 — S3 권한 추가 불필요.
+
+### 환경변수
+
+| 키 | 값 | 비고 |
+|---|---|---|
+| `S3_BUCKET` | (실제 버킷명) | 필수 |
+| `FMP_SECRET_ID` | (FMP 시크릿 이름) | 필수 (분기 income cache-aside, ttm_eps) |
+| `ANTHROPIC_SECRET_ID` | (Anthropic 시크릿 이름) | **필수 (LLM 호출)** |
+| `LOG_LEVEL` | `INFO` | 선택 |
+| `CACHE_MAX_AGE_DAYS` | `90` | 선택 |
+
+> scenario 의 추가 prefix (`BULLBEAR_PREFIX`/`SCENARIOS_PREFIX` 등) 와 가격 config
+> override (`SCENARIO_*`, docs §4.3) 는 코드 기본값이 운영값과 일치하므로 평소엔
+> 설정 불필요. 비상 보수화 시에만 `SCENARIO_BULL_AGGRESSIVENESS` 등 추가.
+
+### 신규 함수 생성 (한 번만)
+
+`deploy_lambda.sh` 는 *기존 함수 갱신(UpdateFunctionCode)* 만 한다 — 신규 함수는
+콘솔 또는 아래 CLI 로 한 번 생성해야 GitHub Actions 가 이후 코드만 갱신한다
+(미생성 시 `ResourceNotFoundException`).
+
+```bash
+cd portfolio-mvp
+REGION=ap-northeast-2
+
+# 1) 기존 LLM Lambda 의 role/env 복사 (동일 설정 유지)
+ROLE=$(aws lambda get-function-configuration --region $REGION \
+  --function-name portfolio-mvp-agent_bullbear_bull --query 'Role' --output text)
+aws lambda get-function-configuration --region $REGION \
+  --function-name portfolio-mvp-agent_bullbear_bull --query 'Environment.Variables'
+
+# 2) 패키징 (update 는 실패하지만 build/<dir>.zip 은 생성됨)
+chmod +x scripts/deploy_lambda.sh
+scripts/deploy_lambda.sh agent_scenario portfolio-mvp-agent_scenario || true
+
+# 3) 함수 생성 (env 는 위 조회값으로 치환)
+aws lambda create-function --region $REGION \
+  --function-name portfolio-mvp-agent_scenario \
+  --runtime python3.12 \
+  --architectures x86_64 \
+  --role "$ROLE" \
+  --handler lambdas.agent_scenario.handler.lambda_handler \
+  --timeout 900 --memory-size 1024 \
+  --zip-file fileb://build/agent_scenario.zip \
+  --environment 'Variables={S3_BUCKET=<버킷>,FMP_SECRET_ID=<...>,ANTHROPIC_SECRET_ID=<...>,LOG_LEVEL=INFO,CACHE_MAX_AGE_DAYS=90}'
+```
+
+생성 후 `deploy-lambdas` 워크플로우를 재실행하면 `UpdateFunctionCode` 가 성공한다.
+**Step Functions 실행 역할**(`portfolio-mvp-step-functions-role`)에 신규 함수
+`portfolio-mvp-agent_scenario` 의 `lambda:InvokeFunction` 권한도 추가해야 ScenarioMap
+이 호출할 수 있다 (§4-2 role 의 Resource 목록에 추가).
 
 ## EventBridge 스케줄
 
