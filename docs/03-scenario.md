@@ -4,8 +4,13 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.12 (2026-05-28)
+> **버전**: v0.13 (2026-05-28)
 > **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+>
+> **v0.13 변경 (전체 정독 — 누락 갭 3건 교정)**:
+> ① **bull/bear 가격 양쪽 결측 fallback** (§4.1/§9) — `compute_bull/bear_price` 가 `combine()` 결과를 그대로 반환해 *historical·peer 둘 다 결측 시 None → crash*. `current_price` fallback 추가 (base 선례). §9 에 "52w 결측"·"양쪽 결측" 행 추가.
+> ② **시나리오 캐시 키/결정성 정책** (§6.2) — `lambda_core` 의 캐시 키가 미정의였음. M2 `context_input_hash` 패턴 재사용 — `scenario_input_hash = hash(ScenarioContext − lineage)`. 재실행 폭주 방지 + 재현성 (CHARTER 2순위). §5.2 cache 주장의 실제 메커니즘.
+> ③ **stale 정정** — §9 "MaxConcurrency=1" → **2** (v0.8 G3 반영 누락).
 >
 > **v0.12 변경 (§12 재구조화 — stale 해소 + 4그룹화)**:
 > ① **stale 해소** — 이미 다른 섹션에서 결정된 2건을 `[x]` 로 정정: *확률 calibration 평가 방법* (v0.10 §7.2 realized bin+Brier 로 정의 완료, 측정은 성공 기준 (1) 로 중복 병합), *variance floor 책임 경계* (v0.6 §부록 B 4단계 확정).
@@ -445,7 +450,8 @@ def compute_bull_price(
         percentile(peer_pe, cfg.peer_pe_bull_percentile) * ttm_eps
         if (ttm_eps and ttm_eps > 0 and peer_pe) else None
     )
-    return combine(historical_target, peer_target, mode=cfg.bull_aggressiveness)
+    price = combine(historical_target, peer_target, mode=cfg.bull_aggressiveness)
+    return price if price is not None else current_price   # v0.13 — 양쪽 결측 시 fallback (base 선례)
 
 def combine(a, b, mode, *, is_bear=False):
     """둘 중 하나만 있으면 그 값. 둘 다 있으면 mode 에 따라 결합.
@@ -517,7 +523,8 @@ def compute_bear_price(
         percentile(peer_pe, cfg.peer_pe_bear_percentile) * ttm_eps
         if (ttm_eps and ttm_eps > 0 and peer_pe) else None
     )
-    return combine(historical_target, peer_target, mode=cfg.bear_conservatism, is_bear=True)
+    price = combine(historical_target, peer_target, mode=cfg.bear_conservatism, is_bear=True)
+    return price if price is not None else current_price   # v0.13 — 양쪽 결측 시 fallback
 ```
 
 #### Expected return + variance
@@ -832,6 +839,12 @@ EventBridge (Mon 06:00 ET)
   - `s3://{bucket}/expected_returns/dt={yyyy-mm-dd}/symbol={SYM}.json` — `ExpectedReturn` (산식 결과)
   - `s3://{bucket}/expected_returns/dt={...}/symbol={SYM}/context.json` — `ScenarioContext` 원본 (재현용)
 
+**결정성 캐시 정책** (v0.13 — M2 §10 `context_input_hash` 패턴 재사용):
+- 캐시 키 = `scenario_input_hash = hash(ScenarioContext − lineage 필드)` — `run_id`/`scenario_s3_key`/`bullbear_s3_keys`/`data_quality_flags` 제외 (Bull/Bear opinion 본문 + 가격 컨텍스트만 해시)
+- `lambda_core` 가 hit/miss 분기: 동일 hash 의 저장본 존재 시 **LLM 호출 0회 / `cost_usd=0`** 으로 저장본 반환 — 의도치 않은 재실행(Lambda retry, Step Functions 재실행, 디버깅 invoke) 비용 폭주 0 보장 (CHARTER 2순위 재현성, §5.2 cache 주장의 메커니즘)
+- 분기 발표로 Bull/Bear opinion 갱신 시 → hash 변경 → 자연히 cache-miss (신선도 보장). 주간 정규 배치는 새 데이터라 항상 miss = §5.2 의 80 calls 풀 카운트와 정합
+- **가격 산식(`compute_expected_return`)은 순수 함수** — 캐시 불필요 (같은 ScenarioOpinion + config → 항상 같은 ExpectedReturn). LLM 출력(ScenarioOpinion)만 캐시 대상
+
 ### 6.3 IaC
 - 기존 `deploy_lambda.sh` 가 `src/agents/scenario/` 자동 포함 (deploy_lambda v2 의 `agents/` 패키징 그대로)
 - `screening_workflow.asl.json` 변경:
@@ -981,9 +994,11 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 |---|---|
 | Anthropic API 5xx/타임아웃 | Bull/Bear 와 동일 사다리 (Sonnet → primary retry → Haiku) |
 | Pydantic 검증 실패 (확률 합 ≠ 1.0, 라벨 누락 등) | 사다리 진행, 모두 실패 시 `ScenarioAgentError` raise |
-| Rate limit | MaxConcurrency=1 로 사전 방어 + 429 retry |
+| Rate limit | MaxConcurrency=2 로 사전 방어 (§6.1 G3) + 429 retry |
 | `ttm_eps=None` (EPS 결측) | peer-implied 가격 산정 불가 → historical-only 로 fallback. 로그 warning |
 | 빈 `peer_pe` (sub_sector singleton 등) | peer-implied 불가 → historical-only |
+| `return_52w_high/low=None` (OHLCV 결측) | historical-only 불가 → peer-implied 로 fallback (v0.13) |
+| **bull/bear 가격 양쪽 입력 결측** (52w + EPS/peer 동시 결측) | `compute_bull/bear_price` 가 `current_price` fallback (base 선례). `data_quality_flags` 기록 (v0.13) |
 | `current_price=0` 또는 음수 | 명백한 데이터 오류 — `ScenarioContextError`, 종목 스킵 |
 | Bull 또는 Bear `BullBearOpinion` 누락 (Bull/Bear 단계 실패) | 본 단계 스킵 + 로그. 4단계 최적화에 expected_return 없는 종목으로 전달 |
 
