@@ -113,19 +113,25 @@ portfolio-mvp/
 - 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (작성 중)
 - 외부: FMP API 문서, Anthropic API 문서, AWS Lambda 문서
 
-## 현재 단계 (M1 — 2026-04-28 기준)
+## 현재 단계 (M3 — 2026-05-31 기준)
 
-- [x] Charter 작성
-- [x] Repo 생성
-- [x] CLAUDE.md 작성 (이 파일)
-- [x] README.md 작성
-- [x] 디렉토리 스캐폴딩
-- [x] FMP 클라이언트 + 캐싱 계층 (`update_constituents`, `update_ohlcv` Lambda 운영 중)
-- [x] **1단계 스크리닝 (코드 기반) — 완료**
-  - 7개 모듈(schemas, universe, factors, normalize, score, peer_context, pipeline) + 154개 단위 테스트
-  - `run_screening` Lambda + Step Functions + EventBridge (Mon 06:00 ET) 자동 실행
-  - 첫 운영 실행 (2026-04-25 기준): universe 483 → selected 20, peer_context 평균 5.0
-  - 설계: `docs/01-screening.md`
-- [ ] **2단계 Bull/Bear MVP (다음 작업) — `docs/02-bull-bear.md` 설계 완료, 구현 대기**
+- [x] M0 기반 (Charter / Repo / CLAUDE.md / README / 스캐폴딩 / FMP 캐싱 계층)
+- [x] **M1 — 1단계 스크리닝 (코드 기반) — 완료·운영 중**
+  - 7개 모듈 + 154개 단위 테스트. `run_screening` Lambda + Step Functions +
+    EventBridge (Mon 06:00 ET). universe 483 → selected 20. 설계: `docs/01-screening.md`
+- [x] **M2 — 2단계 Bull/Bear — 완료·운영 중**
+  - `agents/bull_bear/` (schemas/mappers/context_builder/agent/anthropic_adapter/
+    lambda_core) + `agent_bullbear_{bull,bear}` Lambda. 4주 누적 운영 ($2.76/월,
+    160 invoke 100% 성공, retry 0). 설계: `docs/02-bull-bear.md`
+- [~] **M3 — 3단계 시나리오 모델링 (옵션 C) — 구현 #1~#10 완료, 운영 대기**
+  - 설계 `docs/03-scenario.md` v0.13 (§2.4/§4/§5/§6/§7/§10~§12 검토 박제)
+  - 코드 `agents/scenario/` (schemas/pricing_config/pricing/context_builder/
+    prompts/agent/trigger_evaluator/lambda_core) + `agent_scenario` Lambda +
+    ASL ScenarioMap (G1 BullBearMap 체이닝 교정 포함). 시나리오 테스트 161건
+  - 골든 4종목 실제 호출 검증 ($0.072). LLM 은 확률·narrative·트리거만, 가격은
+    결정적 산식 (LLM ≠ 가격 산정 분리)
+  - **남은 작업**: #11 AWS 배포 + 20종목 첫 운영 / #12 sensitivity 로깅 /
+    #13 트리거 자동검증 batch / #14 DeepEval baseline (M3 후반·5주차, §11 참조)
 
-§10 미해결 디자인 채무는 `docs/01-screening.md` 참고 (sector-specific factor, turnover 안정성 등 — 4주 운영 데이터 누적 후 결정).
+미해결 디자인 채무: M1 은 `docs/01-screening.md §10`, M3 은 `docs/03-scenario.md
+§12` (4그룹 — 즉시 결정 가능 4 / 데이터 게이트 12 / v2 3) 참조.
