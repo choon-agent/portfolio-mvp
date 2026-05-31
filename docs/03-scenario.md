@@ -4,8 +4,13 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.11 (2026-05-28)
+> **버전**: v0.12 (2026-05-28)
 > **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+>
+> **v0.12 변경 (§12 재구조화 — stale 해소 + 4그룹화)**:
+> ① **stale 해소** — 이미 다른 섹션에서 결정된 2건을 `[x]` 로 정정: *확률 calibration 평가 방법* (v0.10 §7.2 realized bin+Brier 로 정의 완료, 측정은 성공 기준 (1) 로 중복 병합), *variance floor 책임 경계* (v0.6 §부록 B 4단계 확정).
+> ② **4그룹 재배치** — 22개 flat → 12.1 ✅이미 해결(3) / 12.2 🟢즉시 결정 가능(4) / 12.3 🔴데이터·운영 게이트(12) / 12.4 🔵v2 연기(3). 중복(calibration 방법↔측정) 병합.
+> ③ 새 *결정* 없음 — 순수 정리. 12.2 의 P1-E/P2-H/D/guidance_change 는 *결정 가능* 으로 분류만 (확정은 구현 티켓).
 >
 > **v0.11 변경 (§10.3 golden 의미 정정 — CLAUDE.md 정합)**:
 > ① **생성 vs replay 분리** — CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 스냅샷 검증인데 §10.3 이 "실제 호출"과 혼동. *생성* (`run_scenario_golden.py` 스크립트, 1회 $0.072) ↔ *테스트* (스냅샷 replay, LLM 호출 0) 분리.
@@ -1063,41 +1068,53 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 
 ## 12. 미해결 / 다음 결정 필요
 
-- [ ] **`ScenarioPricingConfig` 기본값 조정 시점** — M3 운영 4주 베이스라인 + Sensitivity 로깅 5~8주차 → M3 말 회고에서 결정. 회고 데이터: 보수적 config 의 expected return 분포 vs 실제 가격 분포, 확률 calibration
-- [ ] **`guidance_change` 트리거 자동화** — earnings transcript 텍스트 분석 모듈 필요. M3 후반 또는 v2 후보. 미구현 시 인간 검토 fallback
-- [ ] **B 트리거 시간 조인** (v0.10 §7 — #13 위임) — 저장된 각 시나리오를 *그 시나리오의 다음 분기* 발표에 매칭하는 로직. `income_quarterly[0]`(최신) 가정은 종목별 발표일 분산·배치 lag 시 깨짐. `TriggerEvaluation.evaluated_quarter` 로 추적. as_of_date 이후 첫 발표 분기 매칭 규칙을 #13 구현 시 확정
-- [ ] **D 트리거 배치 메커니즘** (v0.10 §7 — #13 위임) — 실적 발표가 ~6주 창에 분산 → 단일 분기 배치 부적합. (i) 주간 EventBridge 가 "지난주 신규 발표 종목" 체크 / (ii) FMP 캐시 갱신 event-driven 중 #13 결정. 기존 Mon 06:00 EventBridge 재사용 가능성
-- [ ] **F 트리거 배치 FMP 신선도** (v0.10 §7 — #13 위임, M2 §12 교차참조) — 배치는 *발표 직후 신선한* statement 필요하나 FMP 캐시 90일 TTL → stale 위험. M2 의 "이벤트 기반 캐시 무효화" 처방과 동일 의존 — 분기 발표 시즌 첫 주 강제 갱신
-- [ ] **`peer_announcement` 트리거 정책** — system prompt 가 권장 안 함에도 LLM 이 자주 사용한다면 enum 에서 제거 또는 다른 metric 으로 치환 유도. M3 5주차 운영 데이터로 결정
-- [ ] **확률 calibration 평가 방법** — LLM 이 bull 60% 라고 한 시나리오가 실제로 60% 빈도로 발생했나. 4주 운영 데이터로는 부족, M3 말 시점에 12주 데이터로 가능
-- [ ] **시나리오 sensitivity 의 portfolio 영향** — 같은 LLM 출력에 다른 config 적용 시 4단계 최적화 결과가 얼마나 달라지나. ExpectedReturnsBundle 로 측정 가능
-- [ ] **TTM EPS 결측 종목 정책** — peer-implied 가격 산정 불가. historical-only fallback 의 정확도 영향. 첫 운영 시 결측 분포 본 후 결정
-- [ ] **`v2` Monte Carlo 시나리오** — 3 scenarios 단일 시점 대신 distribution. 본 단계 단순 옵션 C 가 4주 안정 운영 후 도입 (M3 후반 후보)
-- [ ] **확률 cap 필요성 재평가** (v0.3 §4.2) — `bull_probability_cap` / `bear_probability_cap` 은 §1.4.2 #1 (calibration Brier score) 측정 전 *임시 가드*. M3 말 회고 시 calibration 결과로 cap 유지/제거/조정 결정. bull bias 발견 시에만 활성화 후보
-- [ ] **`_validate_price_order` 위반 빈도 모니터링** (v0.3 §4.1) — 4주 운영 후 위반 0 이면 검증 자체 제거 검토 (CLAUDE.md "발생 안 하는 시나리오 validation 금지"). `aggressive` mode 또는 `base_price_cap_pct=None` 도입 시 빈도 재측정
-- [x] **P1-G 트리거 평가 윈도우** (v0.5 §2.4 확정) — *tripwire* (다음 분기 발표 1회 고정) 결정. schema 무변경. 다중 윈도우(`evaluation_window` Optional 필드)는 아래 v2 후보로 이월
-- [ ] **다중 평가 윈도우 (`evaluation_window`)** (v0.5 §7.1 P1-G 이월 — v2 후보) — 장기 thesis 의 조기 false-negative 빈도가 운영 데이터에서 높으면 `Literal["next_quarter","next_year"]` Optional 필드 추가. Optional+default 라 무손실 마이그레이션. M3 말 회고 시 tripwire 의 적중률(§1.4.2 #2)로 판단
-- [ ] **P1-E `metric ↔ threshold_unit` validator** (v0.5 §2.4 — #1 schemas.py 티켓 위임) — 무효 조합(`revenue_yoy`+`qualitative` 등) 차단 `model_validator` 도입 여부. 권장 도입. 기존 필드 위 validator 라 무손실
-- [ ] **P2-H `label ↔ trigger direction` 의미** (v0.5 §2.4 — #5 prompts 티켓 위임) — bull 시나리오 트리거가 *시나리오 부정 방향* 임을 시스템 프롬프트로 강화. golden(#8) 전 확정. (P2-C `peer_announcement` 정책·P2-D `guidance_change` 자동화는 위 별도 항목 참조)
-- [ ] **확률 floor (`min_scenario_probability`)** (v0.6 §4.2 거부 박제) — bull=0.95/bear=0.01 같은 tail 과소평가가 variance 를 왜곡할 수 있으나, 옵션 C 는 LLM 확률 신뢰가 기본. §1.4.2 #1 calibration (Brier score) 결과 tail 계통 과소평가 확인 시에만 floor 도입 검토. M3 말 회고
-- [ ] **`historical_window_days` 재추가** (v0.6 §4.2 제거 박제) — multi-window 가격 산정 (52w 외 126/378d 등) 실제 구현 시 재추가. ScenarioContext 가 `return_Nw_high/low` 를 context_builder 에서 OHLCV 기반 제공해야 함. 위 *다중 평가 윈도우* (§7.1 P1-G 이월) 와 함께 v2 검토
-- [ ] **variance floor 책임 경계** (v0.6 §4.2 → §부록 B) — scenario 가격이 클러스터되면 variance ~0 → 4단계 optimizer 가 riskless 로 오판. 3단계 config 가 아닌 **4단계 covariance 대각 구성 시 floor** — §부록 B 경계 메모 참조
-- [ ] **§2.4 enum 거부 후보 5개 재검토** (v0.4 §2.4 결정 박제 — M3 운영 4주 이후 또는 v2):
-  - `valuation_multiple` (P/E, EV/EBITDA): peer_pe 가 *입력* 인 동시에 트리거 *출력* 이면 자기 참조 — bull 시나리오 실현 = 트리거 자동 충족 발생. 의미 명확화 후 v2 검토
-  - `analyst_estimate_revision`: 후행 지표 (가격 반영 후 컨센서스 변경) + estimate snapshot 시계열 캐시 인프라 추가 필요 → M3 범위 외
-  - `dividend_yield_change` / `buyback_yield`: S&P 500 universe 중 income 종목 점유율 제한적. 첫 운영 시 universe 분석 후 결정
-  - `sector_specific` (NIM, ARR, production): sub_sector × metric 매트릭스 필요 — M2 §10 미해결 "sector-specific factor" 와 통합 결정 (v2)
-  - `macroeconomic` (Fed rate, oil, USD): 종목별 트리거 schema 에 *전 시장 metric* 부적합 — 별도 macro_trigger schema 또는 sector overlay 분리 (v2)
-- [ ] **옵션 C 성공 기준 측정** (§1.4.2 박제 항목, M3 말 회고에서 평가):
-  - (1) 확률 calibration Brier score < 0.25 — `trigger_evaluator` (#13) 가 자동 누적
-  - (2) 트리거 적중률 ≥ 60% — 자동 측정 가능 metric 한정
-  - (3) Portfolio outcome 옵션 B baseline 대비 동등 또는 우월 — `ExpectedReturnsBundle.alternatives` 슬롯에 옵션 B 산출 (추가 LLM 비용 0)
-  - 측정 데이터 누적은 §11 구현 순서 #12/#13 활성화 시 자동. 12주 누적 후 판단
-- [ ] **§1.4.1 잠재 약점 별 완화책 활성화 시점**:
-  - 약점 1 (calibration unverified) — §11 #13 트리거 자동 검증 항상 활성화
-  - 약점 2 (M&A 등 비정량 이벤트) — Enum 확장 또는 `peer_announcement` 사용 빈도 모니터링 후 결정 (M3 5주차)
-  - 약점 3 (가격 산식 보수성) — `aggressive` config 또는 Monte Carlo (위 v2 항목)
-  - 약점 4 (5단계 cross-validation) — M3 말 portfolio outcome 평가 (§1.4.2 #3)
+> **v0.12 재구조화** — v0.3~v0.11 누적 22개 flat 리스트를 *결정 시점·의존성* 기준 4그룹으로 재배치 + 중복 병합. M3 착수 시 "진짜 열린 결정" 가시성 확보.
+
+### 12.1 ✅ 이미 해결 (다른 섹션에서 결정 — 추적용)
+
+- [x] **P1-G 트리거 평가 윈도우** (v0.5 §7.1) — *tripwire* (다음 분기 발표 1회 고정). 다중 윈도우는 §12.4 로 이월
+- [x] **확률 calibration 평가 *방법*** (v0.10 §7.2) — `realized_scenario` 가격 bin + Brier score 로 정의 완료. *측정* (12주 누적) 은 §12.3 의 "옵션 C 성공 기준 (1)" 로 통합 (이전 별도 항목 중복 제거)
+- [x] **variance floor 책임 경계** (v0.6 §부록 B) — *4단계* covariance 대각 구성 시 floor (3단계 config 아님). 경계 확정 — 4단계 설계(`docs/04-optimizer.md`)에서 구현
+
+### 12.2 🟢 즉시 결정 가능 (운영 데이터 불요 — 구현 티켓에서 확정)
+
+- [ ] **P1-E `metric ↔ threshold_unit` validator** (§2.4 — #1 schemas.py) — 무효 조합(`revenue_yoy`+`qualitative` 등) 차단 `model_validator`. *권장 도입*. 기존 필드 위 validator 라 무손실
+- [ ] **P2-H `label ↔ trigger direction` 의미** (§2.4 — #5 prompts) — bull 시나리오 트리거가 *시나리오 부정 방향* 임을 시스템 프롬프트로 강화. golden(#8) 전 확정
+- [ ] **D 트리거 배치 메커니즘** (§7 — #13) — 실적 발표 ~6주 분산 → 단일 분기 배치 부적합. *기존 Mon 06:00 EventBridge 재사용* ("지난주 신규 발표 종목" 체크) 이 자연 후보 vs event-driven. 설계 선택 (데이터 불요)
+- [ ] **`guidance_change` 자동화 *방법*** (P2-D, §2.4 — #7) — (1) transcript 정규식 / (2) LLM 요약 / (3) 인간만. *시작은 `requires_human_review` fallback* 확정, 자동화 방법은 M3 후반 (§12.3 데이터 참고)
+
+### 12.3 🔴 데이터·운영 게이트 (M3 운영 데이터 필요 — 지금 결정 불가)
+
+- [ ] **`ScenarioPricingConfig` 기본값 조정** — 4주 baseline + Sensitivity 5~8주차 → M3 말 회고. 보수적 config expected return 분포 vs 실제 가격
+- [ ] **`peer_announcement` 트리거 정책** — LLM 남용 시 enum 제거/치환. M3 5주차 사용 빈도
+- [ ] **`_validate_price_order` 위반 빈도** (v0.3 §4.1) — 4주 후 위반 0 이면 검증 제거 검토. `aggressive`/`base_price_cap_pct=None` 도입 시 재측정
+- [ ] **TTM EPS 결측 종목 정책** — historical-only fallback 은 §9 확정, *정확도 영향* 은 첫 운영 결측 분포 후
+- [ ] **확률 cap 재평가** (v0.3 §4.2) — `bull/bear_probability_cap` 은 calibration 측정 전 임시 가드. M3 말 Brier 결과로 유지/제거. bull bias 발견 시 활성화
+- [ ] **확률 floor (`min_scenario_probability`)** (v0.6 §4.2 거부) — tail 과소평가 왜곡 우려나 옵션 C 는 LLM 신뢰 기본. calibration 이 tail 계통 과소평가 보일 때만 도입. M3 말
+- [ ] **B 트리거 시간 조인** (v0.10 §7 — #13) — 저장 시나리오 ↔ 그 다음 분기 매칭 (`income_quarterly[0]` 가정은 발표일 분산·lag 시 깨짐). `evaluated_quarter` 추적, 규칙은 실제 발표 타이밍 보고 #13 확정
+- [ ] **F 트리거 배치 FMP 신선도** (v0.10 §7 — #13, M2 §12) — 발표 직후 신선한 statement vs 90일 캐시 TTL. M2 "이벤트 기반 캐시 무효화" 와 동일 의존
+- [ ] **시나리오 sensitivity 의 portfolio 영향** — 같은 LLM 출력 다른 config → 4단계 결과 차이. ExpectedReturnsBundle 로 측정
+- [ ] **§2.4 enum 거부 후보 5개 재검토** (v0.4 — 4주 이후/v2):
+  - `valuation_multiple`: peer_pe 입력·출력 자기 참조 (bull 실현=트리거 자동 충족). 의미 명확화 후 v2
+  - `analyst_estimate_revision`: 후행 지표 + snapshot 시계열 캐시 필요 → M3 범위 외
+  - `dividend_yield_change`/`buyback_yield`: income 종목 점유율 제한적. universe 분석 후
+  - `sector_specific`: sub_sector×metric 매트릭스 (M2 §10 "sector-specific factor" 통합, v2)
+  - `macroeconomic`: 종목별 schema 에 전 시장 metric 부적합 → 별도 macro_trigger/sector overlay (v2)
+- [ ] **옵션 C 성공 기준 측정** (§1.4.2 — M3 말 12주 회고):
+  - (1) calibration Brier < 0.25 — `trigger_evaluator`(#13) 자동 누적 (방법은 §12.1 확정)
+  - (2) 트리거 적중률 ≥ 60% — 자동 측정 metric 한정
+  - (3) Portfolio outcome vs 옵션 B baseline 동등/우월 — `ExpectedReturnsBundle.alternatives` (추가 비용 0)
+- [ ] **§1.4.1 잠재 약점별 완화책 활성화 시점**:
+  - 약점 1 (calibration unverified) — #13 트리거 자동 검증 항상 활성화
+  - 약점 2 (M&A 등 비정량) — enum 확장 또는 `peer_announcement` 빈도 모니터링 (M3 5주차)
+  - 약점 3 (가격 산식 보수성) — `aggressive` config 또는 Monte Carlo (§12.4)
+  - 약점 4 (5단계 cross-validation) — M3 말 portfolio outcome (§1.4.2 #3)
+
+### 12.4 🔵 v2 / 범위 외 연기 (데이터 아닌 스코프로 연기)
+
+- [ ] **v2 Monte Carlo 시나리오** — 3 scenarios 단일 시점 대신 distribution. 옵션 C 4주 안정 후 (M3 후반 후보)
+- [ ] **다중 평가 윈도우 (`evaluation_window`)** (v0.5 §7.1 P1-G 이월) — 장기 thesis 조기 false-negative 빈도 높으면 `Literal["next_quarter","next_year"]` Optional 필드. 무손실 마이그레이션. M3 말 tripwire 적중률(§1.4.2 #2)로 판단
+- [ ] **`historical_window_days` 재추가** (v0.6 §4.2 제거) — multi-window 가격 산정 (126/378d 등) 구현 시. ScenarioContext 가 `return_Nw_high/low` 제공 필요. 위 다중 윈도우와 함께 v2
 
 ---
 
