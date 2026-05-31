@@ -4,8 +4,14 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.9 (2026-05-28)
+> **버전**: v0.10 (2026-05-28)
 > **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+>
+> **v0.10 변경 (§7 트리거 자동 검증 — 스키마·calibration 정의)**:
+> ① **A `TriggerEvaluation` 스키마 + S3 저장** — §7.1 이 정의 없이 쓰던 `TriggerEvaluation` 을 Pydantic 모델로 박제 (`actual`/`threshold`/`met`/`requires_human_review`/lineage) + S3 레이아웃 `trigger_evaluations/dt=*/symbol=*.json`.
+> ② **C realized 시나리오 = 가격 bin** — §1.4.2 #1 Brier score 의 `1_{realized}` 를 *scenario_prices 중점 bin* 으로 정의 (다음 분기 발표일 가격, tripwire 동일 앵커). 성공 기준 측정 가능화.
+> ③ **E observe-only 경계** — 트리거 평가는 *회고 calibration 전용*, M3 매매·재분석에 라이브 피드백 없음 (CHARTER §6 매매는 룰 기반 정합) 명시.
+> ④ **B/D/F 는 #13 위임** — 시간 조인(B)·배치 메커니즘(D)·FMP 신선도(F)는 운영·메커니즘 의존이라 §12 박제 후 #13 구현 시 결정.
 >
 > **v0.9 변경 (§11 구현 순서 의존성 교정 — 2건)**:
 > ① **#2/#3 순서 교정** — `pricing.py` 의 `compute_*_price(cfg)` 가 `ScenarioPricingConfig` 를 import 하므로 `pricing_config.py` 가 먼저여야 함. 순서: schemas → **pricing_config** → pricing → … 모델은 pricing_config.py 확정 (§3.1·부록A·§10.1·M2 선례 정합), §11 #1 의 ScenarioPricingConfig 표기 제거.
@@ -836,6 +842,22 @@ EventBridge (Mon 06:00 ET)
 - 시나리오 의미: "다음 분기에 *이미 깨졌나*" — 장기 thesis 도 다음 분기에 이미 무효 신호가 보이면 invalidation 으로 간주.
 - `evaluation_window` 같은 가변 호라이즌 필드는 **미도입** — 다중 윈도우는 §12 v2 후보.
 
+**출력 스키마 `TriggerEvaluation`** (v0.10 — trigger_evaluator.py):
+```python
+class TriggerEvaluation(BaseModel):
+    symbol: str
+    scenario_label: Literal["bull", "base", "bear"]
+    metric: str                          # 평가된 InvalidationTrigger.metric
+    actual: float | None = None          # 자동 측정값 (qualitative 면 None)
+    threshold: float | None = None       # 원본 트리거 threshold
+    met: bool | None = None              # True=무효화 발동 / False=미발동 / None=인간 검토 필요
+    requires_human_review: bool = False  # peer_announcement·guidance_change·sector 가드
+    evaluated_quarter: str               # 평가 기준 분기 (예: "2026-Q2") — 시간 조인 추적 (B)
+    scenario_s3_key: str                 # 원본 ScenarioOpinion lineage
+    evaluated_at: datetime
+```
+저장: `s3://{bucket}/trigger_evaluations/dt={발표후-평가일}/symbol={SYM}.json`. 종목당 3개(bull/base/bear) — §7.2 calibration·적중률 누적의 원천.
+
 ```python
 def evaluate_trigger(
     trigger: InvalidationTrigger,
@@ -880,6 +902,21 @@ def evaluate_trigger(
 - 가격 산정 정확도 (expected_price vs 실제 가격)
 
 이 데이터로 §12 미해결 항목 *기본 config 조정* 의 근거 마련.
+
+**realized 시나리오 정의 — 가격 bin** (v0.10 C — §1.4.2 #1 Brier 측정 근거):
+`1_{realized}` (bull/base/bear 중 무엇이 실현됐나) 를 *scenario_prices 중점 bin* 으로 결정:
+```python
+def realized_scenario(actual_price: float, prices: dict) -> Literal["bull", "base", "bear"]:
+    bull, base, bear = prices["bull"], prices["base"], prices["bear"]
+    if actual_price >= (bull + base) / 2: return "bull"
+    if actual_price <= (base + bear) / 2: return "bear"
+    return "base"
+```
+- **앵커**: 다음 분기 발표일 종가 (트리거 평가와 동일 시점 — 단일 시간축)
+- **Brier**: `BS = Σ_s (probability_s - 1_{s == realized})²`. `ExpectedReturn.scenario_prices` (저장본) 재사용 → 추가 데이터 없음
+- 가격 순서 위반 종목 (`data_quality_flags`, v0.3) 은 bin 경계 신뢰 어려움 → calibration 표본에서 제외
+
+> **observe-only 경계** (v0.10 E — CHARTER §6 정합): 트리거 평가·calibration 은 **회고 전용**. 트리거 `met=True` (시나리오 무효화 감지) 가 M3 에서 *매매·종목 재분석·다음 주 리밸런싱에 자동 피드백되지 않음*. 매매는 5단계 룰 기반 (CHARTER §6 "LLM 은 근거 생성만"), 트리거는 *사후 학습 신호*. 라이브 피드백(예: met 시 즉시 재스크리닝)은 v2 후보 — §12.
 
 ### 7.3 자동 측정 vs 인간 검토
 
@@ -1010,6 +1047,9 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 
 - [ ] **`ScenarioPricingConfig` 기본값 조정 시점** — M3 운영 4주 베이스라인 + Sensitivity 로깅 5~8주차 → M3 말 회고에서 결정. 회고 데이터: 보수적 config 의 expected return 분포 vs 실제 가격 분포, 확률 calibration
 - [ ] **`guidance_change` 트리거 자동화** — earnings transcript 텍스트 분석 모듈 필요. M3 후반 또는 v2 후보. 미구현 시 인간 검토 fallback
+- [ ] **B 트리거 시간 조인** (v0.10 §7 — #13 위임) — 저장된 각 시나리오를 *그 시나리오의 다음 분기* 발표에 매칭하는 로직. `income_quarterly[0]`(최신) 가정은 종목별 발표일 분산·배치 lag 시 깨짐. `TriggerEvaluation.evaluated_quarter` 로 추적. as_of_date 이후 첫 발표 분기 매칭 규칙을 #13 구현 시 확정
+- [ ] **D 트리거 배치 메커니즘** (v0.10 §7 — #13 위임) — 실적 발표가 ~6주 창에 분산 → 단일 분기 배치 부적합. (i) 주간 EventBridge 가 "지난주 신규 발표 종목" 체크 / (ii) FMP 캐시 갱신 event-driven 중 #13 결정. 기존 Mon 06:00 EventBridge 재사용 가능성
+- [ ] **F 트리거 배치 FMP 신선도** (v0.10 §7 — #13 위임, M2 §12 교차참조) — 배치는 *발표 직후 신선한* statement 필요하나 FMP 캐시 90일 TTL → stale 위험. M2 의 "이벤트 기반 캐시 무효화" 처방과 동일 의존 — 분기 발표 시즌 첫 주 강제 갱신
 - [ ] **`peer_announcement` 트리거 정책** — system prompt 가 권장 안 함에도 LLM 이 자주 사용한다면 enum 에서 제거 또는 다른 metric 으로 치환 유도. M3 5주차 운영 데이터로 결정
 - [ ] **확률 calibration 평가 방법** — LLM 이 bull 60% 라고 한 시나리오가 실제로 60% 빈도로 발생했나. 4주 운영 데이터로는 부족, M3 말 시점에 12주 데이터로 가능
 - [ ] **시나리오 sensitivity 의 portfolio 영향** — 같은 LLM 출력에 다른 config 적용 시 4단계 최적화 결과가 얼마나 달라지나. ExpectedReturnsBundle 로 측정 가능
