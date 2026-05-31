@@ -4,8 +4,13 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.8 (2026-05-28)
+> **버전**: v0.9 (2026-05-28)
 > **상태**: 설계 단계 (M3 마일스톤 — 미구현)
+>
+> **v0.9 변경 (§11 구현 순서 의존성 교정 — 2건)**:
+> ① **#2/#3 순서 교정** — `pricing.py` 의 `compute_*_price(cfg)` 가 `ScenarioPricingConfig` 를 import 하므로 `pricing_config.py` 가 먼저여야 함. 순서: schemas → **pricing_config** → pricing → … 모델은 pricing_config.py 확정 (§3.1·부록A·§10.1·M2 선례 정합), §11 #1 의 ScenarioPricingConfig 표기 제거.
+> ② **percentile = numpy 미사용 결정** — §4.1 P2-#4 의 "numpy 기본" 을 *신규 Lambda 의존성 가시성* 하에 재조정. numpy 사용처는 percentile 1곳뿐 (variance 는 순수 Python) → **손수 linear interp ~10줄** (numpy 'linear' 정확 일치, dep 0, 콜드스타트 최소). §4.1 에 `percentile()` 정의 추가, §10.1 테스트 표기 갱신. requirements.txt 변경 없음.
+> ③ P2 노트 — #7 trigger_evaluator 는 #1 에만 의존 (활성화는 #13), #8 골든에 `pytest.ini golden 마커` 명시, DeepEval baseline(§10.5)을 #14 로 추가.
 >
 > **v0.8 변경 (§6.1 ASL — 실파일 교차검증 교정 3건)**:
 > ① **G1 체이닝 교정** — 현재 커밋된 ASL 의 `BullBearMap` 은 `End:true` + `ResultPath` 없음 → Map 출력이 `$.result` 를 덮어써 ScenarioMap 의 `ItemsPath:$.result.selected` 불가. `Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` 보존 필수. §6.1 에 교정 ASL 박제.
@@ -442,6 +447,20 @@ def combine(a, b, mode, *, is_bear=False):
     if is_bear:
         return max(a, b) if mode == "conservative" else min(a, b)
     return min(a, b) if mode == "conservative" else max(a, b)
+
+
+def percentile(xs: list[float], q: float) -> float:
+    """순수 linear-interpolation percentile (numpy 'linear' 방식 정확 재현).
+    v0.9 — numpy 미사용 (peer_pe percentile 1곳 전용이라 신규 dep 회피,
+    CLAUDE.md 콜드스타트 최소). q 는 0~100. 호출자가 빈 리스트 사전 차단."""
+    s = sorted(xs)
+    if len(s) == 1:
+        return s[0]
+    rank = (q / 100) * (len(s) - 1)
+    lo = int(rank)
+    if lo + 1 >= len(s):
+        return s[-1]
+    return s[lo] + (rank - lo) * (s[lo + 1] - s[lo])
 ```
 
 #### Base case price
@@ -929,7 +948,7 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 ### 10.1 단위 테스트
 - `pricing.py`:
   - `combine` 모드 3 가지 × `is_bear` flag — bull 의 conservative=min vs bear 의 conservative=max 동작 분기 (v0.3 §4.1)
-  - percentile (numpy linear), `ttm_eps=None`/`peer_pe=[]` fallback
+  - `percentile` (손수 linear interp, numpy 미사용 v0.9) — numpy 'linear' 대비 동등성, singleton/2개 리스트 경계, `ttm_eps=None`/`peer_pe=[]` fallback
   - `base_price_cap_pct=0.0` 가 base ≤ current 강제, `None` 일 때 cap 미적용
   - `_apply_probability_cap` — bull cap 단독 / bear cap 단독 / 둘 다 / 비례 분배 정확성 / 합 = 1.0 (v0.3 §4.1)
   - `_validate_price_order` — 정상 순서 (flag=[]), 위반 (flag 메시지 포맷) (v0.3 §4.1)
@@ -965,24 +984,25 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 
 > M2 종료 후 진입. 각 단계 별도 커밋. LLM 호출 추가 커밋은 비용 추정 명시 (CLAUDE.md).
 
-1. **schemas.py** — `ScenarioContext` / `ScenarioOpinion` / `InvalidationTrigger` / `ExpectedReturn` / `ScenarioPricingConfig` + 단위 테스트
+1. **schemas.py** — `ScenarioContext` / `ScenarioOpinion` / `InvalidationTrigger` / `ExpectedReturn` + 단위 테스트 (`ScenarioPricingConfig` 는 #2 pricing_config.py — v0.9)
    - **P1-E 결정** (§2.4): `metric ↔ threshold_unit` mapping validator 도입 여부. 권장 — `model_validator` 로 무효 조합 차단 (`revenue_yoy`+`qualitative` 등). 거부 시 시스템 프롬프트 명시만. 기존 필드 위 validator 라 무손실
-2. **pricing.py** — `compute_bull/base/bear_price` + `compute_expected_return` 순수 함수. config 3 mode × percentile 테스트
-3. **pricing_config.py** — 기본값, 환경변수 파싱, 입력 JSON override 병합
+2. **pricing_config.py** — `ScenarioPricingConfig` 모델 + 기본값 + 환경변수 파싱 + 입력 JSON override 병합 + validator (`_validate_percentile_order`, `base_price_cap_pct` bound — §4.2). *pricing.py(#3) 가 import 하므로 먼저* (v0.9 의존성 교정)
+3. **pricing.py** — `compute_bull/base/bear_price` + `compute_expected_return` + `combine` + `percentile`(손수 linear interp, numpy 미사용 — v0.9) 순수 함수. config 3 mode × percentile 테스트
 4. **context_builder.py** — Bull/Bear S3 로드 + 가격 컨텍스트 조립 + `to_prompt_markdown` 화이트리스트 직렬화
 5. **프롬프트 파일 2종** — `scenario_system.md` + `scenario_user.md` (placeholder 4개)
    - **P2-H 결정** (§2.4): `label ↔ trigger direction` 의미 — bull 시나리오의 `invalidation_trigger` 는 *시나리오를 부정하는 방향* 이어야 함. 시스템 프롬프트에 "이 트리거 충족 시 해당 시나리오 무효화" 의미 강화. golden(#8) 전 확정 필요 (스냅샷 일관성)
 6. **agent.py 골격** — Bull/Bear `agent.py` 패턴 재사용. AnthropicCaller / 사다리 / Pydantic 검증 / 로깅
-7. **trigger_evaluator.py** — metric 별 자동 평가 함수 + 단위 테스트
+7. **trigger_evaluator.py** — metric 별 자동 평가 함수 + 단위 테스트 (`#1 InvalidationTrigger 에만 의존` — agent 경로·golden 과 독립, 활성화는 #13 batch)
    - tripwire 윈도우 (다음 분기 발표 1회) 전제로 구현 (§7.1 v0.5 확정)
    - v0.4 metric (`earnings_surprise`, `net_debt_yoy`) 입력 시그니처 확정 (§7.1 메모 — `balance_quarterly` / `earnings_surprises` / `sub_sector` 추가)
    - **P2-D 결정** (§2.4): `guidance_change` 자동화 방법 — (1) transcript 키워드 정규식 / (2) 추가 LLM 호출 요약 / (3) 인간 회고만. 시작은 `requires_human_review=True` fallback, M3 후반 자동화 검토
-8. **golden 케이스 4건** — AAPL/XOM/NVDA/JPM 실제 호출 + 스냅샷
+8. **golden 케이스 4건** — AAPL/XOM/NVDA/JPM 실제 호출 + 스냅샷 + `pytest.ini` 에 `golden` 마커 등록 (§10.3). P2-H (#5) 의미 확정 후 진행 (스냅샷 일관성)
 9. **Lambda 핸들러** — `src/lambdas/agent_scenario/handler.py` + `lambda_core.py` 공유 코어
 10. **Step Functions ASL 확장** (§6.1 교정 ASL) — (a) `BullBearMap` 교정: `End`→`Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` (G1 — 안 하면 `$.result.selected` 소멸로 ScenarioMap 실패), (b) `ScenarioMap` state 추가 + Task 직착 `Catch`/Retry (G2). **M2 회귀 주의** (기존 BullBearMap 수정) → 5종목 dry-run 재검증
 11. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M3 회고
 12. **(M3 후반)** ExpectedReturnsBundle sensitivity 로깅 활성화
-13. **(M3 후반)** 트리거 자동 검증 — 분기 발표 후 자동 평가 batch
+13. **(M3 후반)** 트리거 자동 검증 — 분기 발표 후 자동 평가 batch (#7 활성화)
+14. **(M3 5주차)** DeepEval baseline (§10.5) — 3 criteria 운영 데이터로 baseline 확립 + 회귀 게이트 (M2 §11.5 패턴). judge 호출 비용 발생 (operational §5 와 별도)
 
 ---
 
