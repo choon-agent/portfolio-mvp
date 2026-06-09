@@ -4,7 +4,7 @@
 > S&P 500 유니버스, 주 1회 리밸런싱, Bull/Bear 에이전트 기반 종목 리서치.
 
 **기간**: 2026-04-20 ~ 2026-10-20 (6개월 MVP)
-**현재 단계**: **M2 종료 — 1·2단계 자동 운영 (스크리닝 + Bull/Bear), 3단계 시나리오 모델링 다음**
+**현재 단계**: **M3 운영 중 — 1·2·3단계 자동 운영 (스크리닝 + Bull/Bear + 시나리오 모델링). 4~5단계(최적화·리밸런싱) 다음**
 
 ---
 
@@ -30,20 +30,21 @@
        ↓
 [2] Bull/Bear 리서치  ✅ 운영 — 종목당 LLM 에이전트 2개 (핵심 학습 포인트)
        ↓
-[3] 시나리오 모델링   ⏳ 다음 (M3) — 상위 15~20개만 대상
+[3] 시나리오 모델링   ✅ 운영 (M3) — LLM 은 narrative·확률·트리거만, 가격은 결정적 산식
        ↓
-[4] 포트폴리오 최적화  — PyPortfolioOpt 등 (LLM 사용 X)
+[4] 포트폴리오 최적화  ⏳ 다음 — PyPortfolioOpt 등 (LLM 사용 X)
        ↓
-[5] 리밸런싱          — 룰 기반 매매, LLM 은 근거 생성만
+[5] 리밸런싱          ⏳ 다음 — 룰 기반 매매, LLM 은 근거 생성만
 ```
 
 유니버스 10~15 종목, 섹터당 ≤35%, 월 LLM 비용 상한 $200.
 
-**현재 운영 상태** (M2 종료, 2026-04-30):
-- 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` (Bull/Bear Parallel) → S3 의견 저장
-- 첫 dry-run: 20종목 × 2 stance = 40 invoke, retry 0회, 총 비용 **$0.083**
-- 결정성 정책 100% (동일 input_hash 재호출 시 LLM 호출 0회)
-- 6 sub-sector 검증 완료 (Banks/Investment Mgmt/REIT/Utility/Memory Semi/Energy)
+**현재 운영 상태** (M3 운영 중, 2026-06-09):
+- 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` (Bull/Bear Parallel) → `ScenarioMap` (시나리오) → S3 저장
+- 시나리오 단계 자동 운영 2주 누적: 매주 20/20 성공, 재시도 0%, 주간 비용 **$0.36** (20×$0.018), data_quality_flags 0
+- 결정성 정책 100% (Bull/Bear `context_input_hash`, 시나리오 `scenario_input_hash` — 동일 입력 재호출 시 LLM 호출 0회)
+- 옵션 C: LLM ≠ 가격 산정 분리 — LLM 은 확률·narrative·무효화 트리거만, scenario_prices 는 결정적 산식
+- 관찰: 종목 turnover ~25% (주간 캐시 무효 → 풀 비용), expected_return 음수 skew(보수 config) — 4주 회고에서 config 조정 판단 (`docs/03-scenario-retro.md`)
 
 ---
 
@@ -73,11 +74,13 @@ portfolio-mvp/
 ├── requirements-dev.txt             # 로컬 개발용 (pytest, boto3, deepeval)
 ├── docs/
 │   ├── 01-screening.md              # 1단계 스크리닝 설계 (M1 운영 중)
-│   └── 02-bull-bear.md              # 2단계 Bull/Bear 설계 (v0.7, M2 종료)
+│   ├── 02-bull-bear.md              # 2단계 Bull/Bear 설계 (v0.8, M2 운영 중)
+│   ├── 03-scenario.md               # 3단계 시나리오 설계 (v0.14, M3 운영 중)
+│   └── 03-scenario-retro.md         # M3 4주 운영 회고 프롬프트 + 체크리스트 + 주차별 운영 로그
 ├── infra/
-│   ├── README.md                    # 배포 순서, IAM 정책, EventBridge 명령
+│   ├── README.md                    # 배포 순서, IAM 정책, EventBridge 명령, LLM Lambda 생성 설정
 │   └── step_functions/
-│       └── screening_workflow.asl.json  # RunScreening + BullBearMap (M1 + M2)
+│       └── screening_workflow.asl.json  # RunScreening + BullBearMap + ScenarioMap (M1 + M2 + M3)
 ├── src/
 │   ├── common/
 │   │   ├── fmp_client.py            # FMP 클라이언트 (OHLCV / key-metrics-ttm / income·cashflow 분기)
@@ -89,7 +92,7 @@ portfolio-mvp/
 │   ├── screening/                   # 1단계: 코드 기반 (LLM 미사용)
 │   │   ├── schemas.py / constituents.py / universe.py / factors.py
 │   │   ├── normalize.py / score.py / peer_context.py / pipeline.py
-│   ├── agents/                      # 2단계: LLM 에이전트 (M2 신규)
+│   ├── agents/                      # 2·3단계: LLM 에이전트 (M2·M3)
 │   │   ├── bull_bear/
 │   │   │   ├── schemas.py           # StockContext, BullBearOpinion (평탄 1-depth)
 │   │   │   ├── mappers.py           # ScreenedStock → StockContext 1:1 평탄화
@@ -100,29 +103,43 @@ portfolio-mvp/
 │   │   │   └── evaluation/          # 응답 품질 평가 (DeepEval G-Eval — M2 종료 후 PoC)
 │   │   │       ├── criteria.py      # G-Eval criteria (hard rule 1·3·4 인코딩, lazy import)
 │   │   │       └── adapters.py      # AnthropicJudge + 골든 스냅샷 → LLMTestCase 변환
+│   │   ├── scenario/                # 3단계: 시나리오 모델링 (M3 신규 — 옵션 C)
+│   │   │   ├── schemas.py           # ScenarioContext / ScenarioOpinion / ExpectedReturn
+│   │   │   ├── pricing_config.py    # ScenarioPricingConfig + 로더 (env/override, 가격 역전 검증)
+│   │   │   ├── pricing.py           # 결정적 가격 산식 (bull/base/bear, percentile 손수 구현)
+│   │   │   ├── context_builder.py   # Bull/Bear 의견 + OHLCV/펀더멘털 → ScenarioContext
+│   │   │   ├── agent.py             # LLM 진입점 (narrative+확률+트리거만, 사다리 재사용)
+│   │   │   ├── trigger_evaluator.py # 무효화 트리거 자동 검증 (observe-only, #13 활성화 대기)
+│   │   │   └── lambda_core.py       # 캐시(scenario_input_hash) + compute_expected_return + S3 저장
 │   │   └── prompts/
 │   │       ├── bull_system.md       # Bull 시스템 프롬프트 (strict schema 섹션 포함)
 │   │       ├── bear_system.md       # Bear 시스템 프롬프트 (미러 구조)
-│   │       └── bullbear_user.md     # 사용자 프롬프트 템플릿 (placeholder 4개)
+│   │       ├── bullbear_user.md     # 사용자 프롬프트 템플릿 (placeholder 4개)
+│   │       ├── scenario_system.md   # 시나리오 시스템 프롬프트 (가격 미산정·트리거 규칙, M3)
+│   │       └── scenario_user.md     # 시나리오 사용자 프롬프트 템플릿 (M3)
 │   ├── lambdas/
 │   │   ├── update_constituents/handler.py    # 주 1회 구성종목 업데이트
 │   │   ├── update_ohlcv/handler.py           # 매 거래일 OHLCV 증분 업데이트
 │   │   ├── run_screening/handler.py          # 매주 월 스크리닝 (M1)
 │   │   ├── agent_bullbear_bull/handler.py    # thin wrapper, stance="bull" (M2 신규)
-│   │   └── agent_bullbear_bear/handler.py    # thin wrapper, stance="bear" (M2 신규)
-│   ├── tests/                       # pytest 332 케이스 (M2 종료) + DeepEval 24 케이스 (PoC)
+│   │   ├── agent_bullbear_bear/handler.py    # thin wrapper, stance="bear" (M2 신규)
+│   │   └── agent_scenario/handler.py         # thin wrapper, 시나리오 (M3 신규 — single-stance)
+│   ├── tests/                       # pytest 421 케이스 (M3) + DeepEval 24 케이스 (PoC)
 │   └── pytest.ini                   # marker 등록 (golden, deepeval)
 ├── scripts/
 │   ├── deploy_lambda.sh             # Lambda 패키징·배포 (agents/ 포함)
-│   ├── deploy_step_functions.sh     # ASL placeholder 3개 치환·배포
+│   ├── deploy_step_functions.sh     # ASL placeholder 치환·배포
 │   ├── backfill_ohlcv.py            # OHLCV 초기 백필
 │   ├── dry_run_screening.py         # pipeline 로컬 검증
 │   ├── probe_fmp_fundamentals.py    # FMP 엔드포인트 가용성 점검
-│   ├── run_bullbear_golden.py       # 골든 케이스 실행 (M2 신규 — 4종목 fixture)
-│   └── run_bullbear_deepeval.py     # DeepEval 단발 실행 + 리포트 저장 (PoC)
+│   ├── run_bullbear_golden.py       # Bull/Bear 골든 케이스 실행 (M2 — 4종목 fixture)
+│   ├── run_bullbear_deepeval.py     # DeepEval 단발 실행 + 리포트 저장 (PoC)
+│   └── run_scenario_golden.py       # 시나리오 골든 스냅샷 생성 (M3 — 4종목, 1회 $0.072)
 ├── tests/
-│   └── golden/bullbear/             # 골든 스냅샷 (AAPL/XOM/NVDA/JPM × bull/bear, 8개)
-│       └── reports/                 # DeepEval 리포트 (deepeval_report.json — judge reasoning 포함)
+│   └── golden/
+│       ├── bullbear/                # 골든 스냅샷 (AAPL/XOM/NVDA/JPM × bull/bear, 8개)
+│       │   └── reports/             # DeepEval 리포트 (deepeval_report.json — judge reasoning 포함)
+│       └── scenario/                # 시나리오 골든 스냅샷 (AAPL/JPM/NVDA/XOM, M3)
 └── .github/
     └── workflows/
         ├── deploy-lambdas.yml       # CI/CD: src/agents/** path 트리거 추가
@@ -197,7 +214,7 @@ portfolio-mvp/
 
 ### ✅ 2단계 Bull/Bear 에이전트 (M2 종료)
 
-**구현 완료** ([docs/02-bull-bear.md v0.7](docs/02-bull-bear.md)):
+**구현 완료** ([docs/02-bull-bear.md v0.8](docs/02-bull-bear.md)):
 - **평탄화 `StockContext`** — `ScreenedStock` 임베드 대신 1-depth 명시 필드 (스크리닝-Bull/Bear 결합도 ↓, 입력 토큰 효율 ↑)
 - **사다리 (Sonnet primary → primary retry → Haiku fallback)** — JSON 파싱·schema·네트워크 실패 모두 흡수
 - **결정성 정책** — `temperature=0` + `context_input_hash(StockContext)` SHA-256으로 같은 입력 재호출 시 LLM 호출 생략 (운영 cache hit 100% 검증)
@@ -214,15 +231,37 @@ portfolio-mvp/
 ### ✅ Bull/Bear 인프라 (M2)
 - **두 Lambda** (`agent_bullbear_bull`, `agent_bullbear_bear`) — 공유 `lambda_core.handle` + thin wrapper로 stance만 다르게 주입
 - **Step Functions ASL 확장** — `RunScreening` → `BullBearMap` (Map MaxConcurrency=1, ItemSelector로 lineage 매핑) → 안 `BullBearParallel` (Bull/Bear 동시) → S3 저장
-- **deploy 인프라 갱신** — `deploy_lambda.sh`가 `agents/` 패키징 (lazy `__init__.py`), `.github/workflows/deploy-lambdas.yml`이 `src/agents/**` path 트리거. `deploy_step_functions.sh`는 placeholder 3개 치환
+- **deploy 인프라 갱신** — `deploy_lambda.sh`가 `agents/` 패키징 (lazy `__init__.py`), `.github/workflows/deploy-lambdas.yml`이 `src/agents/**` path 트리거. `deploy_step_functions.sh`는 placeholder 치환
 - **EventBridge 정기 트리거 연동** — 매주 월 06:00 ET cron으로 자동 운영 진입
+
+### ✅ 3단계 시나리오 모델링 (M3 — 운영 중)
+
+**설계** ([docs/03-scenario.md v0.14](docs/03-scenario.md), §2.4/§4/§5/§6/§7/§10~§12 검토 박제):
+- **옵션 C — LLM ≠ 가격 산정 분리**: LLM 은 narrative + 시나리오 확률(bull/base/bear) + 무효화 트리거만 생성, `scenario_prices` 는 결정적 산식(`pricing.py`)으로 계산. 할루시네이션을 가격에서 차단 (CHARTER §6 정합)
+- **결정적 가격 산식** — bull(percentile)/base(peer P/E·cap)/bear 를 historical·peer·52w fallback 사다리로 산출, config(`ScenarioPricingConfig`)로 공격성 조정. percentile 은 numpy 의존 없이 손수 linear interp (콜드스타트 최소)
+- **`scenario_input_hash` 결정성 캐시** — M2 `context_input_hash` 패턴 재사용, 같은 입력 재호출 시 LLM 호출 생략 (재실행 폭주 방지 + 재현성)
+- **무효화 트리거 자동 검증** (`trigger_evaluator.py`) — observe-only, 회고 calibration 전용 (라이브 매매 피드백 없음). batch 활성화는 #13(분기 발표 시즌)
+
+**구현 #1~#10 완료**:
+- `agents/scenario/` (schemas / pricing_config / pricing / context_builder / agent / trigger_evaluator / lambda_core) + `agent_scenario` Lambda + ASL `ScenarioMap`
+- ASL G1 체이닝 교정 — `BullBearMap` 에 `Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` 보존 (Map 출력이 `$.result` 덮어쓰지 않도록)
+- **골든 4종목 실제 호출 검증** (AAPL/JPM/NVDA/XOM, 1회 $0.072) — 저장 `ScenarioOpinion` → `compute_expected_return` 재실행 시 `ExpectedReturn` 결정적 정확 재현(exact assert)
+
+**운영** (2026-06-01 첫 자동 스케줄 이후 2주 누적):
+- 매주 20/20 성공, **재시도 0%**, 주간 비용 **$0.36**(20×$0.018, 예측 정합), data_quality_flags 0
+- 첫 수동 운영(2026-05-31)에서 narrative 300자 한계로 3종목(CRL/WTW/EIX) 실패 → v0.14 max_length 300→500 완화 후 20/20
+- 관찰: expected_return 음수 skew(16→17/20, 보수 config), 종목 turnover ~25%(주간 캐시 무효) → 4주 회고에서 config·hysteresis 판단 ([docs/03-scenario-retro.md](docs/03-scenario-retro.md))
+
+**남은 작업**: #11 첫 운영 안정화 / #12 sensitivity 로깅 / #13 트리거 자동검증 batch / #14 DeepEval baseline (M3 후반·5주차, §11 참조)
 
 ### ✅ 문서화
 - CHARTER (헌장): 우선순위·제약·성공 기준 확정
 - CLAUDE.md (개발 규칙): 코딩 규칙, 커밋 컨벤션, 비용 상한
 - [docs/01-screening.md](docs/01-screening.md): 1단계 설계 (M1 운영 중)
-- [docs/02-bull-bear.md](docs/02-bull-bear.md) **v0.7**: 2단계 설계 (M2 종료) — 운영 모니터링 정책 §11 포함
-- [infra/README.md](infra/README.md): AWS 인프라 배포·운영 가이드
+- [docs/02-bull-bear.md](docs/02-bull-bear.md) **v0.8**: 2단계 설계 (M2 운영 중) — 운영 모니터링 정책 §11 + 4주 누적 평가 포함
+- [docs/03-scenario.md](docs/03-scenario.md) **v0.14**: 3단계 설계 (M3 운영 중) — 옵션 C, 검토 박제 §2.4~§12
+- [docs/03-scenario-retro.md](docs/03-scenario-retro.md): M3 4주 운영 회고 프롬프트 + 체크리스트 + 주차별 운영 로그
+- [infra/README.md](infra/README.md): AWS 인프라 배포·운영 가이드 (LLM Lambda 생성 설정 포함)
 
 ---
 
@@ -236,18 +275,21 @@ portfolio-mvp/
 3. Step Functions ASL 확장 (`BullBearMap`)
 4. EventBridge 정기 트리거 연결
 
-### M3 (3개월차, Phase 1 종료 — 진행 예정)
-5. **3단계 시나리오 모델링** — `docs/03-scenario.md` 작성 + 구현. Bull/Bear 출력을 입력으로 받아 가격 시나리오 산출
-6. **4~5단계 연결** — 포트폴리오 최적화 (PyPortfolioOpt) + 리밸런싱 (룰 기반)
-7. **페이퍼 트레이딩 첫 주간 실행 성공** — 5단계 모두 연결된 첫 end-to-end
-8. **Charter 재검토 및 실전 전환 판단** — [CHARTER.md §4.1](CHARTER.md) 4개 기준 충족 시 소액 실전 전환
-9. **블로그 1편 초고**
+### M3 (3개월차, Phase 1 종료 — 진행 중)
+5. ✅ **3단계 시나리오 모델링** — 구현 #1~#10 완료, 자동 운영 중 (위 "진행된 작업" 참조)
+6. ⏳ **M3 후반 잔여** — #12 sensitivity 로깅 / #13 트리거 자동검증 batch(분기 발표 시즌) / #14 DeepEval baseline + 4주 운영 회고([docs/03-scenario-retro.md](docs/03-scenario-retro.md))
+7. ⏳ **4~5단계 연결** — 포트폴리오 최적화 (PyPortfolioOpt) + 리밸런싱 (룰 기반)
+8. ⏳ **페이퍼 트레이딩 첫 주간 실행 성공** — 5단계 모두 연결된 첫 end-to-end
+9. ⏳ **Charter 재검토 및 실전 전환 판단** — [CHARTER.md §4.1](CHARTER.md) 4개 기준 충족 시 소액 실전 전환
+10. ⏳ **블로그 1편 초고**
 
-### M2 운영 안정화 항목 (M2 종료 후 4주 데이터 누적 시점에 평가)
-- **종목 풀 turnover** — 너무 높으면 의견 캐싱 2주 TTL 또는 스크리닝 hysteresis 도입 ([docs/02-bull-bear.md §10](docs/02-bull-bear.md))
+### 운영 안정화 항목 (4주 누적 시점 평가)
+- **M2 Bull/Bear 4주 평가 완료** ([docs/02-bull-bear.md v0.8](docs/02-bull-bear.md)): $2.76/월, 160 invoke 100% 성공, retry/fallback 0
+- **종목 풀 turnover** — 너무 높으면 의견 캐싱 2주 TTL 또는 스크리닝 hysteresis 도입 ([docs/02-bull-bear.md §10](docs/02-bull-bear.md), M3 §1 §10 연결). M3 Week 2에서 ~25% 관찰 → 4주 회고 판단
 - **사다리 retry/fallback 빈도** — 5% 이상이면 Anthropic 한도 상향 신청 또는 max_tokens 조정
 - **응답 품질 회귀** — DeepEval G-Eval 자동 평가 ([scripts/run_bullbear_deepeval.py](scripts/run_bullbear_deepeval.py), baseline §11.5) 가 1차 가드. criterion fail 시 judge reasoning 검토 → 동일 패턴 2건 이상이면 시스템 프롬프트 보강. 분기별 인간 sector sample 검토 병행
-- 상세 모니터링 정책: [docs/02-bull-bear.md §11](docs/02-bull-bear.md)
+- **M3 시나리오 4주 회고** — config(음수 skew) / `peer_announcement` 정책 / `_validate_price_order` 제거 / narrative 500 충분성 ([docs/03-scenario-retro.md](docs/03-scenario-retro.md) §3 체크리스트)
+- 상세 모니터링 정책: [docs/02-bull-bear.md §11](docs/02-bull-bear.md), [docs/03-scenario.md §11~§12](docs/03-scenario.md)
 
 ---
 
@@ -338,24 +380,25 @@ git push origin main
 
 | 리소스 | 용도 |
 |---|---|
-| S3 버킷 | Parquet/JSON 저장소 (`metadata/`, `ohlcv/`, `screening/`, `agents/bullbear/`) |
+| S3 버킷 | Parquet/JSON 저장소 (`metadata/`, `ohlcv/`, `screening/`, `agents/bullbear/`, `scenarios/`, `expected_returns/`, `scenario_contexts/`) |
 | Secrets Manager: FMP API 키 | OHLCV·펀더멘털 수집용 |
-| **Secrets Manager: Anthropic API 키** | **Bull/Bear LLM 호출용 (M2 신규)** |
+| Secrets Manager: Anthropic API 키 | Bull/Bear·시나리오 LLM 호출용 (M2 신규) |
 | IAM Role: `portfolio-mvp-run_screening-role` | Lambda 실행 (S3 RW, Secrets read) |
-| **IAM Role: Bull/Bear Lambda 실행** | **S3 RW + FMP·Anthropic Secret read (M2 신규)** |
-| IAM Role: `portfolio-mvp-step-functions-role` | SF → Lambda invoke (3개 Lambda — run_screening + bullbear_bull/bear) |
+| IAM Role: LLM Lambda 실행 (Bull/Bear·시나리오) | S3 RW + FMP·Anthropic Secret read (M2 신규) |
+| IAM Role: `portfolio-mvp-step-functions-role` | SF → Lambda invoke (4개 Lambda — run_screening + bullbear_bull/bear + agent_scenario) |
 | IAM Role: `portfolio-mvp-eventbridge-role` | EventBridge → SF startExecution |
 | IAM Role: `choon-github-actions-role` | CI/CD 배포 (Lambda·Step Functions 업데이트, OIDC) |
 | EventBridge 규칙: `update_constituents` | 매주 월 09:00 ET |
 | EventBridge 규칙: `update_ohlcv` | 매 평일 22:00 ET |
-| EventBridge 규칙: `portfolio-mvp-weekly-screening` | 매주 월 06:00 ET → Step Functions (M1 + M2 통합 워크플로우) |
-| Step Functions: `portfolio-mvp-screening` | RunScreening + BullBearMap (Bull/Bear Parallel) |
+| EventBridge 규칙: `portfolio-mvp-weekly-screening` | 매주 월 06:00 ET → Step Functions (M1 + M2 + M3 통합 워크플로우) |
+| Step Functions: `portfolio-mvp-screening` | RunScreening + BullBearMap (Bull/Bear Parallel) + ScenarioMap |
 | **Lambda: `portfolio-mvp-agent_bullbear_bull`** | **Bull 에이전트 (M2 신규)** |
 | **Lambda: `portfolio-mvp-agent_bullbear_bear`** | **Bear 에이전트 (M2 신규)** |
+| **Lambda: `portfolio-mvp-agent_scenario`** | **시나리오 에이전트 (M3 신규 — single-stance)** |
 
 ### Lambda 환경변수
 
-공통 — 세 Lambda 모두 동일 버킷·시크릿 사용:
+공통 — 모든 Lambda 가 동일 버킷·시크릿 사용:
 
 | 변수 | 필수 | 예시 |
 |---|---|---|
@@ -390,6 +433,20 @@ git push origin main
 | `CASHFLOW_QUARTERLY_PREFIX` | `metadata/fundamentals/cash-flow-statement-quarterly` |
 | `CACHE_MAX_AGE_DAYS` | `90` |
 
+`agent_scenario` 추가 (M3):
+
+| 변수 | 기본값 / 비고 |
+|---|---|
+| `ANTHROPIC_SECRET_ID` | ✅ 필수 — Anthropic API 키 secret ID |
+| `OHLCV_PREFIX` | `ohlcv` (공유) |
+| `BULLBEAR_PREFIX` | `agents/bullbear` (입력 Bull/Bear 의견 2개 로드) |
+| `SCENARIOS_PREFIX` | `scenarios` (LLM 출력 ScenarioOpinion) |
+| `EXPECTED_RETURNS_PREFIX` | `expected_returns` (산식 결과 ExpectedReturn — 4단계 입력) |
+| `SCENARIO_CONTEXTS_PREFIX` | `scenario_contexts` (입력 context lineage) |
+| `INCOME_QUARTERLY_PREFIX` | `metadata/fundamentals/income-statement-quarterly` (ttm_eps) |
+| `CACHE_MAX_AGE_DAYS` | `90` |
+| `SCENARIO_*` | pricing config override (선택 — §4.3, 기본값은 `pricing_config.py`) |
+
 ---
 
 ## 주요 설계 결정
@@ -414,6 +471,11 @@ git push origin main
 | **`max_tokens 2048` (M2)** | 골든 1차 실행에서 AAPL_bear가 1024 hit으로 잘림 → 2048 상향. 출력 평균 ~900, 비용 영향 없음 (실 사용량 청구) | [docs/02-bull-bear.md §5.2.1](docs/02-bull-bear.md) |
 | **단일 Sector context 프롬프트 (M2)** | 6 sub-sector 검증 — LLM이 sector-specific 회계 차이를 자동 활용 (Bank EV/EBITDA 회피, REIT FFO 부재 자각, Utility capex 인지). 추가 sector별 분기 불필요 | [docs/02-bull-bear.md §10](docs/02-bull-bear.md) |
 | **Bull/Bear thin wrapper + 공유 lambda_core (M2)** | 두 Lambda가 동일 코어 import, stance만 다르게 주입. 코드 중복 0, 모델·프롬프트 격리 | [docs/02-bull-bear.md §4.2](docs/02-bull-bear.md) |
+| **시나리오 옵션 C — LLM ≠ 가격 산정 분리 (M3)** | LLM 은 narrative·확률·트리거만, `scenario_prices` 는 결정적 산식. 가격 할루시네이션 차단 + 저장 의견에서 ExpectedReturn 결정적 재현(골든 exact assert) | [docs/03-scenario.md §1](docs/03-scenario.md) |
+| **percentile 손수 구현 (numpy 미사용) (M3)** | 사용처가 1곳뿐 → linear interp ~10줄로 numpy 의존 0, 콜드스타트·zip 크기 최소. requirements.txt 무변경 | [docs/03-scenario.md §4.1](docs/03-scenario.md) |
+| **`ScenarioMap` MaxConcurrency=2 (M3)** | single-stance × 2048 = 4,096 < 8,000 한도. M2 BullBearMap(=1×2 stance) 과 동일 부하, wall-clock 2x 단축. BullBearMap 종료 후 시작이라 동시 호출 없음 | [docs/03-scenario.md §6.1](docs/03-scenario.md) |
+| **`scenario_input_hash` 결정성 캐시 (M3)** | M2 패턴 재사용 — ScenarioContext(−lineage) SHA-256. 재실행 폭주 방지 + 재현성(CHARTER 2순위) | [docs/03-scenario.md §6.2](docs/03-scenario.md) |
+| **무효화 트리거 observe-only (M3)** | 트리거 평가는 회고 calibration 전용, 라이브 매매·재분석 피드백 없음 — 매매는 룰 기반 정합 | [docs/03-scenario.md §7](docs/03-scenario.md) |
 
 ---
 
@@ -423,8 +485,8 @@ git push origin main
 - **개발 규칙**: [CLAUDE.md](CLAUDE.md) — 코딩 컨벤션, 커밋 규칙, 작업 가이드
 - **단계별 설계**:
   - [docs/01-screening.md](docs/01-screening.md) ✅ M1 운영
-  - [docs/02-bull-bear.md](docs/02-bull-bear.md) v0.7 ✅ M2 종료
-  - `docs/03-scenario.md` ⏳ M3 작성 예정
+  - [docs/02-bull-bear.md](docs/02-bull-bear.md) v0.8 ✅ M2 운영
+  - [docs/03-scenario.md](docs/03-scenario.md) v0.14 ✅ M3 운영 + [docs/03-scenario-retro.md](docs/03-scenario-retro.md) (4주 회고)
   - `docs/04-optimizer.md` / `docs/05-rebalancing.md` (작성 예정)
 - **외부**:
   - [FMP Stable API](https://site.financialmodelingprep.com/developer/docs/stable)
@@ -458,4 +520,12 @@ git push origin main
 | 2026-04-30 | **첫 운영 dry-run** (20종목): 40 invoke, retry 0회, **총 비용 $0.083**. 1차 실행에서 rate limit 발견 → MaxConcurrency 5→1 처방 + Haiku schema 보강 |
 | 2026-04-30 | 응답 품질 인간 검토 (5 sub-sector sample) — sector 보강 효과 6 sub-sector 최종 검증 |
 | 2026-04-30 | EventBridge 정기 트리거 연동 — **M2 마일스톤 §9 #1~#9 완료** ([docs/02-bull-bear.md v0.7](docs/02-bull-bear.md)) |
-| — | M3 진입: 시나리오 모델링 (`docs/03-scenario.md` 작성), 4~5단계 연결, 페이퍼 트레이딩 |
+| 2026-05-24 | Bull/Bear DeepEval G-Eval baseline PoC — 골든 8건 × 3 criteria 24 판정 전수 통과 ($0.37) |
+| 2026-05 | docs/02-bull-bear.md v0.8 — M2 4주 누적 운영 평가 박제 ($2.76/월, 160 invoke 100% 성공, retry 0) |
+| 2026-05 | **M3 시나리오 설계 v0.1~v0.14 박제** (`docs/03-scenario.md`) — 옵션 C, §2.4~§12 검토 |
+| 2026-05 | **M3 구현 #1~#10 완료** — `agents/scenario/` (schemas/pricing_config/pricing/context_builder/agent/trigger_evaluator/lambda_core) + `agent_scenario` Lambda + ASL `ScenarioMap` (G1 체이닝 교정). 시나리오 테스트 추가 (누적 421) |
+| 2026-05 | 시나리오 골든 4종목 실제 호출 검증 (AAPL/JPM/NVDA/XOM, $0.072) |
+| 2026-05-31 | **시나리오 첫 수동 운영** (20종목) — narrative 300자 한계로 3종목(CRL/WTW/EIX) 실패 → v0.14 max_length 300→500 완화 후 20/20 ($0.054 추가) |
+| 2026-06-01 | **시나리오 첫 자동 스케줄 운영** (Week 1) — 20/20, 재시도 0%, $0.36. 음수 skew·캐시 동작 관찰 |
+| 2026-06-08 | 시나리오 운영 Week 2 — 20/20, 재시도 0%, $0.36, flags 0. **종목 turnover 25%** 발견 (캐시 주간 무효 → 풀 비용) |
+| — | M3 후반: #12 sensitivity 로깅 / #13 트리거 batch / #14 DeepEval + 4주 회고, 이후 4~5단계 연결 |
