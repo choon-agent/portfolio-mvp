@@ -91,6 +91,24 @@ else
   echo "    requirements.txt 없음 — 의존성 설치 건너뜀"
 fi
 
+# 설치 의존성 슬림화 — Lambda 직접 업로드 50MB(zip) 한계 회피.
+# pyarrow(~132MB)가 번들의 85%. 코드는 pyarrow core + compute + parquet 만 사용하며
+# Flight/Substrait/Gandiva 는 별도 옵셔널 모듈(lazy import)이라 제거해도 core/compute/
+# parquet import 에 영향 없음. C++ 헤더(include/)는 런타임 불요.
+if [ -d "$BUILD_DIR/pyarrow" ]; then
+  echo "==> pyarrow 슬림화 (Flight/Substrait/Gandiva/include 제거)"
+  rm -f "$BUILD_DIR"/pyarrow/libarrow_flight*.so* \
+        "$BUILD_DIR"/pyarrow/libarrow_substrait*.so* \
+        "$BUILD_DIR"/pyarrow/libgandiva*.so* \
+        "$BUILD_DIR"/pyarrow/_flight*.so \
+        "$BUILD_DIR"/pyarrow/_substrait*.so \
+        "$BUILD_DIR"/pyarrow/_gandiva*.so 2>/dev/null || true
+  rm -rf "$BUILD_DIR/pyarrow/include" 2>/dev/null || true
+fi
+# 설치 패키지의 테스트·Cython 소스·타입 스텁 제거 (런타임 불요)
+find "$BUILD_DIR" -type d \( -name tests -o -name __pycache__ \) -prune -exec rm -rf {} + 2>/dev/null || true
+find "$BUILD_DIR" -type f \( -name '*.pyx' -o -name '*.pxd' -o -name '*.pyi' \) -delete 2>/dev/null || true
+
 echo "==> Zip 생성"
 ( cd "$BUILD_DIR" && zip -qr "$ZIP_PATH" . -x '*.pyc' '*__pycache__*' )
 SIZE=$(du -h "$ZIP_PATH" | cut -f1)

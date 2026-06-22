@@ -203,6 +203,14 @@ M1 의 `run_screening` 과 달리 LLM 에이전트 Lambda (`agent_bullbear_bull`
 세 함수는 role·env·런타임 설정이 동일하므로 **하나를 만들면 나머지는 그대로 복사**
 한다.
 
+> **배포 패키지 크기 (50MB 한계)**: `update-function-code --zip-file` 직접 업로드는
+> **zip 50 MiB(52,428,800 bytes)** 한계. pyarrow(~132MB)가 번들의 대부분이라 한계에
+>근접 → `deploy_lambda.sh` 가 빌드 시 pyarrow 의 미사용 컴포넌트(Flight/Substrait/
+> Gandiva, C++ include) 를 제거해 ~39MB 로 슬림화 (코드는 core+compute+parquet 만 사용,
+> 나머지는 lazy import 라 안전). 향후 번들이 다시 50MB 근접 시: (a) 추가 슬림화,
+> (b) S3 경유 업로드(`--s3-bucket`/`--s3-key`, 250MB 한계 — CI role 에 s3:Put/GetObject
+> 필요), (c) 무거운 dep 를 Lambda Layer 로 분리.
+
 ### 공통 설정
 
 | 옵션 | 값 | 비고 |
