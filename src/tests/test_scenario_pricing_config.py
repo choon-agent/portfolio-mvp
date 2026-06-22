@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from agents.scenario.pricing_config import (
     ScenarioPricingConfig,
+    alternative_configs,
     load_pricing_config,
 )
 
@@ -145,3 +146,26 @@ def test_load_invalid_literal_rejected() -> None:
             env={"SCENARIO_BULL_AGGRESSIVENESS": "reckless"},
             override=None,
         )
+
+
+# ---------- alternative_configs (#12 sensitivity, §4.4) ----------
+
+
+def test_alternative_configs_keys() -> None:
+    alts = alternative_configs(ScenarioPricingConfig())
+    assert set(alts) == {"balanced", "base_cap_10", "aggressive"}
+
+
+def test_alternative_configs_variants() -> None:
+    alts = alternative_configs(ScenarioPricingConfig())
+    assert alts["balanced"].bull_aggressiveness == "balanced"
+    assert alts["balanced"].bear_conservatism == "balanced"
+    assert alts["base_cap_10"].base_price_cap_pct == 0.10
+    assert alts["aggressive"].bull_aggressiveness == "aggressive"
+    assert alts["aggressive"].base_price_cap_pct == 0.10
+
+
+def test_alternative_configs_inherit_base() -> None:
+    # base 의 percentile 등 미변경 필드는 그대로 상속
+    base = ScenarioPricingConfig(peer_pe_bull_percentile=90.0)
+    assert alternative_configs(base)["balanced"].peer_pe_bull_percentile == 90.0

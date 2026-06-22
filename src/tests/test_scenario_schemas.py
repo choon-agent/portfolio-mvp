@@ -15,6 +15,7 @@ from agents.bull_bear.schemas import Argument, BullBearOpinion
 from agents.scenario.pricing_config import ScenarioPricingConfig
 from agents.scenario.schemas import (
     ExpectedReturn,
+    ExpectedReturnsBundle,
     InvalidationTrigger,
     Scenario,
     ScenarioContext,
@@ -302,3 +303,30 @@ def test_expected_return_embeds_config_and_flags() -> None:
     assert er.data_quality_flags == []  # 기본값
     assert er.pricing_config.bull_aggressiveness == "conservative"
     assert er.scenario_prices["bull"] == 230.0
+
+
+def _expected_return(**overrides: object) -> ExpectedReturn:
+    base: dict[str, object] = {
+        "symbol": "AAPL", "as_of_date": AS_OF, "expected_price": 200.0,
+        "expected_return": 0.05, "variance": 120.0,
+        "scenario_prices": {"bull": 230.0, "base": 200.0, "bear": 160.0},
+        "pricing_config": ScenarioPricingConfig(),
+        "scenario_opinion_s3_key": "k", "computed_at": datetime(2026, 5, 4, tzinfo=timezone.utc),
+    }
+    base.update(overrides)
+    return ExpectedReturn(**base)  # type: ignore[arg-type]
+
+
+def test_expected_returns_bundle() -> None:
+    primary = _expected_return()
+    bundle = ExpectedReturnsBundle(
+        primary=primary,
+        alternatives={"balanced": _expected_return(expected_return=0.09)},
+    )
+    assert bundle.primary.expected_return == 0.05
+    assert bundle.alternatives["balanced"].expected_return == 0.09
+
+
+def test_expected_returns_bundle_alternatives_default_empty() -> None:
+    bundle = ExpectedReturnsBundle(primary=_expected_return())
+    assert bundle.alternatives == {}

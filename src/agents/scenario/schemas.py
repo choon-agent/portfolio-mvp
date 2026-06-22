@@ -38,6 +38,7 @@ __all__ = [
     "Scenario",
     "ScenarioOpinion",
     "ExpectedReturn",
+    "ExpectedReturnsBundle",
 ]
 
 
@@ -199,3 +200,18 @@ class ExpectedReturn(BaseModel):
     # Lineage
     scenario_opinion_s3_key: str
     computed_at: datetime
+
+
+class ExpectedReturnsBundle(BaseModel):
+    """기본 config 산출 + 대안 config 병렬 산출 (docs §4.4, #12 sensitivity).
+
+    같은 ScenarioOpinion 에 다른 ScenarioPricingConfig 만 적용 — *추가 LLM 호출
+    없음, 비용 0*. 회고 시 "보수적 config 가 expected $X → 공격적이면 $Y" 비교 +
+    옵션 C vs 옵션 B baseline 측정 인프라 (§1.4.2 #3).
+
+    alternatives 키 예: "balanced" / "base_cap_10" / "aggressive" /
+    (추후) "option_b_baseline". primary 가 4단계 최적화의 실제 입력.
+    """
+
+    primary: ExpectedReturn
+    alternatives: dict[str, ExpectedReturn] = Field(default_factory=dict)

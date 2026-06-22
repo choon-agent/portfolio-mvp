@@ -52,8 +52,8 @@ from agents.scenario.agent import (
 )
 from agents.scenario.context_builder import ScenarioContextError, build_context
 from agents.scenario.pricing import compute_expected_return
-from agents.scenario.pricing_config import load_pricing_config
-from agents.scenario.schemas import ScenarioOpinion
+from agents.scenario.pricing_config import alternative_configs, load_pricing_config
+from agents.scenario.schemas import ExpectedReturnsBundle, ScenarioOpinion
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
@@ -264,22 +264,31 @@ def handle(
         }, ensure_ascii=False))
 
     # 6. 가격 산정 — 캐시 hit 에도 항상 (순수 함수, config 반영, §6.2)
+    #    primary + sensitivity 대안 병렬 산출 (#12, §4.4 — 추가 LLM 비용 0)
     pricing_cfg = load_pricing_config(
         env=os.environ, override=event.get("pricing_config_override")
     )
-    expected_return = compute_expected_return(opinion, ctx, pricing_cfg)
+    primary_er = compute_expected_return(opinion, ctx, pricing_cfg)
+    alternatives = {
+        name: compute_expected_return(opinion, ctx, alt_cfg)
+        for name, alt_cfg in alternative_configs(pricing_cfg).items()
+    }
+    bundle = ExpectedReturnsBundle(primary=primary_er, alternatives=alternatives)
 
-    # 7. ExpectedReturn + ScenarioContext S3 저장
-    write_text(cfg["bucket"], er_key, expected_return.model_dump_json())
+    # 7. ExpectedReturnsBundle + ScenarioContext S3 저장
+    write_text(cfg["bucket"], er_key, bundle.model_dump_json())
     write_text(cfg["bucket"], ctx_key, ctx.model_dump_json())
+
+    alt_returns = {name: er.expected_return for name, er in alternatives.items()}
 
     logger.info(
         json.dumps({
             "stage": "completed", "cache": cache_status, "symbol": symbol,
             "scenarios_s3_key": scenarios_key, "expected_returns_s3_key": er_key,
             "input_hash": input_hash, "attempts": attempts, "cost_usd": cost_usd,
-            "expected_return": expected_return.expected_return,
-            "data_quality_flags": expected_return.data_quality_flags,
+            "expected_return": primary_er.expected_return,
+            "alternatives_expected_return": alt_returns,
+            "data_quality_flags": primary_er.data_quality_flags,
         })
     )
 
@@ -293,6 +302,7 @@ def handle(
         "input_hash": input_hash,
         "cost_usd": cost_usd,
         "attempts": attempts,
-        "expected_return": expected_return.expected_return,
-        "data_quality_flags": expected_return.data_quality_flags,
+        "expected_return": primary_er.expected_return,
+        "alternatives_expected_return": alt_returns,
+        "data_quality_flags": primary_er.data_quality_flags,
     }

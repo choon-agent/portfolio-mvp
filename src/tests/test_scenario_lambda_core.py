@@ -22,7 +22,7 @@ from screening.schemas import ScreenedStock
 from agents.bull_bear.agent import RawCompletion
 from agents.bull_bear.schemas import Argument, BullBearOpinion
 from agents.scenario import lambda_core
-from agents.scenario.schemas import ExpectedReturn, ScenarioOpinion
+from agents.scenario.schemas import ExpectedReturnsBundle, ScenarioOpinion
 
 AS_OF = "2026-05-04"
 DT = "dt=2026-05-04"
@@ -195,7 +195,10 @@ def test_cache_miss_calls_llm_and_writes(env: None, store) -> None:
     saved_opinion = json.loads(store.writes[SCENARIOS_KEY])
     assert "scenario_opinion" in saved_opinion
     assert saved_opinion["input_hash"] == out["input_hash"]
-    ExpectedReturn.model_validate(json.loads(store.writes[ER_KEY]))
+    bundle = ExpectedReturnsBundle.model_validate(json.loads(store.writes[ER_KEY]))
+    # #12 sensitivity — primary + 대안 3종 (balanced/base_cap_10/aggressive)
+    assert set(bundle.alternatives) == {"balanced", "base_cap_10", "aggressive"}
+    assert set(out["alternatives_expected_return"]) == {"balanced", "base_cap_10", "aggressive"}
     ScenarioOpinion.model_validate(saved_opinion["scenario_opinion"])
 
 
@@ -206,8 +209,8 @@ def test_miss_data_quality_flags_propagate(env: None, store) -> None:
     out = lambda_core.handle(_event(), None, caller=_FakeAnthropic([_completion()]), fmp=object())
     assert "expected_return" in out
     assert any("price_order_violation" in f for f in out["data_quality_flags"])
-    er = ExpectedReturn.model_validate(json.loads(store.writes[ER_KEY]))
-    assert er.data_quality_flags == out["data_quality_flags"]
+    bundle = ExpectedReturnsBundle.model_validate(json.loads(store.writes[ER_KEY]))
+    assert bundle.primary.data_quality_flags == out["data_quality_flags"]
 
 
 # ---------- cache hit ----------
@@ -245,8 +248,10 @@ def test_pricing_config_override_applied(env: None, store) -> None:
         _event(pricing_config_override={"base_price_cap_pct": None}),
         None, caller=_FakeAnthropic([_completion()]), fmp=object(),
     )
-    er = ExpectedReturn.model_validate(json.loads(store.writes[ER_KEY]))
-    assert er.pricing_config.base_price_cap_pct is None
+    bundle = ExpectedReturnsBundle.model_validate(json.loads(store.writes[ER_KEY]))
+    assert bundle.primary.pricing_config.base_price_cap_pct is None
+    # 대안은 base override 와 무관하게 자기 config 유지 (base_cap_10 = 0.10)
+    assert bundle.alternatives["base_cap_10"].pricing_config.base_price_cap_pct == 0.10
 
 
 # ---------- agent 실패 ----------

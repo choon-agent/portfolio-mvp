@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, model_validator
 __all__ = [
     "ScenarioPricingConfig",
     "load_pricing_config",
+    "alternative_configs",
 ]
 
 
@@ -122,3 +123,34 @@ def load_pricing_config(
     if override:
         data.update(override)  # 입력 JSON 이 환경변수보다 우선
     return ScenarioPricingConfig.model_validate(data)
+
+
+# ---------- Sensitivity 대안 config (docs §4.4, #12) ----------
+
+
+def _variant(base: ScenarioPricingConfig, **changes: Any) -> ScenarioPricingConfig:
+    """base 에 일부 필드만 바꾼 새 config (validator 재실행)."""
+    return ScenarioPricingConfig.model_validate({**base.model_dump(), **changes})
+
+
+def alternative_configs(
+    base: ScenarioPricingConfig,
+) -> dict[str, ScenarioPricingConfig]:
+    """기본 config 대비 sensitivity 비교용 대안들 (docs §4.4, #12).
+
+    같은 ScenarioOpinion 에 적용해 ExpectedReturnsBundle.alternatives 생성 —
+    추가 LLM 비용 0. M3 운영 음수 skew(base_cap=0.0 부작용) 의 config 민감도를
+    A/B 누적하기 위함. 4단계 설계 시 어느 config 가 적절한지 데이터로 판단.
+    """
+    return {
+        # 결합을 산술평균으로 (min/max 대신) — bull 상승·bear 하락 모두 중도
+        "balanced": _variant(
+            base, bull_aggressiveness="balanced", bear_conservatism="balanced"
+        ),
+        # base fair value 를 현재가 +10% 까지 허용 (음수 skew 주원인 완화)
+        "base_cap_10": _variant(base, base_price_cap_pct=0.10),
+        # 상방 적극 + base cap 완화 (상단 비교군)
+        "aggressive": _variant(
+            base, bull_aggressiveness="aggressive", base_price_cap_pct=0.10
+        ),
+    }

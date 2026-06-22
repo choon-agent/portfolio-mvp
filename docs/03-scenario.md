@@ -4,8 +4,14 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.14 (2026-05-31)
-> **상태**: 구현 #1~#10 완료 + M3 첫 운영 (20종목)
+> **버전**: v0.15 (2026-06-22)
+> **상태**: 구현 #1~#10 + #12(sensitivity) 완료 · 4주 운영 회고 완료 · 자동 운영 중
+>
+> **v0.15 변경 (4주 운영 회고 + #12 sensitivity 구현)**:
+> ① **4주 회고** (`docs/03-scenario-retro.md §0.6`): 운영 health 전 기준 합격 (성공 80/80, 재시도 0%, $1.45/월, flags 0/80). 산출물 음수 skew 82.5%(4주 일관, 원인 base_cap=0.0) 확인.
+> ② **#12 sensitivity 구현** (§4.4) — `ExpectedReturnsBundle` (primary + alternatives) + `alternative_configs`(balanced/base_cap_10/aggressive). lambda_core 가 같은 ScenarioOpinion 에 대안 config 병렬 산출(추가 LLM 비용 0) → S3 `expected_returns/` 에 Bundle 저장. 음수 skew config 결정을 4단계 설계 시 데이터(A/B)로.
+> ③ **§12 결정**: config 기본값 변경은 #12 A/B 누적 후 4단계 시 (지금 미변경) / `_validate_price_order` 유지(config 완화 안전망) / §5.2 재시도 추정→**실측 0%**(4주).
+> ④ §1.4.2 최종 성공 판정(Brier/적중률/portfolio)은 변동 없이 이월 (12주 + #13 + 4단계).
 >
 > **v0.14 변경 (M3 첫 운영 피드백 — narrative 길이 완화)**:
 > ① 첫 20종목 운영에서 `narrative` 300자 한계로 **3종목(CRL/WTW/EIX) 검증 실패** (Sonnet 2회+Haiku 폴백 전부 narrative >300자). evidence 인용(hard rule #3) narrative 가 구조적으로 300자 초과 빈번 — 골든 4종목은 우연히 통과한 케이스.
@@ -736,7 +742,7 @@ Sonnet 4.6 단가 (2026-04 기준): 입력 $3/1M, 출력 $15/1M
 **합계 (2단계 Bull/Bear + 3단계 시나리오)**:
 - Bull/Bear $2.76 + 시나리오 $1.45 = **월 ~$4.20** (hard cap $200 의 2.1%)
 
-> **재시도 +20% 는 보수 ceiling** (v0.7) — M2 운영 4주 160 invoke 중 **retry/fallback 0건** ([02 §9](02-bull-bear.md)). golden 1회 retry 도 max_tokens 1024 잘림이 원인 → 2048 상향 후 0. 시나리오는 2048 + 출력 ~500 이라 잘림 위험 없음. 검증이 더 엄격(3 label·prob합·enum)하나 Sonnet 4.6 JSON 신뢰성 입증됨 → **실제 재시도 ~0% 예상**.
+> **재시도 +20% 는 보수 ceiling** (v0.7) — M2 운영 4주 160 invoke 중 **retry/fallback 0건** ([02 §9](02-bull-bear.md)). golden 1회 retry 도 max_tokens 1024 잘림이 원인 → 2048 상향 후 0. 시나리오는 2048 + 출력 ~500 이라 잘림 위험 없음. 검증이 더 엄격(3 label·prob합·enum)하나 Sonnet 4.6 JSON 신뢰성 입증됨 → **실측: M3 4주 운영 재시도 0%** (v0.15, narrative 300→500 완화 후. 첫 수동 실행의 narrative 초과 재시도만 제외하면 정규 운영 0%).
 >
 > **S3 result cache 의 비용 의미** (v0.7) — cache (§6.2 lambda_core hit/miss) 는 *재실행(디버깅·Lambda retry·Step Functions 재실행) 폭주 방어* 용이지 steady-state 절감 아님. 주간 정규 배치는 매주 새 데이터라 cache-miss 가 정상 → 위 표의 **80 calls 풀 카운트가 정확**. (M2 dry-run 의 87.5% cache hit 은 같은 종목 재호출 테스트 효과)
 
@@ -1080,7 +1086,7 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 9. **Lambda 핸들러** — `src/lambdas/agent_scenario/handler.py` + `lambda_core.py` 공유 코어
 10. **Step Functions ASL 확장** (§6.1 교정 ASL) — (a) `BullBearMap` 교정: `End`→`Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` (G1 — 안 하면 `$.result.selected` 소멸로 ScenarioMap 실패), (b) `ScenarioMap` state 추가 + Task 직착 `Catch`/Retry (G2). **M2 회귀 주의** (기존 BullBearMap 수정) → 5종목 dry-run 재검증
 11. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M3 회고
-12. **(M3 후반)** ExpectedReturnsBundle sensitivity 로깅 활성화
+12. ✅ **ExpectedReturnsBundle sensitivity 로깅** (v0.15 구현) — `alternative_configs`(balanced/base_cap_10/aggressive) 병렬 산출, lambda_core 가 Bundle 저장 (추가 LLM 비용 0). option_b_baseline 슬롯(§1.4.2 #3)은 4단계 시 추가
 13. **(M3 후반)** 트리거 자동 검증 — 분기 발표 후 자동 평가 batch (#7 활성화)
 14. **(M3 5주차)** DeepEval baseline (§10.5) — 3 criteria 운영 데이터로 baseline 확립 + 회귀 게이트 (M2 §11.5 패턴). judge 호출 비용 발생 (operational §5 와 별도)
 
@@ -1105,7 +1111,7 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 
 ### 12.3 🔴 데이터·운영 게이트 (M3 운영 데이터 필요 — 지금 결정 불가)
 
-- [ ] **`ScenarioPricingConfig` 기본값 조정** — 4주 baseline + Sensitivity 5~8주차 → M3 말 회고. 보수적 config expected return 분포 vs 실제 가격
+- [~] **`ScenarioPricingConfig` 기본값 조정** — 4주 회고(v0.15): 음수 skew 82.5% 확인(원인 base_cap=0.0). 즉시 변경 대신 **#12 sensitivity 활성화**(balanced/base_cap_10/aggressive A/B 누적) → **4단계 설계 시** optimizer 거동 보고 config 확정. `_validate_price_order` 는 완화 대비 안전망으로 유지
 - [ ] **`peer_announcement` 트리거 정책** — LLM 남용 시 enum 제거/치환. M3 5주차 사용 빈도
 - [ ] **`_validate_price_order` 위반 빈도** (v0.3 §4.1) — 4주 후 위반 0 이면 검증 제거 검토. `aggressive`/`base_price_cap_pct=None` 도입 시 재측정
 - [ ] **TTM EPS 결측 종목 정책** — historical-only fallback 은 §9 확정, *정확도 영향* 은 첫 운영 결측 분포 후
