@@ -217,9 +217,24 @@ M1 의 `run_screening` 과 달리 LLM 에이전트 Lambda (`agent_bullbear_bull`
 > `libarrow_python.so` 의 링크타임 의존성이라 삭제하면 모든 pyarrow import 가
 > `Runtime.ImportModuleError` 로 즉사한다 (2026-06-29/07-06 주간 스크리닝·일간 OHLCV
 > 장애 원인 — Cython `_substrait.so` 만 lazy). `deploy_lambda.sh` 에 core 필수 .so
-> 존재 가드 있음. 향후 번들이 다시 50MB 근접 시: (a) 추가 슬림화 (`readelf -d` 로
-> DT_NEEDED 확인 후), (b) S3 경유 업로드(`--s3-bucket`/`--s3-key`, 250MB 한계 — CI
-> role 에 s3:Put/GetObject 필요), (c) 무거운 dep 를 Lambda Layer 로 분리.
+> 존재 가드 있음.
+>
+> **향후 번들이 다시 50MB 근접 시 (M4 optimizer 의존성 추가 등): 컨테이너 이미지
+> 전환이 1순위 방침** (2026-07-10 결정, 2주 장애 회고). 근거 —
+> - 10GB 이미지 한계 → 슬림화·가드 코드 자체가 불필요 (근본 원인 제거)
+> - Amazon Linux 내 빌드 → `pip --platform manylinux2014` 크로스 설치 핵 제거
+> - 빌드 시점 로컬 스모크 (`docker run <image> python -c "import pyarrow"`) 로
+>   import 깨짐을 배포 전에 검출 — 로컬 = 런타임 100% 동일 환경
+> - 이미지 1개 + 함수별 CMD(핸들러) 오버라이드로 6개 함수 커버 (빌드·검증 1회)
+> - 대가: Zip↔Image 패키지 타입 전환 불가 → 6개 함수 재생성 + Step Functions
+>   ARN·EventBridge 타깃·env/role 재연결 필요 (반나절 마이그레이션), ECR + CI
+>   docker build/push 추가. ECR 비용 ~$0.1/GB/월.
+>
+> 차선책 (소규모 초과에 임시 대응): (a) S3 경유 업로드(`--s3-bucket`/`--s3-key`,
+> 250MB unzipped 한계 잔존 — CI role 에 s3:Put/GetObject 필요), (b) 추가 슬림화
+> (`readelf -d` 로 DT_NEEDED 확인 필수), (c) 무거운 dep 를 Lambda Layer 로 분리.
+> 람다별 개별 패키징은 pyarrow 가 전 람다 공통(`common/s3_io.py`)이라 효과 없음
+> — 검토 후 기각 (2026-07-10).
 
 ### 공통 설정
 
