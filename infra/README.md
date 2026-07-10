@@ -196,6 +196,12 @@ Step Functions 자동 배포를 위해 **다음 권한을 인라인으로 추가
 
 **Memory**: 1024 MB, **Timeout**: 15분 권장 (캐시 미스 첫 주 5~7분 + 마진).
 
+> **Timeout 주의**: `update_constituents` 는 콘솔 기본값 3초로 생성되어 있었는데,
+> 번들 증가로 pyarrow 콜드스타트가 3초를 넘기면서 2026-05-15 부터 매주 전 재시도
+> 실패(Sandbox.Timedout)했다 (`current.parquet` 이 존재해 스크리닝은 stale 데이터로
+> 계속 성공 → 무증상). 2026-07-10 에 **120초로 상향**. 함수 생성 시 timeout 을
+> 기본값으로 두지 말 것 — `update_constituents` 120s / `update_ohlcv` 900s.
+
 ## LLM Lambda (bullbear / scenario) 생성 설정
 
 M1 의 `run_screening` 과 달리 LLM 에이전트 Lambda (`agent_bullbear_bull`,
@@ -205,11 +211,15 @@ M1 의 `run_screening` 과 달리 LLM 에이전트 Lambda (`agent_bullbear_bull`
 
 > **배포 패키지 크기 (50MB 한계)**: `update-function-code --zip-file` 직접 업로드는
 > **zip 50 MiB(52,428,800 bytes)** 한계. pyarrow(~132MB)가 번들의 대부분이라 한계에
->근접 → `deploy_lambda.sh` 가 빌드 시 pyarrow 의 미사용 컴포넌트(Flight/Substrait/
-> Gandiva, C++ include) 를 제거해 ~39MB 로 슬림화 (코드는 core+compute+parquet 만 사용,
-> 나머지는 lazy import 라 안전). 향후 번들이 다시 50MB 근접 시: (a) 추가 슬림화,
-> (b) S3 경유 업로드(`--s3-bucket`/`--s3-key`, 250MB 한계 — CI role 에 s3:Put/GetObject
-> 필요), (c) 무거운 dep 를 Lambda Layer 로 분리.
+> 근접 → `deploy_lambda.sh` 가 빌드 시 pyarrow 의 미사용 컴포넌트(Flight, C++ include)
+> 를 제거해 ~42MB 로 슬림화. **주의: 삭제 가능 여부는 Python lazy import 가 아니라
+> ELF `DT_NEEDED` 기준** — `libarrow_substrait.so` 는 `pyarrow.lib`(core) 와
+> `libarrow_python.so` 의 링크타임 의존성이라 삭제하면 모든 pyarrow import 가
+> `Runtime.ImportModuleError` 로 즉사한다 (2026-06-29/07-06 주간 스크리닝·일간 OHLCV
+> 장애 원인 — Cython `_substrait.so` 만 lazy). `deploy_lambda.sh` 에 core 필수 .so
+> 존재 가드 있음. 향후 번들이 다시 50MB 근접 시: (a) 추가 슬림화 (`readelf -d` 로
+> DT_NEEDED 확인 후), (b) S3 경유 업로드(`--s3-bucket`/`--s3-key`, 250MB 한계 — CI
+> role 에 s3:Put/GetObject 필요), (c) 무거운 dep 를 Lambda Layer 로 분리.
 
 ### 공통 설정
 

@@ -92,18 +92,34 @@ else
 fi
 
 # 설치 의존성 슬림화 — Lambda 직접 업로드 50MB(zip) 한계 회피.
-# pyarrow(~132MB)가 번들의 85%. 코드는 pyarrow core + compute + parquet 만 사용하며
-# Flight/Substrait/Gandiva 는 별도 옵셔널 모듈(lazy import)이라 제거해도 core/compute/
-# parquet import 에 영향 없음. C++ 헤더(include/)는 런타임 불요.
+# pyarrow(~132MB)가 번들의 85%. 코드는 pyarrow core + compute + parquet 만 사용.
+#
+# ⚠ 삭제 가능 여부는 Python lazy import 가 아니라 ELF DT_NEEDED 기준으로 판단할 것.
+#   pyarrow 19.x 휠에서 lib.cpython-*.so(= import pyarrow 시 즉시 로드)와
+#   libarrow_python.so 는 libarrow_substrait.so.1900 를 DT_NEEDED 로 갖는다 —
+#   삭제 시 모든 pyarrow import 가 Runtime.ImportModuleError 로 즉사 (2026-06-29,
+#   07-06 스크리닝 장애 원인). C++ substrait lib(5.2MB, zip ~1.5MB)은 유지하고
+#   Cython 모듈 _substrait.so(pyarrow.substrait lazy import 전용)만 제거.
+#   libarrow_flight 는 eager 체인 DT_NEEDED 에 없어 제거 안전 (_flight.so 와
+#   이에 종속된 libarrow_python_flight 도 함께 제거). gandiva 는 19.x 휠에 없음.
+#   C++ 헤더(include/)는 런타임 불요.
 if [ -d "$BUILD_DIR/pyarrow" ]; then
-  echo "==> pyarrow 슬림화 (Flight/Substrait/Gandiva/include 제거)"
+  echo "==> pyarrow 슬림화 (Flight/include 제거 — libarrow_substrait 는 core 의존성이라 유지)"
   rm -f "$BUILD_DIR"/pyarrow/libarrow_flight*.so* \
-        "$BUILD_DIR"/pyarrow/libarrow_substrait*.so* \
+        "$BUILD_DIR"/pyarrow/libarrow_python_flight*.so* \
         "$BUILD_DIR"/pyarrow/libgandiva*.so* \
         "$BUILD_DIR"/pyarrow/_flight*.so \
         "$BUILD_DIR"/pyarrow/_substrait*.so \
         "$BUILD_DIR"/pyarrow/_gandiva*.so 2>/dev/null || true
   rm -rf "$BUILD_DIR/pyarrow/include" 2>/dev/null || true
+  # 가드: core 가 DT_NEEDED 로 요구하는 .so 가 번들에 있는지 확인 (재발 방지, 버전 무관)
+  for lib in libarrow libarrow_python libarrow_substrait \
+             libarrow_dataset libarrow_acero libparquet; do
+    if ! ls "$BUILD_DIR/pyarrow/$lib".so* >/dev/null 2>&1; then
+      echo "[ERROR] pyarrow 슬림화 후 core 필수 라이브러리 누락: $lib.so*" >&2
+      exit 1
+    fi
+  done
 fi
 # 설치 패키지의 테스트·Cython 소스·타입 스텁 제거 (런타임 불요)
 find "$BUILD_DIR" -type d \( -name tests -o -name __pycache__ \) -prune -exec rm -rf {} + 2>/dev/null || true
