@@ -28,7 +28,7 @@ def _income() -> list[dict[str, object]]:
     oi = [22, 21, 20, 19, 18]
     eps = [2.2, 2.1, 2.05, 2.02, 2.0]
     return [
-        {"date": d, "revenue": rev[i], "grossProfit": gp[i], "operatingIncome": oi[i], "epsdiluted": eps[i]}
+        {"date": d, "revenue": rev[i], "grossProfit": gp[i], "operatingIncome": oi[i], "epsDiluted": eps[i]}
         for i, d in enumerate(_DATES)
     ]
 

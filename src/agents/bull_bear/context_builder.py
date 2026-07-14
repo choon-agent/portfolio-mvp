@@ -247,7 +247,8 @@ def compute_fundamentals_timeseries(
 
     인자:
         income_quarterly: FMP `income-statement?period=quarter` 응답.
-            각 행: 'date' (YYYY-MM-DD), 'revenue', 'epsdiluted'.
+            각 행: 'date' (YYYY-MM-DD), 'revenue', 'epsDiluted' (stable 표기 —
+            v3 표기 `epsdiluted` 는 fetch 시점에 normalize_income_rows 가 정규화).
         cashflow_quarterly: FMP `cash-flow-statement?period=quarter` 응답.
             각 행: 'date', 'freeCashFlow'.
 
@@ -271,7 +272,7 @@ def compute_fundamentals_timeseries(
             QuarterlyFigures(
                 period_end=row["_date_obj"],
                 revenue=_to_float(row.get("revenue")),
-                eps_diluted=_to_float(row.get("epsdiluted")),
+                eps_diluted=_to_float(row.get("epsDiluted")),
                 fcf=_to_float(cf_row.get("freeCashFlow")) if cf_row else None,
             )
         )
@@ -279,7 +280,7 @@ def compute_fundamentals_timeseries(
     return FundamentalsTimeseries(
         quarters=quarters,
         revenue_cagr_5y=_ttm_cagr(income_sorted, "revenue", years=5),
-        eps_cagr_5y=_ttm_cagr(income_sorted, "epsdiluted", years=5),
+        eps_cagr_5y=_ttm_cagr(income_sorted, "epsDiluted", years=5),
         fcf_cagr_5y=_ttm_cagr(cashflow_sorted, "freeCashFlow", years=5),
     )
 

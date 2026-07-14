@@ -98,7 +98,7 @@ def _income(epss: list[float | None], start_year: int = 2025) -> list[dict[str, 
         while month <= 0:
             month += 12
             year -= 1
-        rows.append({"date": f"{year}-{month:02d}-28", "revenue": 1000.0, "epsdiluted": eps})
+        rows.append({"date": f"{year}-{month:02d}-28", "revenue": 1000.0, "epsDiluted": eps})
     return rows
 
 

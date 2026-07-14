@@ -177,7 +177,7 @@ def test_price_summary_beta_with_doubled_spy():
 
 
 def _income_row(d: str, revenue: float | None, eps: float | None) -> dict[str, Any]:
-    return {"date": d, "revenue": revenue, "epsdiluted": eps}
+    return {"date": d, "revenue": revenue, "epsDiluted": eps}
 
 
 def _cashflow_row(d: str, fcf: float | None) -> dict[str, Any]:
@@ -241,7 +241,7 @@ def test_fundamentals_invalid_date_rows_excluded():
     """date 가 빠지거나 형식이 잘못된 행은 제외 (정상 행만 사용)."""
     valid_dates = _quarterly_dates_desc(4)
     income = [
-        {"revenue": 100.0, "epsdiluted": 1.0},  # date 누락
+        {"revenue": 100.0, "epsDiluted": 1.0},  # date 누락
         _income_row("not-a-date", 200.0, 2.0),  # 형식 오류
         _income_row(valid_dates[0], 300.0, 3.0),
         _income_row(valid_dates[1], 250.0, 2.5),

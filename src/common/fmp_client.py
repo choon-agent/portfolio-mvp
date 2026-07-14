@@ -107,7 +107,8 @@ class FMPClient:
         4분기 + 5Y CAGR 산출에 사용. 5Y CAGR 은 24분기 (4 + 5*4) 필요 — limit
         기본 40 은 10년치 여유.
 
-        주요 필드: `date`, `period`, `revenue`, `epsdiluted`, `calendarYear`.
+        주요 필드: `date`, `period`, `revenue`, `epsDiluted`, `fiscalYear`
+        (stable API 는 camelCase — v3 의 `epsdiluted`/`calendarYear` 아님).
         Dual-class 종목(BRK.B)은 자동으로 하이픈 표기로 변환.
 
         반환은 list (FMP 의 일관된 형식). 빈 list 면 데이터 없음.

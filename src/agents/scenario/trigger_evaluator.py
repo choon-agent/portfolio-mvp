@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from agents.scenario.schemas import InvalidationTrigger
 
@@ -156,7 +156,7 @@ def _metric_actual(
     if metric == "revenue_qoq":
         return _pct_change(_at(inc, 0, "revenue"), _at(inc, 1, "revenue"))
     if metric == "eps_yoy":
-        return _pct_change(_at(inc, 0, "epsdiluted"), _at(inc, 4, "epsdiluted"))
+        return _pct_change(_at(inc, 0, "epsDiluted"), _at(inc, 4, "epsDiluted"))
     if metric == "fcf_yoy":
         return _pct_change(_at(cf, 0, "freeCashFlow"), _at(cf, 4, "freeCashFlow"))
     if metric == "gross_margin_yoy":

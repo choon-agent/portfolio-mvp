@@ -254,7 +254,7 @@ def test_fetch_income_quarterly_wires_through_load_or_fetch_pure(monkeypatch):
     """캐시 미스(read=None) + FMP 응답 → list 반환 + write 호출."""
     from common import fundamentals as f
 
-    income = [{"date": "2026-03-31", "revenue": 95_000_000_000.0, "epsdiluted": 1.55}]
+    income = [{"date": "2026-03-31", "revenue": 95_000_000_000.0, "epsDiluted": 1.55}]
     fake = _FakeFMPClient(income_payload=income)
 
     written: dict[str, Any] = {}
@@ -281,6 +281,51 @@ def test_fetch_income_quarterly_wires_through_load_or_fetch_pure(monkeypatch):
     assert "income-statement-quarterly" in written["key"]
     assert "AAPL" in written["key"]
     assert written["payload"]["data"] == income
+
+
+def test_normalize_income_rows_aliases_v3_field():
+    """구 v3 표기(epsdiluted) → stable 표기(epsDiluted) alias.
+
+    회귀 방지: v3 → stable 마이그레이션 때 소비 코드가 소문자 표기로 남아
+    TTM EPS 가 전 종목 None 이 됐던 버그 (2026-07-14 발견)."""
+    from common.fundamentals import normalize_income_rows
+
+    rows = [
+        {"date": "2026-03-31", "epsdiluted": 1.55},          # v3 시절 캐시
+        {"date": "2025-12-31", "epsDiluted": 1.40},          # stable — 그대로
+        {"date": "2025-09-30", "epsDiluted": 1.30, "epsdiluted": 9.99},  # 충돌 시 stable 우선
+        {"date": "2025-06-30"},                              # 둘 다 없음 — 그대로
+    ]
+    result = normalize_income_rows(rows)
+
+    assert result is rows  # in-place, 같은 리스트 반환
+    assert result[0]["epsDiluted"] == 1.55
+    assert result[1]["epsDiluted"] == 1.40
+    assert result[2]["epsDiluted"] == 1.30
+    assert "epsDiluted" not in result[3]
+
+
+def test_fetch_income_quarterly_normalizes_v3_cached_rows(monkeypatch):
+    """v3 시절 캐시(fresh, 소문자 표기)를 읽어도 epsDiluted 로 정규화되어 반환."""
+    from common import fundamentals as f
+
+    cached = {
+        "cached_at": datetime.now(timezone.utc).isoformat(),
+        "data": [{"date": "2026-03-31", "revenue": 100.0, "epsdiluted": 1.55}],
+    }
+    fake = _FakeFMPClient()  # FMP 호출되면 빈 응답 — 캐시 hit 경로 검증
+
+    monkeypatch.setattr(f, "read_json", lambda _b, _k: cached)
+    monkeypatch.setattr(f, "write_json", lambda *a, **kw: None)
+
+    result = f.fetch_income_quarterly_with_cache(
+        fake,  # type: ignore[arg-type]
+        "test-bucket",
+        "AAPL",
+    )
+
+    assert result[0]["epsDiluted"] == 1.55
+    assert fake.income_calls == []  # fresh 캐시 — FMP 미호출
 
 
 def test_fetch_cashflow_quarterly_wires_through_load_or_fetch_pure(monkeypatch):

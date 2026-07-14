@@ -86,7 +86,7 @@ def _ohlcv(closes: list[float]) -> pa.Table:
 
 def _income() -> list[dict[str, object]]:
     dates = ["2026-03-31", "2025-12-31", "2025-09-30", "2025-06-30"]
-    return [{"date": d, "revenue": 1000.0, "epsdiluted": 1.5} for d in dates]
+    return [{"date": d, "revenue": 1000.0, "epsDiluted": 1.5} for d in dates]
 
 
 def _event(**overrides: object) -> dict[str, object]:

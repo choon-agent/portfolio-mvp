@@ -15,7 +15,7 @@ Bull/Bear opinion 을, 캐시에서 OHLCV/분기 statement 를 읽어 주입한�
 - current_price       = as_of 이하 최신 adj_close (lookahead 차단)
 - return_52w_high     = (52w high - current) / current  (≥ 0, current 기준)
 - return_52w_low      = (52w low - current) / current   (≤ 0)
-- ttm_eps             = 직전 4분기 epsdiluted 합 (분기 부족/결측 시 None)
+- ttm_eps             = 직전 4분기 epsDiluted 합 (분기 부족/결측 시 None)
 - peer_pe             = ScreenedStock.peer_context 의 양수 pe_ttm 리스트
 
 LLM 노출 정책 (docs §3.3): identity·가격 컨텍스트·Bull/Bear 의견 본문은
@@ -95,7 +95,11 @@ def _price_context(
 
 
 def _ttm_eps(income_quarterly: list[dict[str, Any]]) -> float | None:
-    """직전 4분기 epsdiluted 합 (date desc). 분기 부족/결측이면 None."""
+    """직전 4분기 epsDiluted 합 (date desc). 분기 부족/결측이면 None.
+
+    필드 표기는 FMP stable(camelCase) 기준 — v3 표기(epsdiluted)는
+    `common.fundamentals.normalize_income_rows` 가 fetch 시점에 정규화.
+    """
     parsed: list[tuple[date, dict[str, Any]]] = []
     for row in income_quarterly:
         ds = row.get("date")
@@ -111,7 +115,7 @@ def _ttm_eps(income_quarterly: list[dict[str, Any]]) -> float | None:
     parsed.sort(key=lambda x: x[0], reverse=True)
     total = 0.0
     for _, row in parsed[:TTM_QUARTERS]:
-        v = row.get("epsdiluted")
+        v = row.get("epsDiluted")
         try:
             total += float(v)  # type: ignore[arg-type]
         except (TypeError, ValueError):

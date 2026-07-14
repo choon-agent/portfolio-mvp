@@ -38,6 +38,8 @@
 - Week 1: narrative 수정 후 **재시도 0%** (§5.2 "+20% ceiling" 가정 검증) / 비용 $0.36 = 예측 정합 / 음수 skew 지속 / 절반가량 전주와 동일 expected_return (가격 산식 결정성 + 하루차 데이터 동일 — §1.4.1 약점3 실증).
 - Week 2: 운영 health 2주 연속 clean (20/20, 재시도 0%, $0.36, flags 0). **종목 turnover 25%** (빠짐 HII/SPG/EXPE/NTRS/WTW, 들어옴 DVA/TPR/CBOE/ALL/ZBH) → 캐시 주간 무효(전 종목 miss, $0.36 풀 비용 확정) + 포트폴리오 churn 우려(M1 §10 hysteresis 연결). **음수 skew 악화(16→17)** → §12.3 config 조정 근거 누적.
 - Week 3: 3주 연속 clean. turnover 15% (빠짐 TPR/TGT/SYF, 들어옴 IQV/SPG/NTRS) — **SPG/NTRS 가 W1→W2 이탈→W3 복귀**, 전체 드리프트 아닌 *rank-20 경계 노이즈* 확인. 음수 skew 16/20 고착(3주 16/17/16 ≈ 80%). **다음 주(Week 4) = 4주 회고 트리거** — §3 체크리스트로 본격 회고.
+- 2026-06-29 / 07-06: **미실행 (결번)** — pyarrow 슬리밍 배포 사고로 전 람다 import 즉사 (`302f3cb` 참조). 주차 카운트·12주 판정 시점 계산 시 2주 공백 반영.
+- 2026-07-13 (복구 후 첫 정기 실행): 20/20 ok, 재시도 0, $0.36, flags 0 — 배포 수정 end-to-end 검증. 단 **sensitivity 3개 대안이 20종목 전부 primary 와 동일값** → epsDiluted 필드 버그 발견 (§0.7 정정).
 
 ## 0.6 4주 회고 결과 (2026-06-22)
 
@@ -57,6 +59,32 @@
 
 ### S3 데이터 필요 (미완)
 - metric 사용 빈도(peer_announcement 비율) / narrative 길이 분포(500 충분성) / 확률 분포 → `§2 데이터 수집` 후 다음 회고에서.
+
+## 0.7 정정 (2026-07-14) — epsDiluted 필드 버그로 §0.6 일부 결론 재해석
+
+**발견**: 07-13 실행에서 sensitivity 3개 대안(balanced/base_cap_10/aggressive)이
+20종목 전부 primary 와 소수점까지 동일 → 추적 결과 **FMP v3→stable 마이그레이션 때
+소비 코드 4곳이 구 표기 `epsdiluted` 를 읽어 `ttm_eps` 가 M2 가동 시점부터 전 종목
+None** (stable 은 `epsDiluted`). 캐시엔 데이터 40분기치 정상 존재 — 읽는 키만 불일치.
+수정: `common.fundamentals.normalize_income_rows`(fetch 시점 정규화) + 읽기 4곳
+camelCase 통일 + 픽스처를 실제 API 표기로 갱신 (픽스처가 코드 복제품이라 443개
+테스트가 못 잡았음).
+
+**§0.6 결론 영향**:
+1. **음수 skew 원인 정정** — §0.6 결정 1 의 "`base_price_cap_pct=0.0`(base ≤ 현재가)
+   + bull conservative" 는 기전이 틀림. 실제로는 `ttm_eps=None` → peer P/E 갈래 전멸
+   → bull/bear 는 52주 고저 단독, **base 는 cap 이 아니라 결측 fallback 으로 현재가
+   고정**. cap/aggressiveness 는 죽은 경로였음.
+2. **#12 sensitivity A/B 데이터 전부 무효** (첫 가동 ~ 07-13) — 세 대안이 조절하는
+   peer 갈래 자체가 죽어 있어 차이가 생길 수 없었음. A/B 누적은 수정 배포 후부터 재시작.
+3. **운영 health 판정(합격)은 유지** — 성공률·재시도·비용·플래그는 이 버그와 무관.
+4. **데이터 단절(regime change)**: 수정 배포 이후 expected_return 은 peer P/E 갈래가
+   살아나며 수준·음수 비율이 구조적으로 변함. **이전 주차와 분포 비교 금지**, config
+   완화 여부(§12.3)는 수정 후 데이터로 다시 판단.
+
+**교훈**: (a) 결측 허용(fallback) 설계는 이런 유형의 버그를 무증상으로 만든다 —
+`ttm_eps` 결측을 `data_quality_flags` 에 추가하는 것 검토 (§12 후보). (b) 픽스처는
+실제 API 응답에서 뜰 것. (c) health 지표(성공률/비용)는 산출물의 의미적 결함을 못 본다.
 
 ## 1. 선행 읽기
 

@@ -57,6 +57,20 @@ def is_cache_fresh(cache_entry: Any, max_age_days: int, *, now: datetime | None 
     return (current - ts) <= timedelta(days=max_age_days)
 
 
+def normalize_income_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """구 v3 API 필드 표기를 stable 표기로 정규화 (in-place alias, rows 반환).
+
+    FMP `/api/v3` 는 `epsdiluted`(소문자), `/stable` 은 `epsDiluted`(camelCase).
+    v3 → stable 마이그레이션 때 소비 코드가 소문자 표기로 남아 TTM EPS 가
+    전 종목 None 이 됐던 버그(2026-07-14 발견, M2 가동~07-13 영향)의 재발 방지 —
+    소비 코드는 `epsDiluted` 만 읽고, v3 시절 캐시 파일은 여기서 흡수한다.
+    """
+    for row in rows:
+        if "epsDiluted" not in row and "epsdiluted" in row:
+            row["epsDiluted"] = row["epsdiluted"]
+    return rows
+
+
 def _cache_key(prefix: str, symbol: str) -> str:
     """심볼별 S3 캐시 키 (FMP 와 동일하게 dual-class 는 하이픈)."""
     fmp_symbol = symbol.replace(".", "-")
@@ -178,13 +192,15 @@ def fetch_income_quarterly_with_cache(
     호출당 최대 1회 S3 read + 최대 1회 FMP + 최대 1회 S3 write (key-metrics-ttm
     과 동일 정책). 일반적으로 분기 발표 후 첫 호출 시에만 FMP — 이후 90일은
     S3 hit. 분기 발표 직후 캐시 무효화는 docs/02-bull-bear.md §10 미해결 항목.
+
+    반환 전 `normalize_income_rows` 로 v3 필드 표기를 stable 로 정규화.
     """
-    return _fetch_quarterly(
+    return normalize_income_rows(_fetch_quarterly(
         fmp_call=lambda: fmp.get_income_statement_quarterly(symbol, limit=limit),
         bucket=bucket,
         key=_cache_key(prefix, symbol),
         max_age_days=max_age_days,
-    )
+    ))
 
 
 def fetch_cashflow_quarterly_with_cache(
