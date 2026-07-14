@@ -40,6 +40,7 @@
 - Week 3: 3주 연속 clean. turnover 15% (빠짐 TPR/TGT/SYF, 들어옴 IQV/SPG/NTRS) — **SPG/NTRS 가 W1→W2 이탈→W3 복귀**, 전체 드리프트 아닌 *rank-20 경계 노이즈* 확인. 음수 skew 16/20 고착(3주 16/17/16 ≈ 80%). **다음 주(Week 4) = 4주 회고 트리거** — §3 체크리스트로 본격 회고.
 - 2026-06-29 / 07-06: **미실행 (결번)** — pyarrow 슬리밍 배포 사고로 전 람다 import 즉사 (`302f3cb` 참조). 주차 카운트·12주 판정 시점 계산 시 2주 공백 반영.
 - 2026-07-13 (복구 후 첫 정기 실행): 20/20 ok, 재시도 0, $0.36, flags 0 — 배포 수정 end-to-end 검증. 단 **sensitivity 3개 대안이 20종목 전부 primary 와 동일값** → epsDiluted 필드 버그 발견 (§0.7 정정).
+- 2026-07-14 (epsDiluted 수정 후 수동 재실행, **regime change 기준점**): 20/20 ok, 재시도 0, $0.36. **sensitivity 최초 분화 14/20** (동일값 6종목 CNC/VTRS/F/KHC/CRL/SJM 은 전부 TTM EPS 음수 — `ttm_eps>0` 가드의 의도된 fallback, 정상). **음수 skew 19/20(95%, 07-13) → 11/20(55%)** — peer P/E 갈래 부활 효과, §0.6 "config 탓" 가설 사실상 기각. **`price_order_violation` 최초 7/20** (APA/EIX/ADM/ALL/PCG/SNA/INCY — bear > bull 역전): 딥밸류 종목의 peer 함의 적정가 ≫ 현재가 + bear `conservative=max` 결합의 상호작용 (§0.6 결정 2 가 예견한 케이스). expected_return 이 bear 시나리오에 의해 상방 왜곡 (EIX +35% 등) → **4단계 optimizer 투입 전 bear 가격 semantics (bear ≤ current cap 여부) 를 §12.3 에서 결정 필요**. 이번 주부터 유효 A/B 누적 시작.
 
 ## 0.6 4주 회고 결과 (2026-06-22)
 
