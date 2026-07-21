@@ -17,7 +17,6 @@ import pyarrow as pa
 import pytest
 
 from common.ohlcv import OHLCV_SCHEMA
-from screening.schemas import ScreenedStock
 
 from agents.bull_bear.agent import RawCompletion
 from agents.bull_bear.schemas import Argument, BullBearOpinion
@@ -196,9 +195,10 @@ def test_cache_miss_calls_llm_and_writes(env: None, store) -> None:
     assert "scenario_opinion" in saved_opinion
     assert saved_opinion["input_hash"] == out["input_hash"]
     bundle = ExpectedReturnsBundle.model_validate(json.loads(store.writes[ER_KEY]))
-    # #12 sensitivity — primary + 대안 3종 (balanced/base_cap_10/aggressive)
-    assert set(bundle.alternatives) == {"balanced", "base_cap_10", "aggressive"}
-    assert set(out["alternatives_expected_return"]) == {"balanced", "base_cap_10", "aggressive"}
+    # #12 sensitivity — primary + 대안 4종 (v0.16 bear_capped 추가)
+    _ALT_KEYS = {"balanced", "base_cap_10", "aggressive", "bear_capped"}
+    assert set(bundle.alternatives) == _ALT_KEYS
+    assert set(out["alternatives_expected_return"]) == _ALT_KEYS
     ScenarioOpinion.model_validate(saved_opinion["scenario_opinion"])
 
 
@@ -244,7 +244,7 @@ def test_cache_hit_skips_llm_but_recomputes_pricing(env: None, store) -> None:
 
 def test_pricing_config_override_applied(env: None, store) -> None:
     _seed_inputs(store)
-    out = lambda_core.handle(
+    lambda_core.handle(
         _event(pricing_config_override={"base_price_cap_pct": None}),
         None, caller=_FakeAnthropic([_completion()]), fmp=object(),
     )

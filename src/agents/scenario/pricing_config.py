@@ -4,7 +4,7 @@
 
 이 모듈의 역할:
 - `ScenarioPricingConfig` — 가격 산식(`pricing.py`)이 historical·peer 결합을
-  어떻게 보수적으로 하는지 결정하는 파라미터 8개 (4 그룹). 모든
+  어떻게 보수적으로 하는지 결정하는 파라미터 9개 (4 그룹). 모든
   `ExpectedReturn` 산출에 사용된 config 를 함께 저장 → 사후 sensitivity·회귀.
 - `load_pricing_config` — 기본값 < Lambda 환경변수 < Step Functions 입력 JSON
   순으로 병합 (docs §4.3 변경 채널).
@@ -31,7 +31,7 @@ __all__ = [
 
 
 class ScenarioPricingConfig(BaseModel):
-    """가격 산식의 보수성 파라미터 (8 필드 / 4 그룹).
+    """가격 산식의 보수성 파라미터 (9 필드 / 4 그룹).
 
     docs §4.2. 기본값은 보수적 — bull 은 작은 상승, bear 는 작은 하락,
     base 는 현재가 이하로 cap.
@@ -51,6 +51,14 @@ class ScenarioPricingConfig(BaseModel):
     #    0.0: base ≤ 현재가 (보수) / None: cap 없음
     #    bound -0.5~1.0 — 무경계 latent bug 방지 (§4.2 v0.6)
     base_price_cap_pct: float | None = Field(default=0.0, ge=-0.5, le=1.0)
+
+    # 3b. Bear price cap (현재가 대비 bear 시나리오 가격 상한 — §4.2 v0.16)
+    #    딥밸류 종목에서 peer 함의 적정가 ≫ 현재가일 때 bear conservative=max 가
+    #    bear 가격을 현재가 위로 올려 bear > bull 역전을 만드는 것 차단
+    #    (07-14/07-20 운영에서 7/20 종목 재현 — retro §0.5). 0.0: bear ≤ 현재가.
+    #    기본 None: 기존 동작 유지 — sensitivity 대안 "bear_capped" 로 A/B 관찰
+    #    후 §12.3 에서 primary 승격 결정.
+    bear_price_cap_pct: float | None = Field(default=None, ge=-0.5, le=1.0)
 
     # 4. LLM 확률 가중치 자체 보정 (마지막 가드 — bull/bear 대칭)
     #    None: LLM 출력 그대로 / 활성 시: 잉여를 나머지 원래 비율로 비례 분배 (§4.1)
@@ -96,6 +104,7 @@ _ENV_FIELDS: dict[str, tuple[str, Callable[[str], Any]]] = {
     "SCENARIO_PEER_PE_BASE_PERCENTILE": ("peer_pe_base_percentile", float),
     "SCENARIO_PEER_PE_BEAR_PERCENTILE": ("peer_pe_bear_percentile", float),
     "SCENARIO_BASE_PRICE_CAP_PCT": ("base_price_cap_pct", _parse_opt_float),
+    "SCENARIO_BEAR_PRICE_CAP_PCT": ("bear_price_cap_pct", _parse_opt_float),
     "SCENARIO_BULL_PROBABILITY_CAP": ("bull_probability_cap", _parse_opt_float),
     "SCENARIO_BEAR_PROBABILITY_CAP": ("bear_probability_cap", _parse_opt_float),
 }
@@ -153,4 +162,8 @@ def alternative_configs(
         "aggressive": _variant(
             base, bull_aggressiveness="aggressive", base_price_cap_pct=0.10
         ),
+        # bear ≤ 현재가 강제 — bear>bull 가격 역전(딥밸류 peer 적정가 ≫ 현재가
+        # + conservative=max 상호작용) 차단 후보. A/B 관찰 후 §12.3 에서
+        # primary 승격 판단 (retro §0.5 07-20).
+        "bear_capped": _variant(base, bear_price_cap_pct=0.0),
     }

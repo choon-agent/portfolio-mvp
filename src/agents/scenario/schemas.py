@@ -210,7 +210,8 @@ class ExpectedReturnsBundle(BaseModel):
     옵션 C vs 옵션 B baseline 측정 인프라 (§1.4.2 #3).
 
     alternatives 키 예: "balanced" / "base_cap_10" / "aggressive" /
-    (추후) "option_b_baseline". primary 가 4단계 최적화의 실제 입력.
+    "bear_capped" (v0.16 — bear>bull 역전 차단 후보) / (추후)
+    "option_b_baseline". primary 가 4단계 최적화의 실제 입력.
     """
 
     primary: ExpectedReturn

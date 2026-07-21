@@ -369,8 +369,10 @@ def test_fetch_quarterly_returns_empty_list_when_fmp_empty_and_no_cache(monkeypa
 def test_fetch_quarterly_returns_cached_list_on_fresh_hit(monkeypatch):
     from common import fundamentals as f
 
+    # fetch 경로는 now 주입이 불가해 실제 시계로 신선도 판정 — 고정 NOW 기준
+    # 상대 시각을 쓰면 시간이 지나며 stale 로 뒤집히는 시한폭탄이 됨 (2026-07-21 실증)
     cached = {
-        "cached_at": (NOW - timedelta(days=10)).isoformat(),
+        "cached_at": (datetime.now(timezone.utc) - timedelta(days=10)).isoformat(),
         "data": [{"date": "2026-03-31", "revenue": 100.0}],
     }
     fake = _FakeFMPClient()  # FMP 호출되면 빈 list — 캐시 hit 이어야

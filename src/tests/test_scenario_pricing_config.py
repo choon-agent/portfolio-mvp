@@ -153,7 +153,7 @@ def test_load_invalid_literal_rejected() -> None:
 
 def test_alternative_configs_keys() -> None:
     alts = alternative_configs(ScenarioPricingConfig())
-    assert set(alts) == {"balanced", "base_cap_10", "aggressive"}
+    assert set(alts) == {"balanced", "base_cap_10", "aggressive", "bear_capped"}
 
 
 def test_alternative_configs_variants() -> None:
@@ -163,6 +163,15 @@ def test_alternative_configs_variants() -> None:
     assert alts["base_cap_10"].base_price_cap_pct == 0.10
     assert alts["aggressive"].bull_aggressiveness == "aggressive"
     assert alts["aggressive"].base_price_cap_pct == 0.10
+    assert alts["bear_capped"].bear_price_cap_pct == 0.0
+    # bear_capped 는 bear cap 외 미변경 — 결합 모드·base cap 은 base 상속
+    assert alts["bear_capped"].bear_conservatism == "conservative"
+    assert alts["bear_capped"].base_price_cap_pct == 0.0
+
+
+def test_bear_price_cap_default_none_preserves_regime() -> None:
+    # 기본값 None = 기존 primary 동작 불변 (v0.16 — A/B 관찰 후 승격 판단)
+    assert ScenarioPricingConfig().bear_price_cap_pct is None
 
 
 def test_alternative_configs_inherit_base() -> None:

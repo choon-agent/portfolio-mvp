@@ -142,7 +142,14 @@ def compute_bear_price(
     price = combine(
         historical_target, peer_target, mode=cfg.bear_conservatism, is_bear=True
     )
-    return price if price is not None else current_price  # v0.13 — 양쪽 결측 fallback
+    if price is None:
+        return current_price  # v0.13 — 양쪽 결측 fallback
+    if cfg.bear_price_cap_pct is None:
+        return price
+    # v0.16 — 딥밸류 종목에서 peer 함의 적정가 ≫ 현재가일 때 conservative=max 가
+    # bear 가격을 현재가 위로 올리는 것(bear>bull 역전) 차단. base cap 과 대칭.
+    cap = current_price * (1 + cfg.bear_price_cap_pct)
+    return min(price, cap)
 
 
 # ---------- 확률 보정 + 가격 순서 검증 (docs §4.1) ----------
