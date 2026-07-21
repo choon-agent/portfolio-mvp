@@ -41,6 +41,7 @@
 - 2026-06-29 / 07-06: **미실행 (결번)** — pyarrow 슬리밍 배포 사고로 전 람다 import 즉사 (`302f3cb` 참조). 주차 카운트·12주 판정 시점 계산 시 2주 공백 반영.
 - 2026-07-13 (복구 후 첫 정기 실행): 20/20 ok, 재시도 0, $0.36, flags 0 — 배포 수정 end-to-end 검증. 단 **sensitivity 3개 대안이 20종목 전부 primary 와 동일값** → epsDiluted 필드 버그 발견 (§0.7 정정).
 - 2026-07-14 (epsDiluted 수정 후 수동 재실행, **regime change 기준점**): 20/20 ok, 재시도 0, $0.36. **sensitivity 최초 분화 14/20** (동일값 6종목 CNC/VTRS/F/KHC/CRL/SJM 은 전부 TTM EPS 음수 — `ttm_eps>0` 가드의 의도된 fallback, 정상). **음수 skew 19/20(95%, 07-13) → 11/20(55%)** — peer P/E 갈래 부활 효과, §0.6 "config 탓" 가설 사실상 기각. **`price_order_violation` 최초 7/20** (APA/EIX/ADM/ALL/PCG/SNA/INCY — bear > bull 역전): 딥밸류 종목의 peer 함의 적정가 ≫ 현재가 + bear `conservative=max` 결합의 상호작용 (§0.6 결정 2 가 예견한 케이스). expected_return 이 bear 시나리오에 의해 상방 왜곡 (EIX +35% 등) → **4단계 optimizer 투입 전 bear 가격 semantics (bear ≤ current cap 여부) 를 §12.3 에서 결정 필요**. 이번 주부터 유효 A/B 누적 시작.
+- 2026-07-20 (정기, 유효 A/B 2주차): 20/20 ok, 재시도 0, $0.36. turnover 4/20 (빠짐 CRL/SJM/SNA/INCY, 들어옴 HST/DAL/TGT/UAL — 경계 노이즈 수준). sensitivity 분화 16/20 (동일값 CNC/VTRS/F/KHC = TTM EPS 음수 그룹 유지). 음수 skew 13/20(65%, 전주 55% — 주간 노이즈 범위). **config 간 부호 역전 첫 관찰**: GM primary -5.2% vs balanced +27.9% / TGT -1.9% vs +12.0% — 4단계 편입 여부가 config 에 좌우, #12 의 목적 데이터. **price_order_violation 7/20 지속** (APA/EIX/PCG/ADM/ALL 반복 + DAL/UAL 신규, 반복 종목 가격 전주와 거의 동일 = 결정적 재생산). **양수 ER 7종목 중 6종목이 역전 flag 보유** (깨끗한 양수는 ZBH 뿐) — ER 상위권이 왜곡 종목에 집중되는 구조 확인 → **§12.3 bear semantics 결정을 4단계 설계 선행 조건으로 격상 제안**.
 
 ## 0.6 4주 회고 결과 (2026-06-22)
 
