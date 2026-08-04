@@ -4,8 +4,14 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.16 (2026-07-21)
+> **버전**: v0.17 (2026-08-04)
 > **상태**: 구현 #1~#10 + #12(sensitivity) 완료 · 4주 운영 회고 완료 · 자동 운영 중
+>
+> **v0.17 변경 (`bear_price_cap_pct=0.0` primary 승격 — §12.3 bear semantics 결정)**:
+> ① 증거 4주 일관 (retro §0.5): 시뮬 07-20 위반 7→1 / 실운영 07-27 7→1 / 08-03 6→0. cap 은 정확히 bear>current 유형만 제거, 다른 종목 ER Δ=0. 잔여 base<bear 유형(ADM/TKO)은 주당 ≤1건 — §12.3 별도 관찰 항목으로 유지.
+> ② 기본값 None→**0.0** ("bear 시나리오는 최소한 상승이 아니다"). LLM bear narrative 와 가격 방향 정합 회복 — §7.2 `realized_scenario` calibration 오염 차단 (#13 가동 전 선결).
+> ③ §4.4 대안 "bear_capped" → **"bear_uncapped"**(None) 교체 — 구 동작을 counterfactual 로 계속 관찰 (승격 결정의 사후 검증).
+> ④ **4단계 선행 조건 해소** — `docs/04-optimizer.md` 착수 가능. primary ER 은 08-03 기준 또 한 번 regime 경계 (이전 주차와 분포 비교 시 주의).
 >
 > **v0.16 변경 (bear 가격 역전 대응 — `bear_price_cap_pct` 신설)**:
 > ① **배경**: epsDiluted 수정(retro §0.7) 후 peer P/E 갈래 부활 → 딥밸류 종목에서 peer 함의 적정가 ≫ 현재가 + bear `conservative=max` 상호작용으로 **bear > bull 가격 역전 7/20** 2주 연속 (retro §0.5 07-14/07-20). 양수 ER 상위가 역전 종목에 집중 (07-20: 6/7) — 4단계 optimizer 오염 + §7.2 `realized_scenario` calibration 오염 위험.
@@ -655,12 +661,12 @@ class ScenarioPricingConfig(BaseModel):
     # None: cap 없음
     # bound: -0.5 (현재가 50% 하한) ~ 1.0 (200% 상한) — v0.6 무경계 latent bug 제거
 
-    # 3b. Bear price cap (현재가 대비 bear 시나리오 가격 상한) — v0.16
-    bear_price_cap_pct: float | None = Field(default=None, ge=-0.5, le=1.0)
+    # 3b. Bear price cap (현재가 대비 bear 시나리오 가격 상한) — v0.16 신설, v0.17 승격
+    bear_price_cap_pct: float | None = Field(default=0.0, ge=-0.5, le=1.0)
     # 딥밸류 종목에서 peer 함의 적정가 ≫ 현재가일 때 bear conservative=max 가
-    # bear 가격을 현재가 위로 올려 bear > bull 역전 발생 (retro §0.5 07-14/07-20)
-    # 0.0:  bear ≤ 현재가 ("bear 는 최소한 상승이 아니다" 의미론 강제)
-    # None: cap 없음 (기본 — primary 불변, §4.4 "bear_capped" 대안으로 A/B 관찰 중)
+    # bear 가격을 현재가 위로 올려 bear > bull 역전 발생 (retro §0.5 07-14~08-03)
+    # 0.0:  bear ≤ 현재가 ("bear 는 최소한 상승이 아니다") — v0.17 기본 (§12.3 결정)
+    # None: cap 없음 (구 동작 — §4.4 "bear_uncapped" counterfactual 대안)
 
     # 4. LLM 확률 가중치 자체 보정 (마지막 가드 — bull/bear 대칭)
     bull_probability_cap: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -709,7 +715,7 @@ class ExpectedReturnsBundle(BaseModel):
     primary: ExpectedReturn                          # 기본 config — 4단계 최적화 입력
     alternatives: dict[str, ExpectedReturn]          # 비교용 (LLM 호출 없음, 비용 0)
     # 키 예시: "balanced", "base_cap_10", "aggressive",
-    #          "bear_capped" (v0.16 — bear>bull 역전 차단 후보), "option_b_baseline"
+    #          "bear_uncapped" (v0.17 — cap 승격 후 counterfactual), "option_b_baseline"
 ```
 
 저장: `s3://{bucket}/expected_returns/dt={...}/symbol={SYM}.json`
@@ -1127,7 +1133,7 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 - [~] **`ScenarioPricingConfig` 기본값 조정** — 4주 회고(v0.15): 음수 skew 82.5% 확인(원인 base_cap=0.0). 즉시 변경 대신 **#12 sensitivity 활성화**(balanced/base_cap_10/aggressive A/B 누적) → **4단계 설계 시** optimizer 거동 보고 config 확정. `_validate_price_order` 는 완화 대비 안전망으로 유지
 - [ ] **`peer_announcement` 트리거 정책** — LLM 남용 시 enum 제거/치환. M3 5주차 사용 빈도
 - [ ] **`_validate_price_order` 위반 빈도** (v0.3 §4.1) — 4주 후 위반 0 이면 검증 제거 검토. `aggressive`/`base_price_cap_pct=None` 도입 시 재측정. **v0.16 갱신**: epsDiluted 수정 후 위반 7/20 × 2주 연속 발생 (retro §0.5) — 제거 논의 폐기, 안전망 확정
-- [~] **bear 가격 semantics — `bear_capped` primary 승격 여부** (v0.16 신설, **4단계 설계 선행 조건**) — bear>bull 역전(7/20 × 2주)이 양수 ER 상위를 점유 → optimizer·§7.2 calibration 오염. `bear_price_cap_pct=0.0` 을 §4.4 대안 "bear_capped" 로 A/B 관찰 중 (07-20 시뮬: 역전 7→1, 영향 역전 종목에 국한). 2~3주 대안 데이터 + 잔여 유형(ADM: base < bear, peer base ≪ historical bear) 검토 후 primary 승격 판단. 근본 재설계(bear 를 historical 단독으로 등)는 §12.4 v2 후보
+- [x] **bear 가격 semantics — `bear_capped` primary 승격** (v0.16 신설 → **v0.17 승격 완료, 2026-08-04**) — bear>bull 역전이 양수 ER 상위를 점유 (07-20: 6/7) → optimizer·§7.2 calibration 오염. 증거 4주 일관 (시뮬 07-20 역전 7→1 / 실운영 07-27 7→1 / 08-03 6→0, 영향은 역전 종목에 국한) → 기본값 0.0 승격, "bear_uncapped" 를 counterfactual 대안으로 유지. **잔여 관찰 항목**: (a) base<bear 유형 (ADM/TKO — peer base ≪ historical bear, 주당 ≤1건) 빈도 추적, (b) ALL 형 퇴화 (bear=base=bull=current → ER=0·variance=0) 발생 시 optimizer 처리, (c) 근본 재설계(bear historical 단독 등)는 §12.4 v2 후보 유지
 - [ ] **TTM EPS 결측 종목 정책** — historical-only fallback 은 §9 확정, *정확도 영향* 은 첫 운영 결측 분포 후
 - [ ] **확률 cap 재평가** (v0.3 §4.2) — `bull/bear_probability_cap` 은 calibration 측정 전 임시 가드. M3 말 Brier 결과로 유지/제거. bull bias 발견 시 활성화
 - [ ] **확률 floor (`min_scenario_probability`)** (v0.6 §4.2 거부) — tail 과소평가 왜곡 우려나 옵션 C 는 LLM 신뢰 기본. calibration 이 tail 계통 과소평가 보일 때만 도입. M3 말

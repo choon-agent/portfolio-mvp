@@ -195,8 +195,8 @@ def test_cache_miss_calls_llm_and_writes(env: None, store) -> None:
     assert "scenario_opinion" in saved_opinion
     assert saved_opinion["input_hash"] == out["input_hash"]
     bundle = ExpectedReturnsBundle.model_validate(json.loads(store.writes[ER_KEY]))
-    # #12 sensitivity — primary + 대안 4종 (v0.16 bear_capped 추가)
-    _ALT_KEYS = {"balanced", "base_cap_10", "aggressive", "bear_capped"}
+    # #12 sensitivity — primary + 대안 4종 (v0.17: bear cap 승격, uncapped 가 대안)
+    _ALT_KEYS = {"balanced", "base_cap_10", "aggressive", "bear_uncapped"}
     assert set(bundle.alternatives) == _ALT_KEYS
     assert set(out["alternatives_expected_return"]) == _ALT_KEYS
     ScenarioOpinion.model_validate(saved_opinion["scenario_opinion"])
@@ -204,9 +204,14 @@ def test_cache_miss_calls_llm_and_writes(env: None, store) -> None:
 
 def test_miss_data_quality_flags_propagate(env: None, store) -> None:
     # 이 fixture 는 base(현재가 cap=120) < bear peer target(135) 로 price_order
-    # 위반 (v0.3) → flag 가 출력·ExpectedReturn 저장본에 전파되는지 검증
+    # 위반 (v0.3) → flag 가 출력·ExpectedReturn 저장본에 전파되는지 검증.
+    # v0.17 기본 bear cap 은 이 위반을 제거하므로 uncapped override 로 재현
+    # (검증 대상은 flag *전파 경로* 자체).
     _seed_inputs(store)
-    out = lambda_core.handle(_event(), None, caller=_FakeAnthropic([_completion()]), fmp=object())
+    out = lambda_core.handle(
+        _event(pricing_config_override={"bear_price_cap_pct": None}),
+        None, caller=_FakeAnthropic([_completion()]), fmp=object(),
+    )
     assert "expected_return" in out
     assert any("price_order_violation" in f for f in out["data_quality_flags"])
     bundle = ExpectedReturnsBundle.model_validate(json.loads(store.writes[ER_KEY]))

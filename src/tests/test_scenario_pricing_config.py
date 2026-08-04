@@ -26,6 +26,7 @@ def test_defaults_are_conservative() -> None:
     assert cfg.peer_pe_base_percentile == 50.0
     assert cfg.peer_pe_bear_percentile == 25.0
     assert cfg.base_price_cap_pct == 0.0
+    assert cfg.bear_price_cap_pct == 0.0  # v0.17 승격 — bear ≤ 현재가
     assert cfg.bull_probability_cap is None
     assert cfg.bear_probability_cap is None
 
@@ -153,7 +154,7 @@ def test_load_invalid_literal_rejected() -> None:
 
 def test_alternative_configs_keys() -> None:
     alts = alternative_configs(ScenarioPricingConfig())
-    assert set(alts) == {"balanced", "base_cap_10", "aggressive", "bear_capped"}
+    assert set(alts) == {"balanced", "base_cap_10", "aggressive", "bear_uncapped"}
 
 
 def test_alternative_configs_variants() -> None:
@@ -163,15 +164,12 @@ def test_alternative_configs_variants() -> None:
     assert alts["base_cap_10"].base_price_cap_pct == 0.10
     assert alts["aggressive"].bull_aggressiveness == "aggressive"
     assert alts["aggressive"].base_price_cap_pct == 0.10
-    assert alts["bear_capped"].bear_price_cap_pct == 0.0
-    # bear_capped 는 bear cap 외 미변경 — 결합 모드·base cap 은 base 상속
-    assert alts["bear_capped"].bear_conservatism == "conservative"
-    assert alts["bear_capped"].base_price_cap_pct == 0.0
-
-
-def test_bear_price_cap_default_none_preserves_regime() -> None:
-    # 기본값 None = 기존 primary 동작 불변 (v0.16 — A/B 관찰 후 승격 판단)
-    assert ScenarioPricingConfig().bear_price_cap_pct is None
+    # v0.17 — cap 승격 후 uncapped 가 counterfactual 대안
+    assert alts["bear_uncapped"].bear_price_cap_pct is None
+    assert alts["bear_uncapped"].bear_conservatism == "conservative"
+    # 다른 대안들은 bear cap 을 primary(0.0) 로 상속 — cap 은 직교 파라미터
+    assert alts["balanced"].bear_price_cap_pct == 0.0
+    assert alts["aggressive"].bear_price_cap_pct == 0.0
 
 
 def test_alternative_configs_inherit_base() -> None:

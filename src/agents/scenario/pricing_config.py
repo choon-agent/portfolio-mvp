@@ -55,10 +55,10 @@ class ScenarioPricingConfig(BaseModel):
     # 3b. Bear price cap (현재가 대비 bear 시나리오 가격 상한 — §4.2 v0.16)
     #    딥밸류 종목에서 peer 함의 적정가 ≫ 현재가일 때 bear conservative=max 가
     #    bear 가격을 현재가 위로 올려 bear > bull 역전을 만드는 것 차단
-    #    (07-14/07-20 운영에서 7/20 종목 재현 — retro §0.5). 0.0: bear ≤ 현재가.
-    #    기본 None: 기존 동작 유지 — sensitivity 대안 "bear_capped" 로 A/B 관찰
-    #    후 §12.3 에서 primary 승격 결정.
-    bear_price_cap_pct: float | None = Field(default=None, ge=-0.5, le=1.0)
+    #    (07-14~08-03 운영 4주 재현 — retro §0.5). 0.0: bear ≤ 현재가 / None: cap 없음.
+    #    기본 0.0 — v0.17 primary 승격 (§12.3 결정: 시뮬 2주 + 실운영 2주 일관,
+    #    역전 해소 7→1/7→1/6→0). uncapped counterfactual 은 대안 "bear_uncapped".
+    bear_price_cap_pct: float | None = Field(default=0.0, ge=-0.5, le=1.0)
 
     # 4. LLM 확률 가중치 자체 보정 (마지막 가드 — bull/bear 대칭)
     #    None: LLM 출력 그대로 / 활성 시: 잉여를 나머지 원래 비율로 비례 분배 (§4.1)
@@ -162,8 +162,7 @@ def alternative_configs(
         "aggressive": _variant(
             base, bull_aggressiveness="aggressive", base_price_cap_pct=0.10
         ),
-        # bear ≤ 현재가 강제 — bear>bull 가격 역전(딥밸류 peer 적정가 ≫ 현재가
-        # + conservative=max 상호작용) 차단 후보. A/B 관찰 후 §12.3 에서
-        # primary 승격 판단 (retro §0.5 07-20).
-        "bear_capped": _variant(base, bear_price_cap_pct=0.0),
+        # bear cap 해제 counterfactual — v0.17 에서 cap 이 primary 로 승격되며
+        # 구 동작(uncapped)을 대안으로 계속 관찰 (승격 결정의 사후 검증용, §12.3).
+        "bear_uncapped": _variant(base, bear_price_cap_pct=None),
     }

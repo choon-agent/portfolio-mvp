@@ -122,12 +122,12 @@ def test_compute_bear_price_both_inputs_missing_fallback() -> None:
 
 def test_compute_bear_price_cap_blocks_inversion() -> None:
     # 딥밸류 케이스: peer=p25(10)*20=200 ≫ 현재가 100, conservative=max → 200 (역전)
-    # bear_price_cap_pct=0.0 → min(200, 100*(1+0.0)) = 100 (v0.16)
-    uncapped = compute_bear_price(100.0, -0.2, 20.0, PEER, DEFAULT_CFG)
-    assert uncapped == pytest.approx(200.0)  # 기본 None = 기존 동작 (역전 재현)
-    cfg = ScenarioPricingConfig(bear_price_cap_pct=0.0)
-    capped = compute_bear_price(100.0, -0.2, 20.0, PEER, cfg)
+    # 기본 cap 0.0 (v0.17 승격) → min(200, 100*(1+0.0)) = 100
+    capped = compute_bear_price(100.0, -0.2, 20.0, PEER, DEFAULT_CFG)
     assert capped == pytest.approx(100.0)
+    uncapped_cfg = ScenarioPricingConfig(bear_price_cap_pct=None)
+    uncapped = compute_bear_price(100.0, -0.2, 20.0, PEER, uncapped_cfg)
+    assert uncapped == pytest.approx(200.0)  # counterfactual (bear_uncapped 대안)
 
 
 def test_compute_bear_price_cap_no_effect_below_current() -> None:
