@@ -132,7 +132,7 @@ portfolio-mvp/
     실행, `--upload`. S3 `trigger_evaluations/` 누적, observe-only)
   - **남은 작업**: #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval baseline /
     §12.3 (d) 극소 EPS 가드 (빈도 관찰 중)
-- [~] **다음 — 4단계 최적화 (`docs/04-optimizer.md` v0.1 설계 초안 — 검토 대기)**
+- [~] **다음 — 4단계 최적화 (`docs/04-optimizer.md` v0.2 설계 확정 — 구현 대기)**
   - 핵심 결정 4건 확정 (2026-08-10): MV(PyPortfolioOpt) / 음수 ER 국면 현금 허용 /
     컨테이너 이미지 패키징 (infra 방침 첫 적용) / flag 종목 제외. 옵션 B baseline
     병렬 산출 포함 (§1.4.2 #3 인프라). 구현 순서 8단계 — 문서 §11
