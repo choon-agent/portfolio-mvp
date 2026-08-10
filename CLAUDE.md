@@ -132,9 +132,10 @@ portfolio-mvp/
     실행, `--upload`. S3 `trigger_evaluations/` 누적, observe-only)
   - **남은 작업**: #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval baseline /
     §12.3 (d) 극소 EPS 가드 (빈도 관찰 중)
-- [ ] **다음 — 4단계 최적화 (`docs/04-optimizer.md` 설계 착수 가능)**
-  - 선행 조건(bear semantics) 해소. 입력: ExpectedReturnsBundle (primary ER·variance·
-    flags). 설계 입력 관찰: flag 종목 처리 / ALL형 퇴화(ER=0·var=0) / config A/B (§12.3)
+- [~] **다음 — 4단계 최적화 (`docs/04-optimizer.md` v0.1 설계 초안 — 검토 대기)**
+  - 핵심 결정 4건 확정 (2026-08-10): MV(PyPortfolioOpt) / 음수 ER 국면 현금 허용 /
+    컨테이너 이미지 패키징 (infra 방침 첫 적용) / flag 종목 제외. 옵션 B baseline
+    병렬 산출 포함 (§1.4.2 #3 인프라). 구현 순서 8단계 — 문서 §11
 
 미해결 디자인 채무: M1 은 `docs/01-screening.md §10`, M3 은 `docs/03-scenario.md
 §12` (12.2 잔여 1 [~D] / 12.3 데이터 게이트 잔여 / 12.4 v2 3) 참조.
