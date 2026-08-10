@@ -1164,35 +1164,37 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 
 ---
 
-## 부록 A. 디렉토리 구조 (M3 진입 시점 — 미구현)
+## 부록 A. 디렉토리 구조 (구현 완료 — v0.17 시점 실제 트리)
 
 ```
 src/agents/                              ✅ M2 기존
 ├── bull_bear/                           ✅ M2 완료
-├── scenario/                            ⏳ M3 신규
-│   ├── schemas.py                       ⏳ §2.1, §2.2, §2.3
-│   ├── pricing.py                       ⏳ §4.1 (순수 함수)
-│   ├── pricing_config.py                ⏳ §4.2
-│   ├── context_builder.py               ⏳ §3.3 to_prompt_markdown 포함
-│   ├── agent.py                         ⏳ §3.2 (Bull/Bear agent.py 패턴 재사용)
-│   ├── lambda_core.py                   ⏳ §6.2
-│   └── trigger_evaluator.py             ⏳ §7
+├── scenario/                            ✅ M3 완료 (#1~#10)
+│   ├── schemas.py                       ✅ §2.1, §2.2, §2.3 (+P1-E validator)
+│   ├── pricing.py                       ✅ §4.1 (순수 함수, base·bear cap — v0.17)
+│   ├── pricing_config.py                ✅ §4.2 (9 필드 + alternative_configs 4종)
+│   ├── context_builder.py               ✅ §3.3 to_prompt_markdown 포함
+│   ├── agent.py                         ✅ §3.2 (Bull/Bear agent.py 패턴 재사용)
+│   ├── lambda_core.py                   ✅ §6.2 (#12 Bundle 병렬 산출 포함)
+│   └── trigger_evaluator.py             ✅ §7 (활성화 = trigger batch)
 └── prompts/
-    ├── scenario_system.md               ⏳ §3.2
-    └── scenario_user.md                 ⏳ §3.3
+    ├── scenario_system.md               ✅ §3.2 (+P2-H hard rule #4)
+    └── scenario_user.md                 ✅ §3.3
 
 src/lambdas/
-└── agent_scenario/                      ⏳ M3 신규
-    └── handler.py                       ⏳ thin wrapper
+└── agent_scenario/                      ✅ M3 완료
+    └── handler.py                       ✅ thin wrapper
 
 infra/step_functions/
-└── screening_workflow.asl.json          ✅ M2 + ⏳ M3 (ScenarioMap state 추가)
+└── screening_workflow.asl.json          ✅ RunScreening → BullBearMap → ScenarioMap
 
 scripts/
-└── run_scenario_golden.py               ⏳ M3 신규 (4종목 fixture)
+├── run_scenario_golden.py               ✅ 골든 4종목 fixture 생성 (1회 $0.072)
+└── run_trigger_batch.py                 ✅ #13 로컬 배치 (§7 tripwire + calibration,
+                                            주 1회 수동 --upload → S3 trigger_evaluations/)
 
 tests/
-└── golden/scenario/                     ⏳ M3 신규 ({symbol}.json 4개)
+└── golden/scenario/                     ✅ AAPL/XOM/NVDA/JPM.json (pytest -m golden replay)
 ```
 
 ## 부록 B. 4단계 (최적화) 인터페이스 계약
