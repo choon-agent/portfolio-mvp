@@ -5,7 +5,7 @@
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
 > **버전**: v0.17 (2026-08-04)
-> **상태**: 구현 #1~#10 + #12(sensitivity) 완료 · 4주 운영 회고 완료 · 자동 운영 중
+> **상태**: 구현 #1~#12 완료 + #13 로컬 PoC (잔여: 자동화·#14 DeepEval) · 4주 운영 회고 완료 · 자동 운영 중 (유효 regime 2026-07-14~)
 >
 > **v0.17 변경 (`bear_price_cap_pct=0.0` primary 승격 — §12.3 bear semantics 결정)**:
 > ① 증거 4주 일관 (retro §0.5): 시뮬 07-20 위반 7→1 / 실운영 07-27 7→1 / 08-03 6→0. cap 은 정확히 bear>current 유형만 제거, 다른 종목 ER Δ=0. 잔여 base<bear 유형(ADM/TKO)은 주당 ≤1건 — §12.3 별도 관찰 항목으로 유지.
@@ -1104,10 +1104,10 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 8. **golden 케이스 4건** — `run_scenario_golden.py` 가 AAPL/XOM/NVDA/JPM 실제 호출 → 스냅샷 생성(1회 $0.072), `pytest -m golden` 은 replay 검증 (LLM 0, `golden` 마커 기존재 — 재사용). P2-H (#5) 의미 확정 후 진행 (스냅샷 일관성). 상세 §10.3
 9. **Lambda 핸들러** — `src/lambdas/agent_scenario/handler.py` + `lambda_core.py` 공유 코어
 10. **Step Functions ASL 확장** (§6.1 교정 ASL) — (a) `BullBearMap` 교정: `End`→`Next:ScenarioMap` + `ResultPath:"$.bullbear_results"` (G1 — 안 하면 `$.result.selected` 소멸로 ScenarioMap 실패), (b) `ScenarioMap` state 추가 + Task 직착 `Catch`/Retry (G2). **M2 회귀 주의** (기존 BullBearMap 수정) → 5종목 dry-run 재검증
-11. **20종목 주간 배치 첫 실행** — 비용·실패율 기록 → M3 회고
-12. ✅ **ExpectedReturnsBundle sensitivity 로깅** (v0.15 구현) — `alternative_configs`(balanced/base_cap_10/aggressive) 병렬 산출, lambda_core 가 Bundle 저장 (추가 LLM 비용 0). option_b_baseline 슬롯(§1.4.2 #3)은 4단계 시 추가
-13. **(M3 후반)** 트리거 자동 검증 — 분기 발표 후 자동 평가 batch (#7 활성화)
-14. **(M3 5주차)** DeepEval baseline (§10.5) — 3 criteria 운영 데이터로 baseline 확립 + 회귀 게이트 (M2 §11.5 패턴). judge 호출 비용 발생 (operational §5 와 별도)
+11. ✅ **20종목 주간 배치 첫 실행** (2026-05-31 수동 → 06-01 부터 주간 자동) — 비용·실패율은 retro §0.5 운영 로그에 주차별 누적, 4주 회고(§0.6) 완료
+12. ✅ **ExpectedReturnsBundle sensitivity 로깅** (v0.15 구현) — `alternative_configs`(balanced/base_cap_10/aggressive) 병렬 산출, lambda_core 가 Bundle 저장 (추가 LLM 비용 0). option_b_baseline 슬롯(§1.4.2 #3)은 4단계 시 추가. v0.17 에서 "bear_uncapped" 추가
+13. ✅(로컬 PoC) **트리거 자동 검증** — `scripts/run_trigger_batch.py` (2026-08-08, retro §0.5). 9주 163쌍 채점 → S3 `trigger_evaluations/`. **잔여**: Lambda 자동화 여부 (§12.2 D), earnings_surprise 클라이언트 확장, fcf_yoy threshold 프롬프트 가이드 검토
+14. **(M3 후반)** DeepEval baseline (§10.5) — 3 criteria 운영 데이터로 baseline 확립 + 회귀 게이트 (M2 §11.5 패턴). judge 호출 비용 발생 (operational §5 와 별도)
 
 ---
 
@@ -1123,22 +1123,22 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 
 ### 12.2 🟢 즉시 결정 가능 (운영 데이터 불요 — 구현 티켓에서 확정)
 
-- [ ] **P1-E `metric ↔ threshold_unit` validator** (§2.4 — #1 schemas.py) — 무효 조합(`revenue_yoy`+`qualitative` 등) 차단 `model_validator`. *권장 도입*. 기존 필드 위 validator 라 무손실
-- [ ] **P2-H `label ↔ trigger direction` 의미** (§2.4 — #5 prompts) — bull 시나리오 트리거가 *시나리오 부정 방향* 임을 시스템 프롬프트로 강화. golden(#8) 전 확정
-- [ ] **D 트리거 배치 메커니즘** (§7 — #13) — 실적 발표 ~6주 분산 → 단일 분기 배치 부적합. *기존 Mon 06:00 EventBridge 재사용* ("지난주 신규 발표 종목" 체크) 이 자연 후보 vs event-driven. 설계 선택 (데이터 불요)
+- [x] **P1-E `metric ↔ threshold_unit` validator** (§2.4 — #1 schemas.py) — **구현 완료** (`InvalidationTrigger._validate_metric_unit` — qualitative metric ⟺ qualitative unit ⟺ threshold None 강제)
+- [x] **P2-H `label ↔ trigger direction` 의미** (§2.4 — #5 prompts) — **구현 완료** (`scenario_system.md` hard rule #4 "Triggers must negate their own scenario" — bull 트리거는 하방, bear 트리거는 상방 이벤트 명시)
+- [~] **D 트리거 배치 메커니즘** (§7 — #13) — **로컬 배치 선행으로 결정** (2026-08-08, `scripts/run_trigger_batch.py` — 매 실행 시 미발표분 이어 채점하는 증분 구조라 발표 분산 문제 자연 해소). **잔여**: 수동 → 자동화 전환 시점·형태 (독립 Lambda 권장 — 전방 파이프라인 실패와 격리, 07-06 2주 결번 교훈). 몇 주 수동 운영 후 결정
 - [ ] **`guidance_change` 자동화 *방법*** (P2-D, §2.4 — #7) — (1) transcript 정규식 / (2) LLM 요약 / (3) 인간만. *시작은 `requires_human_review` fallback* 확정, 자동화 방법은 M3 후반 (§12.3 데이터 참고)
 
 ### 12.3 🔴 데이터·운영 게이트 (M3 운영 데이터 필요 — 지금 결정 불가)
 
 - [~] **`ScenarioPricingConfig` 기본값 조정** — 4주 회고(v0.15): 음수 skew 82.5% 확인(원인 base_cap=0.0). 즉시 변경 대신 **#12 sensitivity 활성화**(balanced/base_cap_10/aggressive A/B 누적) → **4단계 설계 시** optimizer 거동 보고 config 확정. `_validate_price_order` 는 완화 대비 안전망으로 유지
-- [ ] **`peer_announcement` 트리거 정책** — LLM 남용 시 enum 제거/치환. M3 5주차 사용 빈도
+- [x] **`peer_announcement` 트리거 정책** — **유지 확정** (2026-08-10): #13 배치 9주 489 트리거 중 사용 **0건** (정성 metric 은 guidance_change 14건뿐) — 남용 우려 기각, enum 유지 무해. 참고: 사용 분포 fcf_yoy 206(42%)/revenue_yoy 84/revenue_qoq 80/earnings_surprise 57/eps_yoy 29/op_margin 19 — **fcf_yoy 편중 + 좁은 threshold 로 발동 남발**이 실제 이슈 (프롬프트 가이드 후보, DeepEval 게이트 대상)
 - [ ] **`_validate_price_order` 위반 빈도** (v0.3 §4.1) — 4주 후 위반 0 이면 검증 제거 검토. `aggressive`/`base_price_cap_pct=None` 도입 시 재측정. **v0.16 갱신**: epsDiluted 수정 후 위반 7/20 × 2주 연속 발생 (retro §0.5) — 제거 논의 폐기, 안전망 확정
 - [x] **bear 가격 semantics — `bear_capped` primary 승격** (v0.16 신설 → **v0.17 승격 완료, 2026-08-04**) — bear>bull 역전이 양수 ER 상위를 점유 (07-20: 6/7) → optimizer·§7.2 calibration 오염. 증거 4주 일관 (시뮬 07-20 역전 7→1 / 실운영 07-27 7→1 / 08-03 6→0, 영향은 역전 종목에 국한) → 기본값 0.0 승격, "bear_uncapped" 를 counterfactual 대안으로 유지. **잔여 관찰 항목**: (a) base<bear 유형 (ADM/TKO — peer base ≪ historical bear, 주당 ≤1건) 빈도 추적, (b) ALL 형 퇴화 (bear=base=bull=current → ER=0·variance=0) 발생 시 optimizer 처리, (c) 근본 재설계(bear historical 단독 등)는 §12.4 v2 후보 유지, (d) **극소 양수 TTM EPS 유형** (08-10 DD — 일회성 손실로 TTM EPS 0.45·P/E ~317 → peer 목표가 붕괴, ER -88.5%. `ttm_eps>0` 가드 사각지대. 가드 후보: `current/ttm_eps` 극단(예: P/E>100) 시 peer 갈래를 결측 취급 — 빈도 보고 결정)
-- [ ] **TTM EPS 결측 종목 정책** — historical-only fallback 은 §9 확정, *정확도 영향* 은 첫 운영 결측 분포 후
+- [ ] **TTM EPS 결측 종목 정책** — historical-only fallback 은 §9 확정, *정확도 영향* 은 첫 운영 결측 분포 후. **관찰 데이터** (v0.17 시점): 유효 regime 4주간 음수 TTM(=peer 갈래 의도적 차단) 4~6/20 매주 — 딥밸류 유니버스 특성상 상시 존재. 극소 *양수* TTM 유형(DD, P/E ~317)은 §12.3 bear semantics 잔여 (d) 참조
 - [ ] **확률 cap 재평가** (v0.3 §4.2) — `bull/bear_probability_cap` 은 calibration 측정 전 임시 가드. M3 말 Brier 결과로 유지/제거. bull bias 발견 시 활성화
 - [ ] **확률 floor (`min_scenario_probability`)** (v0.6 §4.2 거부) — tail 과소평가 왜곡 우려나 옵션 C 는 LLM 신뢰 기본. calibration 이 tail 계통 과소평가 보일 때만 도입. M3 말
-- [ ] **B 트리거 시간 조인** (v0.10 §7 — #13) — 저장 시나리오 ↔ 그 다음 분기 매칭 (`income_quarterly[0]` 가정은 발표일 분산·lag 시 깨짐). `evaluated_quarter` 추적, 규칙은 실제 발표 타이밍 보고 #13 확정
-- [ ] **F 트리거 배치 FMP 신선도** (v0.10 §7 — #13, M2 §12) — 발표 직후 신선한 statement vs 90일 캐시 TTL. M2 "이벤트 기반 캐시 무효화" 와 동일 의존
+- [x] **B 트리거 시간 조인** (v0.10 §7 — #13) — **v1 규칙 확정·실증** (2026-08-08): `filingDate > as_of_date` 인 최초 발표 매칭 + `rows_up_to` 로 채점 분기 고정 (`income[0]` 가정 문제 해소 — 늦은 평가 시 후속 발표 혼입 방지). 발표 분산 6/25~8/7 실데이터로 검증
+- [x] **F 트리거 배치 FMP 신선도** (v0.10 §7 — #13, M2 §12) — **v1 해결** (2026-08-08): batch 가 `--max-cache-age-days`(기본 3) 로 90일 TTL 을 우회해 캐시 계층 경유 재수집 — 발표 직후 신선 statement 확보 + 캐시 갱신 (주간 파이프라인도 새 분기 데이터 승계). M2 "이벤트 기반 캐시 무효화" 일반화는 M2 §10 잔존 항목으로 유지
 - [ ] **시나리오 sensitivity 의 portfolio 영향** — 같은 LLM 출력 다른 config → 4단계 결과 차이. ExpectedReturnsBundle 로 측정
 - [ ] **§2.4 enum 거부 후보 5개 재검토** (v0.4 — 4주 이후/v2):
   - `valuation_multiple`: peer_pe 입력·출력 자기 참조 (bull 실현=트리거 자동 충족). 의미 명확화 후 v2

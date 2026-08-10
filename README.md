@@ -39,12 +39,13 @@
 
 유니버스 10~15 종목, 섹터당 ≤35%, 월 LLM 비용 상한 $200.
 
-**현재 운영 상태** (M3 운영 중, 2026-06-09):
+**현재 운영 상태** (M3 운영 중, 2026-08-10):
 - 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` (Bull/Bear Parallel) → `ScenarioMap` (시나리오) → S3 저장
-- 시나리오 단계 자동 운영 2주 누적: 매주 20/20 성공, 재시도 0%, 주간 비용 **$0.36** (20×$0.018), data_quality_flags 0
+- 시나리오 4주 운영 회고 합격 (성공 100%, 재시도 0%, 주간 비용 ~**$0.36**) 후 자동 운영 지속. 상세 주차별 로그: `docs/03-scenario-retro.md §0.5`
 - 결정성 정책 100% (Bull/Bear `context_input_hash`, 시나리오 `scenario_input_hash` — 동일 입력 재호출 시 LLM 호출 0회)
-- 옵션 C: LLM ≠ 가격 산정 분리 — LLM 은 확률·narrative·무효화 트리거만, scenario_prices 는 결정적 산식
-- 관찰: 종목 turnover ~25% (주간 캐시 무효 → 풀 비용), expected_return 음수 skew(보수 config) — 4주 회고에서 config 조정 판단 (`docs/03-scenario-retro.md`)
+- 옵션 C: LLM ≠ 가격 산정 분리 — LLM 은 확률·narrative·무효화 트리거만, scenario_prices 는 결정적 산식. v0.17 부터 base·bear 가격 모두 현재가 cap (가격 역전 차단)
+- 트리거 자동 검증(#13) 로컬 배치 가동 — 분기 발표 후 tripwire 채점 + 확률 calibration 을 S3 `trigger_evaluations/` 에 누적 (observe-only)
+- 다음: 4단계 최적화 설계 (`docs/04-optimizer.md`) — bear semantics 선행 조건 해소로 착수 가능
 
 ---
 

@@ -113,25 +113,28 @@ portfolio-mvp/
 - 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (작성 중)
 - 외부: FMP API 문서, Anthropic API 문서, AWS Lambda 문서
 
-## 현재 단계 (M3 — 2026-05-31 기준)
+## 현재 단계 (M3 후반 — 2026-08-10 기준)
 
 - [x] M0 기반 (Charter / Repo / CLAUDE.md / README / 스캐폴딩 / FMP 캐싱 계층)
 - [x] **M1 — 1단계 스크리닝 (코드 기반) — 완료·운영 중**
-  - 7개 모듈 + 154개 단위 테스트. `run_screening` Lambda + Step Functions +
-    EventBridge (Mon 06:00 ET). universe 483 → selected 20. 설계: `docs/01-screening.md`
+  - 7개 모듈 + 단위 테스트. `run_screening` Lambda + Step Functions +
+    EventBridge (Mon 06:00 ET). universe ~503 → selected 20. 설계: `docs/01-screening.md`
 - [x] **M2 — 2단계 Bull/Bear — 완료·운영 중**
-  - `agents/bull_bear/` (schemas/mappers/context_builder/agent/anthropic_adapter/
-    lambda_core) + `agent_bullbear_{bull,bear}` Lambda. 4주 누적 운영 ($2.76/월,
-    160 invoke 100% 성공, retry 0). 설계: `docs/02-bull-bear.md`
-- [~] **M3 — 3단계 시나리오 모델링 (옵션 C) — 구현 #1~#10 완료, 운영 대기**
-  - 설계 `docs/03-scenario.md` v0.13 (§2.4/§4/§5/§6/§7/§10~§12 검토 박제)
-  - 코드 `agents/scenario/` (schemas/pricing_config/pricing/context_builder/
-    prompts/agent/trigger_evaluator/lambda_core) + `agent_scenario` Lambda +
-    ASL ScenarioMap (G1 BullBearMap 체이닝 교정 포함). 시나리오 테스트 161건
-  - 골든 4종목 실제 호출 검증 ($0.072). LLM 은 확률·narrative·트리거만, 가격은
-    결정적 산식 (LLM ≠ 가격 산정 분리)
-  - **남은 작업**: #11 AWS 배포 + 20종목 첫 운영 / #12 sensitivity 로깅 /
-    #13 트리거 자동검증 batch / #14 DeepEval baseline (M3 후반·5주차, §11 참조)
+  - `agents/bull_bear/` + `agent_bullbear_{bull,bear}` Lambda. 설계: `docs/02-bull-bear.md`
+- [~] **M3 — 3단계 시나리오 모델링 (옵션 C) — 구현 #1~#13(PoC) 완료·자동 운영 중**
+  - 설계 `docs/03-scenario.md` **v0.17** / 4주 운영 회고 합격 (`03-scenario-retro.md §0.6`)
+  - 코드 `agents/scenario/` + `agent_scenario` Lambda + ASL ScenarioMap.
+    LLM 은 확률·narrative·트리거만, 가격은 결정적 산식 + base·bear 현재가 cap (v0.17)
+  - 주요 이력 (상세 retro §0.5/§0.7): 6/29~7/6 2주 결번(pyarrow 배포 사고, 302f3cb 복구) /
+    epsDiluted 필드 버그로 07-13 이전 데이터 구 regime (90afd8b 수정 — **유효 데이터는
+    2026-07-14 부터**, 12주 판정 ~10월 초) / bear cap v0.16→v0.17 primary 승격 (4b9ca19)
+  - #13 트리거 자동검증: 로컬 배치 가동 (`scripts/run_trigger_batch.py` — 주 1회 수동
+    실행, `--upload`. S3 `trigger_evaluations/` 누적, observe-only)
+  - **남은 작업**: #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval baseline /
+    §12.3 (d) 극소 EPS 가드 (빈도 관찰 중)
+- [ ] **다음 — 4단계 최적화 (`docs/04-optimizer.md` 설계 착수 가능)**
+  - 선행 조건(bear semantics) 해소. 입력: ExpectedReturnsBundle (primary ER·variance·
+    flags). 설계 입력 관찰: flag 종목 처리 / ALL형 퇴화(ER=0·var=0) / config A/B (§12.3)
 
 미해결 디자인 채무: M1 은 `docs/01-screening.md §10`, M3 은 `docs/03-scenario.md
-§12` (4그룹 — 즉시 결정 가능 4 / 데이터 게이트 12 / v2 3) 참조.
+§12` (12.2 잔여 1 [~D] / 12.3 데이터 게이트 잔여 / 12.4 v2 3) 참조.

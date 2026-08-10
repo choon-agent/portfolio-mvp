@@ -466,7 +466,7 @@ CLAUDE.md "모든 LLM 호출은 다음을 로깅" 규칙 준수.
 
 ## 10. 미해결 / 다음 결정 필요
 
-- [ ] FMP statements 캐시 TTL이 현재 90일 — Bull/Bear `fundamentals` 시계열은 분기 발표 직후 신선도가 중요. **이벤트 기반 캐시 무효화** 도입 여부 (분기 발표 시즌 첫 주만 강제 갱신)
+- [~] FMP statements 캐시 TTL이 현재 90일 — Bull/Bear `fundamentals` 시계열은 분기 발표 직후 신선도가 중요. **이벤트 기반 캐시 무효화** 도입 여부 (분기 발표 시즌 첫 주만 강제 갱신). **부분 해소 (2026-08-08)**: M3 #13 trigger batch (`scripts/run_trigger_batch.py`) 가 발표 시즌에 `--max-cache-age-days 3` 으로 statements 캐시를 재수집 → 갱신된 캐시를 주간 Bull/Bear 실행이 승계. batch 를 주 1회 돌리는 동안은 사실상 해결 — 일반화(이벤트 기반)는 batch Lambda 자동화 (M3 §12.2 D) 시 함께 결정
 - [ ] `key_risks_to_thesis`의 출력이 실제로 단일 호출 편향 보완 효과가 있는지 — M2 골든 케이스 3건으로 1차 평가, 첫 주간 실행으로 2차 평가
 - [ ] v2 Debate 패턴 실험 시점 — 본 단계 단일 호출 패턴이 4주 안정 운영 후 도입 (M3 후반 후보)
 - [ ] 의견 출력의 한국어 vs 영어 — 일관성 차원에서 영어가 무난하지만 산출물(블로그) 관점에서 한국어 이점 존재 → 골든 케이스 3건에서 양쪽 비교 후 결정
