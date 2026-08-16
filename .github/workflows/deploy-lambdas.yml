@@ -90,6 +90,15 @@ jobs:
             fi
           fi
 
+          # 컨테이너 이미지 함수는 zip 경로 배포 불가 (M4 run_optimizer —
+          # "Please provide ImageUri" 오류, 2026-08-17). 로컬
+          # scripts/deploy_lambda_container.sh 로 별도 배포. CI 컨테이너
+          # 자동화(docker build + ECR push)는 추후 검토 (infra/README).
+          CONTAINER_LAMBDAS="run_optimizer"
+          for c in $CONTAINER_LAMBDAS; do
+            targets=$(echo "${targets:-}" | grep -vx "$c" || true)
+          done
+
           targets=$(echo "${targets:-}" | grep -v '^$' || true)
 
           if [ -z "$targets" ]; then

@@ -333,6 +333,12 @@ aws lambda create-function --region $REGION \
 | Role | run_screening role 재사용 (S3 + CloudWatch — FMP/Anthropic 시크릿 불필요) |
 | 설정 | Memory 1024 / Timeout 300 / env `S3_BUCKET` / x86_64 |
 
+**CI 주의**: `deploy-lambdas.yml`(zip 매트릭스)에서 **제외**되어 있음 — Image 함수에
+zip 업데이트는 불가 (`Please provide ImageUri`, 2026-08-17 CI 실패로 확인 →
+워크플로우 `CONTAINER_LAMBDAS` 필터 + `deploy_lambda.sh` PackageType 가드 추가).
+optimizer 코드 변경 시 **로컬에서 `scripts/deploy_lambda_container.sh` 실행**.
+CI 컨테이너 자동화(docker build + ECR push, OIDC role 에 ecr 권한 필요)는 검토 항목.
+
 **빌드 스모크**: `docker run --entrypoint python <image> -c "import pypfopt...; import lambdas.run_optimizer.handler"`
 — 배포 전에 import 깨짐을 잡는다 (pyarrow 슬리밍 사고 교훈). 첫 배포에서 실제로
 `packaging` 미선언 의존성·`screening` 모듈 누락 2건을 배포 전 검출.

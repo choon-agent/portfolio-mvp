@@ -38,6 +38,16 @@ if [ ! -d "$LAMBDA_SRC" ]; then
   echo "[ERROR] Lambda 소스 디렉토리가 없음: $LAMBDA_SRC" >&2
   exit 1
 fi
+
+# 컨테이너 이미지 함수 가드 — zip 업데이트 불가 ("Please provide ImageUri").
+# 패키징 전에 확인해 시간 낭비·오배포 방지 (2026-08-17 CI 실패 교훈).
+PKG_TYPE=$(aws lambda get-function-configuration --function-name "$FUNCTION_NAME" \
+  --query PackageType --output text 2>/dev/null || echo "Zip")
+if [ "$PKG_TYPE" = "Image" ]; then
+  echo "[ERROR] $FUNCTION_NAME 은 컨테이너 이미지 함수 — 이 스크립트(zip)가 아니라" >&2
+  echo "        scripts/deploy_lambda_container.sh 를 사용할 것" >&2
+  exit 1
+fi
 if [ ! -f "$LAMBDA_SRC/handler.py" ]; then
   echo "[ERROR] handler.py 없음: $LAMBDA_SRC/handler.py" >&2
   exit 1
