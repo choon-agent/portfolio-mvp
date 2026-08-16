@@ -265,7 +265,7 @@ infra/docker/optimizer.Dockerfile
 4. **baseline.py** — 옵션 B 확률 매핑 + 테스트
 5. **data_loader.py + lambda_core.py** — S3 조립 + 게이트 + 저장 + 목 테스트
 6. **로컬 dry-run** — 최근 주차(dt=2026-08-10) 실데이터로 스크립트 실행 → 산출 검토 (§9 파라미터 1차 확정)
-7. **컨테이너 인프라** — Dockerfile + ECR + `run_optimizer` Lambda 생성 + 배포 스크립트 (`scripts/deploy_lambda_container.sh`) + infra/README 갱신
+7. ✅ **컨테이너 인프라** (2026-08-11) — `infra/docker/optimizer.Dockerfile` + ECR `portfolio-mvp/run_optimizer` + `scripts/deploy_lambda_container.sh` (빌드 스모크 포함 — packaging/screening 누락 2건 배포 전 검출) + Lambda 생성·invoke 검증 (dry-run 과 동일 산출, `portfolios/dt=2026-08-10/` 첫 기록). colima 빌드 함정 3건 infra/README 박제
 8. **ASL RunOptimizer state 추가** + dry-run → 주간 자동 운영 편입
 
 ## 부록 A. 5단계 (리밸런싱) 인터페이스 계약 (초안)

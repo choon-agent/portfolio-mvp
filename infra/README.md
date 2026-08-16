@@ -319,6 +319,33 @@ aws lambda create-function --region $REGION \
 `portfolio-mvp-agent_scenario` 의 `lambda:InvokeFunction` 권한도 추가해야 ScenarioMap
 이 호출할 수 있다 (§4-2 role 의 Resource 목록에 추가).
 
+## 컨테이너 이미지 Lambda — run_optimizer (4단계, 컨테이너 방침 첫 적용)
+
+`portfolio-mvp-run_optimizer` 는 **zip 이 아닌 컨테이너 이미지** 함수다
+(numpy/scipy/cvxpy/PyPortfolioOpt 로 50MB zip 한계 초과 — 위 "배포 패키지 크기"
+방침 발동, `docs/04-optimizer.md §7.2`).
+
+| 항목 | 값 |
+|---|---|
+| ECR 리포 | `portfolio-mvp/run_optimizer` (이미지 태그 = git short SHA) |
+| Dockerfile | `infra/docker/optimizer.Dockerfile` (+ `optimizer-requirements.txt`) |
+| 배포 | `scripts/deploy_lambda_container.sh` — 리포 생성→빌드→**스모크**→push→create/update |
+| Role | run_screening role 재사용 (S3 + CloudWatch — FMP/Anthropic 시크릿 불필요) |
+| 설정 | Memory 1024 / Timeout 300 / env `S3_BUCKET` / x86_64 |
+
+**빌드 스모크**: `docker run --entrypoint python <image> -c "import pypfopt...; import lambdas.run_optimizer.handler"`
+— 배포 전에 import 깨짐을 잡는다 (pyarrow 슬리밍 사고 교훈). 첫 배포에서 실제로
+`packaging` 미선언 의존성·`screening` 모듈 누락 2건을 배포 전 검출.
+
+> **로컬(colima) 빌드 함정 3건 (2026-08-11 실측)**:
+> 1. `~/.docker/config.json` 의 `credsStore: osxkeychain` (Docker Desktop 잔재) —
+>    colima 에서 헬퍼 부재로 빌드 실패. 해당 키 제거 또는 임시 `DOCKER_CONFIG` 사용
+> 2. **buildx 필수** — 레거시 빌더는 cross-platform(arm64→amd64) export 버그
+>    (`failed to export image ... not found`). brew `docker-buildx` 를 cli-plugins 에 링크
+> 3. buildx 의 provenance/SBOM attestation(manifest list)은 **Lambda 미지원**
+>    (`image manifest ... media type is not supported`) — 스크립트가
+>    `--provenance=false --sbom=false` 로 단일 매니페스트 강제
+
 ## EventBridge 스케줄
 
 스크립트 없이 AWS CLI 로 직접 (한 번만):
