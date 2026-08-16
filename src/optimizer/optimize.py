@@ -91,9 +91,13 @@ def solve_target_weights(
             if len(weights) > MAX_POSITIONS:  # §4.4 규칙 2
                 symbols = sorted(weights, key=weights.get, reverse=True)[:MAX_POSITIONS]  # type: ignore[arg-type]
                 weights = _solve_once(mu[symbols], cov, sectors, upper, sector_upper)
-            # clean_weights 반올림 잔차 정규화 — Σ(최종) = invest 정확히
+            # clean_weights 반올림 잔차 정규화 (Σ최종 ≈ invest) 후 상한 클립 —
+            # 정규화가 cap 종목을 1e-5 수준 밀어올릴 수 있음. 클립 잔차는
+            # cash 로 흡수 (스키마 합 검증 허용 오차 ±0.01 이내)
             total = sum(weights.values())
-            return {s: w / total * invest for s, w in weights.items()}
+            return {
+                s: min(w / total * invest, max_pos) for s, w in weights.items()
+            }
         except OptimizationError:
             if attempt == 0:
                 logger.warning(
