@@ -16,3 +16,5 @@ pytest>=8.0,<9.0
 # SDK 미설치 환경에서도 agents.bull_bear 의 다른 모듈은 영향 없음.
 # M3+ 운영 모니터링 단계에서 Lambda 도입 시 requirements.txt 로 승격 검토.
 deepeval>=2.0,<3.0
+# 4단계 optimizer 로컬 개발·테스트용 (Lambda 는 컨테이너 이미지에 별도 고정 — 04 §7.2)
+PyPortfolioOpt>=1.6,<2.0
