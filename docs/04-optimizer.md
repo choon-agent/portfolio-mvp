@@ -185,8 +185,9 @@ baseline 포트폴리오를 병렬 산출한다. **위치 = 4단계** (3단계 �
 opinion 과 가격 산식이 모두 입력으로 이미 존재):
 
 ```
-score_bull = Σ bull_opinion.arguments[].confidence     # §03 §4.4 산식 확정
-score_bear = Σ bear_opinion.arguments[].confidence
+# confidence 는 Literal["low","medium","high"] (02 §2.2) → 수치 매핑 low=1/medium=2/high=3
+score_bull = Σ score(bull_opinion.arguments[].confidence)
+score_bear = Σ score(bear_opinion.arguments[].confidence)
 p_base = 0.34 (고정)                                   # 3-class 매핑의 중립 질량
 p_bull = (score_bull / (score_bull + score_bear)) × (1 - p_base)
 p_bear = 1 - p_base - p_bull
