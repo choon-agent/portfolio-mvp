@@ -376,6 +376,12 @@ DST 변동 ±1시간은 프리마켓 안에서 흡수됨 (US 마켓 오픈 09:30
 
 ## 수동 실행 / 모니터링
 
+> ⚠ **과거 `as_of_date` 로 수동 실행 금지** (2026-08-17 사고): 스크리닝은 as_of 와
+> 무관하게 *현재* 데이터로 재계산한다 — 과거 날짜를 주면 해당 dt 파티션
+> (screening/scenarios/expected_returns/contexts/portfolios)을 **현재 데이터
+> 재계산본으로 덮어써** 주간 기록이 오염된다 (versioning 미설정 시 원본 소실).
+> 파이프라인 검증이 필요하면 오늘 날짜(정기 실행 전) 또는 별도 버킷/프리픽스로.
+
 ### Step Functions 직접 실행
 ```bash
 aws stepfunctions start-execution \

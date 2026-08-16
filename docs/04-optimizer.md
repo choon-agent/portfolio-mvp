@@ -266,7 +266,7 @@ infra/docker/optimizer.Dockerfile
 5. **data_loader.py + lambda_core.py** — S3 조립 + 게이트 + 저장 + 목 테스트
 6. **로컬 dry-run** — 최근 주차(dt=2026-08-10) 실데이터로 스크립트 실행 → 산출 검토 (§9 파라미터 1차 확정)
 7. ✅ **컨테이너 인프라** (2026-08-11) — `infra/docker/optimizer.Dockerfile` + ECR `portfolio-mvp/run_optimizer` + `scripts/deploy_lambda_container.sh` (빌드 스모크 포함 — packaging/screening 누락 2건 배포 전 검출) + Lambda 생성·invoke 검증 (dry-run 과 동일 산출, `portfolios/dt=2026-08-10/` 첫 기록). colima 빌드 함정 3건 infra/README 박제
-8. **ASL RunOptimizer state 추가** + dry-run → 주간 자동 운영 편입
+8. ✅ **ASL RunOptimizer state 추가** (2026-08-17) — ScenarioMap 에 ResultPath 부여 후 Next 체이닝, Catch→RecordOptimizerFailure (실패는 파이프라인 실패로 승격 안 함 — 3단계 산출 보존), step-functions policy v5 (run_optimizer invoke). E2E SUCCEEDED — **단, 과거 as_of dry-run 이 dt=2026-08-10 파티션을 오염시킨 사고 있음** (retro §0.5 08-17, infra/README 경고 박제). 2026-08-17 정기 실행부터 1~4단계 자동 운영
 
 ## 부록 A. 5단계 (리밸런싱) 인터페이스 계약 (초안)
 

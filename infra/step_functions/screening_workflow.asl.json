@@ -1,5 +1,5 @@
 {
-  "Comment": "Weekly screening + Bull/Bear (M1+M2). docs/01-screening.md §4.1, docs/02-bull-bear.md §4.1. RunScreening 결과 selected[15~20] 를 BullBearMap 이 종목별로 처리, 각 종목 안에서 Bull/Bear 를 Parallel 호출.",
+  "Comment": "Weekly screening + Bull/Bear (M1+M2+M3+M4). docs/01-screening.md §4.1, docs/02-bull-bear.md §4.1. RunScreening 결과 selected[15~20] 를 BullBearMap 이 종목별로 처리, 각 종목 안에서 Bull/Bear 를 Parallel 호출. ScenarioMap 완료 후 RunOptimizer(4단계, 컨테이너 Lambda)가 목표 비중 산출.",
   "StartAt": "RunScreening",
   "States": {
     "RunScreening": {
@@ -50,7 +50,9 @@
             "Catch": [
               {
                 "Comment": "한 종목의 Bull/Bear 실패가 다른 종목 처리를 막지 않도록 격리. 실패는 RecordItemFailure 로 기록하고 Map 은 계속.",
-                "ErrorEquals": ["States.ALL"],
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
                 "ResultPath": "$.error",
                 "Next": "RecordItemFailure"
               }
@@ -175,7 +177,9 @@
             "Catch": [
               {
                 "Comment": "한 종목 시나리오 실패가 다른 종목을 막지 않도록 격리. Parallel 없는 단일 Task 라 Task 직착 (BullBear 와 다른 점, G2).",
-                "ErrorEquals": ["States.ALL"],
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
                 "ResultPath": "$.error",
                 "Next": "RecordScenarioFailure"
               }
@@ -193,6 +197,55 @@
             "End": true
           }
         }
+      },
+      "ResultPath": "$.scenario_results",
+      "Next": "RunOptimizer"
+    },
+    "RunOptimizer": {
+      "Type": "Task",
+      "Comment": "M4 4단계 최적화 (docs/04-optimizer.md §7). 컨테이너 Lambda — LLM 호출 0. ScenarioMap 부분 실패 허용: optimizer 는 존재하는 expected_returns 만 로드 (G2 게이트). 실패해도 3단계 산출물은 이미 저장 — Catch 로 기록만 하고 종료 (5단계는 '목표 비중 없음 = 보유 유지' 해석).",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "<<OPTIMIZER_LAMBDA>>",
+        "Payload": {
+          "dt.$": "$.result.as_of_date"
+        }
+      },
+      "ResultSelector": {
+        "result.$": "$.Payload"
+      },
+      "ResultPath": "$.optimizer_result",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "Comment": "최적화 실패는 파이프라인 실패로 승격하지 않음 — 3단계 산출물 보존, 실패 기록 후 정상 종료.",
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.optimizer_error",
+          "Next": "RecordOptimizerFailure"
+        }
+      ],
+      "End": true
+    },
+    "RecordOptimizerFailure": {
+      "Type": "Pass",
+      "Comment": "RunOptimizer 실패 기록 (CloudWatch 실행 이력으로 관찰). 5단계 설계에서 '목표 비중 부재' 처리 확정 — 04 부록 A.",
+      "Parameters": {
+        "optimizer_failed": true,
+        "error.$": "$.optimizer_error"
       },
       "End": true
     }

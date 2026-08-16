@@ -30,13 +30,30 @@ def asl() -> dict:
 
 def test_start_and_top_states(asl: dict) -> None:
     assert asl["StartAt"] == "RunScreening"
-    assert set(asl["States"]) == {"RunScreening", "BullBearMap", "ScenarioMap"}
+    assert set(asl["States"]) == {
+        "RunScreening", "BullBearMap", "ScenarioMap",
+        "RunOptimizer", "RecordOptimizerFailure",  # M4 (04 §7.1)
+    }
 
 
 def test_chain_run_to_bullbear_to_scenario(asl: dict) -> None:
     assert asl["States"]["RunScreening"]["Next"] == "BullBearMap"
     assert asl["States"]["BullBearMap"]["Next"] == "ScenarioMap"
-    assert asl["States"]["ScenarioMap"].get("End") is True
+    # M4 편입 후 ScenarioMap 은 종단이 아님 — ResultPath 로 $.result 보존 필수
+    sm = asl["States"]["ScenarioMap"]
+    assert sm["Next"] == "RunOptimizer"
+    assert sm["ResultPath"] == "$.scenario_results"
+    assert "End" not in sm
+
+
+def test_optimizer_state_wiring(asl: dict) -> None:
+    """M4 (04 §7.1): dt 전달, 실패는 파이프라인 실패로 승격하지 않음."""
+    opt = asl["States"]["RunOptimizer"]
+    assert opt["Parameters"]["Payload"]["dt.$"] == "$.result.as_of_date"
+    assert opt["Catch"][0]["Next"] == "RecordOptimizerFailure"
+    assert opt["End"] is True
+    assert asl["States"]["RecordOptimizerFailure"]["Type"] == "Pass"
+    assert asl["States"]["RecordOptimizerFailure"]["End"] is True
 
 
 # ---------- G1: BullBearMap 체이닝 교정 ----------
@@ -104,6 +121,7 @@ def test_placeholders_match_deploy_script() -> None:
         "BULL_LAMBDA",
         "BEAR_LAMBDA",
         "SCENARIO_LAMBDA",
+        "OPTIMIZER_LAMBDA",  # M4
     }
 
     deploy = (ROOT / "scripts" / "deploy_step_functions.sh").read_text(encoding="utf-8")
