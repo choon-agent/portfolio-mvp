@@ -91,7 +91,9 @@ def solve_target_weights(
             if len(weights) > MAX_POSITIONS:  # §4.4 규칙 2
                 symbols = sorted(weights, key=weights.get, reverse=True)[:MAX_POSITIONS]  # type: ignore[arg-type]
                 weights = _solve_once(mu[symbols], cov, sectors, upper, sector_upper)
-            return {s: w * invest for s, w in weights.items()}
+            # clean_weights 반올림 잔차 정규화 — Σ(최종) = invest 정확히
+            total = sum(weights.values())
+            return {s: w / total * invest for s, w in weights.items()}
         except OptimizationError:
             if attempt == 0:
                 logger.warning(
