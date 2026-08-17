@@ -37,7 +37,7 @@
 [5] 리밸런싱          ⏳ 다음 — 룰 기반 매매, LLM 은 근거 생성만
 ```
 
-유니버스 10~15 종목, 섹터당 ≤35%, 월 LLM 비용 상한 $200.
+포지션 최대 15종목(완전 투자 시 10~15 목표 — 양수 기대수익 후보 부족 시 현금 보유), 섹터당 ≤35%, 월 LLM 비용 상한 $200.
 
 **현재 운영 상태** (1~4단계 자동 운영, 2026-08-17):
 - 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` → `ScenarioMap` → **`RunOptimizer`** → S3 `portfolios/dt=.../target.json` (목표 비중)
