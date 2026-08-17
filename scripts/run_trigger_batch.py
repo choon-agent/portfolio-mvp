@@ -314,6 +314,10 @@ def main() -> int:
     parser.add_argument("--bucket", default=os.environ.get("S3_BUCKET", "portfolio-mvp-data-s3"))
     parser.add_argument("--fmp-secret-id", default=os.environ.get("FMP_SECRET_ID"))
     parser.add_argument("--dts", help="콤마 구분 dt 목록 (기본: 전체)")
+    # 2026-08-10 은 08-17 사고로 오염된 파티션 (retro §0.5) — raw 가 08-17
+    # 재계산본이라 tripwire·calibration 모두 lineage 불일치 → 기본 제외
+    parser.add_argument("--skip-dts", default="2026-08-10",
+                        help="채점 제외 dt 목록 (콤마 — 기본: 오염 파티션 2026-08-10)")
     parser.add_argument("--symbols", help="콤마 구분 심볼 (기본: 각 dt 전체)")
     parser.add_argument("--max-cache-age-days", type=int, default=3)
     parser.add_argument("--output-dir", default=str(ROOT / "retro_data" / "trigger_evaluations"))
@@ -330,7 +334,13 @@ def main() -> int:
     fmp = FMPClient(api_key=api_key)
 
     scan = list_scenario_keys(args.bucket)
-    dts = sorted(args.dts.split(",") if args.dts else scan.keys())
+    skip = set(args.skip_dts.split(",")) if args.skip_dts else set()
+    dts = sorted(
+        d for d in (args.dts.split(",") if args.dts else scan.keys())
+        if d not in skip
+    )
+    if skip:
+        print(f"제외 dt (오염 파티션 등): {sorted(skip)}")
     only_symbols = set(args.symbols.split(",")) if args.symbols else None
     now = datetime.now(timezone.utc)
     out_dir = Path(args.output_dir)

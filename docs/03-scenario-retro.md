@@ -50,6 +50,8 @@
 
 - 2026-08-17 (⚠ **dt=2026-08-10 파티션 오염 사고** — #8 E2E dry-run 중): RunOptimizer 편입 검증으로 SF 를 `as_of_date=2026-08-10` 수동 실행 → **스크리닝이 8/17 시점 데이터로 재계산**되며 (캐시 히트 예상은 오판 — 팩터 윈도우가 굴러 유니버스·컨텍스트 변경) dt=2026-08-10 라벨의 scenarios/expected_returns/contexts **17종목분 + screening result 를 재계산본으로 덮어씀** (versioning 미설정 — 원본 소실. NEE/UAL/ZBH 3종목만 유니버스 이탈로 원본 생존). LLM 재호출 ~$1. **조치**: portfolios/dt=2026-08-10/target.json 은 로컬 사본으로 원본 복원. **지침**: ① dt=2026-08-10 은 #13 calibration 표본에서 **제외** (raw 가 8/17 재계산본 — lineage 불일치. 트리거 평가 자체는 오염본 기준으로 수행되므로 결과 해석 시 주의 표기), ② 회고 로그의 08-10 수치는 실행 당시 기록이므로 유효 (S3 원본과 불일치함만 인지). **교훈**: 과거 as_of 로 SF 수동 실행 금지 (infra/README 경고 박제) / S3 versioning 활성화 검토.
 
+- 2026-08-17 (정기 · **1~4단계 첫 완전 자동 운영** — RunOptimizer 편입 후): 20/20 ok, 재시도 0. universe 481→20, turnover 높음 (WBD/CFG 등 신규) → Bull/Bear 40 호출 풀 미스 ~$0.71 + 시나리오 ~$0.37 = **~$1.08/주** (턴오버 주간 상한 수준). 위반 1/20 — **DD 2주 연속 (d) 유형** (극소 EPS. 이번 주는 momentum_z 5.31 + P/E null 로 **스크리닝 rank 1** 선정 — (d) 가드 논의 시 참고). 음수 skew 12/20(60%). **RunOptimizer 첫 자동 산출** (`portfolios/dt=2026-08-17/`): 후보 7 → **현금 규칙 첫 실전 발동** (invest 70%, 현금 30%), 6종목 (APA/DAL/EIX 15% cap + ALL 12.6/DVA 6.5/NEE 5.9. MPC 는 3% 컷 탈락), primary ER 2.10% vs 옵션 B baseline 2.51% — §1.4.2 #3 주간 비교 데이터 축적 시작. trigger batch: +6 채점 (SPG/TPR/WDC 늦은 발표 — SPG bull:fcf_yoy 4주치 발동, fcf threshold 남발 패턴 재확인). **오염 파티션 처리**: dt=2026-08-10 WDC 평가 1건이 08-17 재계산본 잔재로 채점·업로드된 것 발견 → 삭제 + batch 에 `--skip-dts` 기본값(2026-08-10) 추가로 재발 차단.
+
 ## 0.6 4주 회고 결과 (2026-06-22)
 
 **판정**: M3 시나리오 4주 운영 — **운영 health 전 기준 합격, 옵션 C 유지**. 산출물에 음수 skew 1건 확인(설계된 보수성 부작용), 측정 인프라(#12) 활성화로 데이터 기반 config 결정 준비.
