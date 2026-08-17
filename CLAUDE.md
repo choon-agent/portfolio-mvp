@@ -140,3 +140,5 @@ portfolio-mvp/
 
 미해결 디자인 채무: M1 은 `docs/01-screening.md §10`, M3 은 `docs/03-scenario.md
 §12` (12.2 잔여 1 [~D] / 12.3 데이터 게이트 잔여 / 12.4 v2 3) 참조.
+**M3 말 재검토 안건(~10월 초)은 `docs/03-scenario-retro.md §0.8` 로 일원화** —
+12주 판정 + Charter 감사 이월(백테스트 엔진·블로그·패턴 비교표·Athena 정리) 포함.
