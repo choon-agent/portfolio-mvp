@@ -383,6 +383,16 @@ aws events put-targets \
 
 DST 변동 ±1시간은 프리마켓 안에서 흡수됨 (US 마켓 오픈 09:30 ET 보다 2.5~3.5h 이른 시점).
 
+## 비용 거버넌스 (CHARTER §2.2/§6 — 2026-08-17 구축)
+
+| 장치 | 구현 | 비고 |
+|---|---|---|
+| 예산 경보 | AWS Budgets `portfolio-mvp-monthly-200` — 월 $200, **50/80/100% 실비용 이메일 경보** | 콘솔 생성 아님 — CLI (계정 공용 비용 기준이라 타 프로젝트 포함) |
+| 월말 리포트 | `scripts/run_cost_report.py [--month YYYY-MM] --upload` — LLM(S3 attempts 실비용) + AWS(Cost Explorer) → `reports/cost/{월}.md` | **월초에 전월분 수동 실행** (trigger batch 와 같은 로컬 PoC 패턴 — Lambda 자동화는 #13 자동화와 함께 결정) |
+| 긴급 중단 | `scripts/emergency_stop.sh [--all|--resume]` — 주간 파이프라인(±데이터) 스케줄 비활성화 | **100% 경보 수신 시 운영 절차**. 완전 자동 중단(Budgets Action → IAM deny)은 실비용이 상한의 ~3% 라 보류 — 비용 추세 상승 시 도입 |
+
+초과 시 조치 순서 (CHARTER §2.2): 에이전트 수 축소 → Sonnet→Haiku → 실행 빈도 축소.
+
 ## 수동 실행 / 모니터링
 
 > ⚠ **과거 `as_of_date` 로 수동 실행 금지** (2026-08-17 사고): 스크리닝은 as_of 와
