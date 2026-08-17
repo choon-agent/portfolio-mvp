@@ -1130,7 +1130,7 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 
 ### 12.3 🔴 데이터·운영 게이트 (M3 운영 데이터 필요 — 지금 결정 불가)
 
-- [~] **`ScenarioPricingConfig` 기본값 조정** — 4주 회고(v0.15): 음수 skew 82.5% 확인(원인 base_cap=0.0). 즉시 변경 대신 **#12 sensitivity 활성화**(balanced/base_cap_10/aggressive A/B 누적) → **4단계 설계 시** optimizer 거동 보고 config 확정. `_validate_price_order` 는 완화 대비 안전망으로 유지
+- [~] **`ScenarioPricingConfig` 기본값 조정** — 4주 회고(v0.15): 음수 skew 82.5% 확인(원인 base_cap=0.0 → §0.7 정정: epsDiluted 버그). 즉시 변경 대신 **#12 sensitivity 활성화**(A/B 누적) → optimizer 거동 보고 config 확정. `_validate_price_order` 는 완화 대비 안전망으로 유지. **v0.17+ 갱신**: bear cap 승격 완료, **4단계 가동(08-17)으로 config 4종 대안 → 포트폴리오 백테스트 실행 가능 상태** — 유효 A/B 수 주 더 누적 후 실행 (04 §9 연동)
 - [x] **`peer_announcement` 트리거 정책** — **유지 확정** (2026-08-10): #13 배치 9주 489 트리거 중 사용 **0건** (정성 metric 은 guidance_change 14건뿐) — 남용 우려 기각, enum 유지 무해. 참고: 사용 분포 fcf_yoy 206(42%)/revenue_yoy 84/revenue_qoq 80/earnings_surprise 57/eps_yoy 29/op_margin 19 — **fcf_yoy 편중 + 좁은 threshold 로 발동 남발**이 실제 이슈 (프롬프트 가이드 후보, DeepEval 게이트 대상)
 - [ ] **`_validate_price_order` 위반 빈도** (v0.3 §4.1) — 4주 후 위반 0 이면 검증 제거 검토. `aggressive`/`base_price_cap_pct=None` 도입 시 재측정. **v0.16 갱신**: epsDiluted 수정 후 위반 7/20 × 2주 연속 발생 (retro §0.5) — 제거 논의 폐기, 안전망 확정
 - [x] **bear 가격 semantics — `bear_capped` primary 승격** (v0.16 신설 → **v0.17 승격 완료, 2026-08-04**) — bear>bull 역전이 양수 ER 상위를 점유 (07-20: 6/7) → optimizer·§7.2 calibration 오염. 증거 4주 일관 (시뮬 07-20 역전 7→1 / 실운영 07-27 7→1 / 08-03 6→0, 영향은 역전 종목에 국한) → 기본값 0.0 승격, "bear_uncapped" 를 counterfactual 대안으로 유지. **잔여 관찰 항목**: (a) base<bear 유형 (ADM/TKO — peer base ≪ historical bear, 주당 ≤1건) 빈도 추적, (b) ALL 형 퇴화 (bear=base=bull=current → ER=0·variance=0) 발생 시 optimizer 처리, (c) 근본 재설계(bear historical 단독 등)는 §12.4 v2 후보 유지, (d) **극소 양수 TTM EPS 유형** (08-10 DD — 일회성 손실로 TTM EPS 0.45·P/E ~317 → peer 목표가 붕괴, ER -88.5%. `ttm_eps>0` 가드 사각지대. 가드 후보: `current/ttm_eps` 극단(예: P/E>100) 시 peer 갈래를 결측 취급 — 빈도 보고 결정)
@@ -1199,7 +1199,7 @@ tests/
 
 ## 부록 B. 4단계 (최적화) 인터페이스 계약
 
-`docs/04-optimizer.md` (작성 예정) 가 본 단계 출력을 입력으로 받음.
+`docs/04-optimizer.md` (**v0.3 — 구현 완료·자동 운영 중**, 2026-08-17) 가 본 단계 출력을 입력으로 받음. 아래 계약은 04 §2.1/§4.2 로 이행 완료 — variance floor·flag 제외(G1)·config 검증(G4) 포함.
 
 | 4단계 필요 필드 | 본 단계 출력 | 비고 |
 |---|---|---|

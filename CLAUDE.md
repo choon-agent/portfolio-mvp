@@ -16,10 +16,10 @@ LLM 에이전트 오케스트레이션을 활용한 주식 포트폴리오 관�
 - **주요 서비스**: Lambda, S3, Athena, EventBridge, Step Functions
 - **데이터 소스**: Financial Modeling Prep (FMP) API
 - **LLM**: Anthropic Claude API (Sonnet 4.6 기본, Haiku 4.5 폴백)
-- **IaC**: Plain ASL JSON + AWS CLI 스크립트 (M1 — `infra/step_functions/`, `scripts/deploy_step_functions.sh`). SAM/CDK 재검토는 M2 이후 워크플로우 복잡도 증가 시점.
+- **IaC**: Plain ASL JSON + AWS CLI 스크립트 (`infra/step_functions/`, `scripts/deploy_step_functions.sh`). Lambda 는 zip(`deploy_lambda.sh`) + **컨테이너 이미지**(`deploy_lambda_container.sh` — run_optimizer, numpy/scipy 계열이 zip 50MB 초과. infra/README 참조). SAM/CDK 재검토는 보류 중.
 - **테스트**: pytest (단위 테스트). 통합 테스트(moto/AWS 모킹)는 M2 이후 도입 예정.
 - **LLM 응답 품질 평가**: DeepEval G-Eval (judge = Sonnet 4.6, 기본 3 criteria — `docs/02-bull-bear.md §11.5` baseline). PoC 단계는 로컬 pytest, M3+ Lambda 자동화 예정.
-- **의존성 관리**: `requirements.txt` (Lambda 번들) + `requirements-dev.txt` (로컬 — pytest, boto3, deepeval) 분리
+- **의존성 관리**: `requirements.txt` (zip Lambda 번들) + `requirements-dev.txt` (로컬 — pytest, boto3, deepeval, PyPortfolioOpt) + `infra/docker/optimizer-requirements.txt` (컨테이너 전용) 분리
 
 ## 디렉토리 구조 (목표)
 
@@ -113,7 +113,7 @@ portfolio-mvp/
 - 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (작성 중)
 - 외부: FMP API 문서, Anthropic API 문서, AWS Lambda 문서
 
-## 현재 단계 (M3 후반 — 2026-08-10 기준)
+## 현재 단계 (M3 후반 + 4단계 운영 — 2026-08-17 기준)
 
 - [x] M0 기반 (Charter / Repo / CLAUDE.md / README / 스캐폴딩 / FMP 캐싱 계층)
 - [x] **M1 — 1단계 스크리닝 (코드 기반) — 완료·운영 중**

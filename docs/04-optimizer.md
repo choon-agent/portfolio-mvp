@@ -4,8 +4,13 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/03-scenario.md`](03-scenario.md) — 본 단계 입력원 (부록 B 인터페이스 계약), 운영 중
 > **후행 문서**: `docs/05-rebalancing.md` (작성 예정) — 본 단계 출력(`TargetPortfolio`)을 입력으로 받음
-> **버전**: v0.2 (2026-08-10)
-> **상태**: **설계 확정 — 구현 대기** (구현 순서 §11)
+> **버전**: v0.3 (2026-08-17)
+> **상태**: **구현 완료 (#1~#8) · 자동 운영 중** — 2026-08-17 정기 실행부터 1~4단계 자동
+>
+> **v0.3 변경 (구현 완료·운영 편입)**:
+> ① §11 #1~#8 전부 완료 (커밋 1965024~e33a5eb) — `src/optimizer/` 5모듈 + 테스트 24건, `run_optimizer` **컨테이너 Lambda** (ECR — 컨테이너 방침 첫 적용, colima 빌드 함정 3건 infra/README 박제), ASL `RunOptimizer` state (실패 비승격 Catch).
+> ② 08-17 첫 자동 산출: 후보 7 → **현금 규칙 첫 발동** (invest 70%), 6종목, primary ER 2.10% vs 옵션 B baseline 2.51% (§1.4.2 #3 축적 시작). DD 는 G1 flag 로 제외 — 게이트 설계 검증.
+> ③ 주의: run_optimizer 는 CI zip 매트릭스 제외 — 코드 변경 시 로컬 `scripts/deploy_lambda_container.sh` (infra/README).
 >
 > **v0.2 변경 (설계 확정)**:
 > ① §9 검토 포인트 3건 사용자 승인 — 종목 상한 **15% 확정** (08-10 실데이터 dry-run 근거: 20% 는 포지션 하한 미달 + 집중 증가, ER 이득 무의미), VAR_FLOOR 0.0025·corr 252d·shrinkage λ=0.2 제안값으로 시작 (구현 후 9주 재실행 재검증), hysteresis 는 5단계 소관 확정.
@@ -259,12 +264,12 @@ infra/docker/optimizer.Dockerfile
 
 ## 11. 구현 순서 (커밋 단위)
 
-1. **schemas.py** — TargetPortfolio/OptimizerBundle + 단위 테스트
-2. **covariance.py** — 하이브리드 Σ + floor + PSD (순수 함수) + 테스트
-3. **optimize.py** — MV + 제약 + 후처리 + 현금 규칙 + 테스트 (PyPortfolioOpt 로컬 의존 — `requirements-dev.txt`)
-4. **baseline.py** — 옵션 B 확률 매핑 + 테스트
-5. **data_loader.py + lambda_core.py** — S3 조립 + 게이트 + 저장 + 목 테스트
-6. **로컬 dry-run** — 최근 주차(dt=2026-08-10) 실데이터로 스크립트 실행 → 산출 검토 (§9 파라미터 1차 확정)
+1. ✅ **schemas.py** (1965024) — TargetPortfolio/OptimizerBundle + 단위 테스트
+2. ✅ **covariance.py** (83428c2) — 하이브리드 Σ + floor + PSD (순수 함수) + 테스트
+3. ✅ **optimize.py** (5f456a1) — MV + 제약 + 후처리 + 현금 규칙 + 테스트. 제약 의미론 확정: 3%/15%/35% 는 *최종(총자산 대비)* 비중 기준 (부분 투자 시 bound 를 /invest 환산)
+4. ✅ **baseline.py** (6f537df) — 옵션 B 확률 매핑 (confidence low/med/high→1/2/3) + 테스트
+5. ✅ **data_loader.py + lambda_core.py** (6e6d599) — S3 조립 + 게이트 + 저장 + 목 테스트
+6. ✅ **로컬 dry-run** (0ddeb07) — `scripts/run_optimizer_dry.py`, 08-10 실데이터 검증 (§9 파라미터 1차 확정, 컨테이너 invoke 와 동일 산출 = 결정성 확인)
 7. ✅ **컨테이너 인프라** (2026-08-11) — `infra/docker/optimizer.Dockerfile` + ECR `portfolio-mvp/run_optimizer` + `scripts/deploy_lambda_container.sh` (빌드 스모크 포함 — packaging/screening 누락 2건 배포 전 검출) + Lambda 생성·invoke 검증 (dry-run 과 동일 산출, `portfolios/dt=2026-08-10/` 첫 기록). colima 빌드 함정 3건 infra/README 박제
 8. ✅ **ASL RunOptimizer state 추가** (2026-08-17) — ScenarioMap 에 ResultPath 부여 후 Next 체이닝, Catch→RecordOptimizerFailure (실패는 파이프라인 실패로 승격 안 함 — 3단계 산출 보존), step-functions policy v5 (run_optimizer invoke). E2E SUCCEEDED — **단, 과거 as_of dry-run 이 dt=2026-08-10 파티션을 오염시킨 사고 있음** (retro §0.5 08-17, infra/README 경고 박제). 2026-08-17 정기 실행부터 1~4단계 자동 운영
 

@@ -4,7 +4,7 @@
 > S&P 500 유니버스, 주 1회 리밸런싱, Bull/Bear 에이전트 기반 종목 리서치.
 
 **기간**: 2026-04-20 ~ 2026-10-20 (6개월 MVP)
-**현재 단계**: **M3 운영 중 — 1·2·3단계 자동 운영 (스크리닝 + Bull/Bear + 시나리오 모델링). 4~5단계(최적화·리밸런싱) 다음**
+**현재 단계**: **1~4단계 자동 운영 중 (스크리닝 + Bull/Bear + 시나리오 + 포트폴리오 최적화). 5단계(리밸런싱) 설계 다음**
 
 ---
 
@@ -32,20 +32,20 @@
        ↓
 [3] 시나리오 모델링   ✅ 운영 (M3) — LLM 은 narrative·확률·트리거만, 가격은 결정적 산식
        ↓
-[4] 포트폴리오 최적화  ⏳ 다음 — PyPortfolioOpt 등 (LLM 사용 X)
+[4] 포트폴리오 최적화  ✅ 운영 — PyPortfolioOpt MV + 현금 규칙, 컨테이너 Lambda (LLM 사용 X)
        ↓
 [5] 리밸런싱          ⏳ 다음 — 룰 기반 매매, LLM 은 근거 생성만
 ```
 
 유니버스 10~15 종목, 섹터당 ≤35%, 월 LLM 비용 상한 $200.
 
-**현재 운영 상태** (M3 운영 중, 2026-08-10):
-- 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` (Bull/Bear Parallel) → `ScenarioMap` (시나리오) → S3 저장
-- 시나리오 4주 운영 회고 합격 (성공 100%, 재시도 0%, 주간 비용 ~**$0.36**) 후 자동 운영 지속. 상세 주차별 로그: `docs/03-scenario-retro.md §0.5`
-- 결정성 정책 100% (Bull/Bear `context_input_hash`, 시나리오 `scenario_input_hash` — 동일 입력 재호출 시 LLM 호출 0회)
-- 옵션 C: LLM ≠ 가격 산정 분리 — LLM 은 확률·narrative·무효화 트리거만, scenario_prices 는 결정적 산식. v0.17 부터 base·bear 가격 모두 현재가 cap (가격 역전 차단)
+**현재 운영 상태** (1~4단계 자동 운영, 2026-08-17):
+- 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` → `ScenarioMap` → **`RunOptimizer`** → S3 `portfolios/dt=.../target.json` (목표 비중)
+- LLM 비용 ~$0.4~1.1/주 (턴오버에 따른 캐시 미스 폭). 4단계는 LLM 0 — PyPortfolioOpt MV + CHARTER 제약(10~15종목·종목 ≤15%·섹터 ≤35%) + **현금 규칙** (양수 기대수익 후보 부족 시 부분 투자)
+- 옵션 C: LLM ≠ 가격 산정 분리 — LLM 은 확률·narrative·무효화 트리거만, 가격은 결정적 산식 + base·bear 현재가 cap (v0.17). 옵션 B baseline 포트폴리오 병렬 산출로 A/B 측정 중
+- `run_optimizer` 는 **컨테이너 이미지 Lambda** (ECR — numpy/scipy 계열이 zip 50MB 한계 초과)
 - 트리거 자동 검증(#13) 로컬 배치 가동 — 분기 발표 후 tripwire 채점 + 확률 calibration 을 S3 `trigger_evaluations/` 에 누적 (observe-only)
-- 다음: 4단계 최적화 설계 (`docs/04-optimizer.md`) — bear semantics 선행 조건 해소로 착수 가능
+- 다음: 5단계 리밸런싱 설계 (`docs/05-rebalancing.md`) — 목표 비중 → 페이퍼 매매 변환
 
 ---
 
@@ -487,8 +487,9 @@ git push origin main
 - **단계별 설계**:
   - [docs/01-screening.md](docs/01-screening.md) ✅ M1 운영
   - [docs/02-bull-bear.md](docs/02-bull-bear.md) v0.8 ✅ M2 운영
-  - [docs/03-scenario.md](docs/03-scenario.md) v0.14 ✅ M3 운영 + [docs/03-scenario-retro.md](docs/03-scenario-retro.md) (4주 회고)
-  - `docs/04-optimizer.md` / `docs/05-rebalancing.md` (작성 예정)
+  - [docs/03-scenario.md](docs/03-scenario.md) v0.17 ✅ M3 운영 + [docs/03-scenario-retro.md](docs/03-scenario-retro.md) (운영 로그·회고)
+  - [docs/04-optimizer.md](docs/04-optimizer.md) v0.3 ✅ 운영 (MV 최적화, 컨테이너 Lambda)
+  - `docs/05-rebalancing.md` (작성 예정)
 - **외부**:
   - [FMP Stable API](https://site.financialmodelingprep.com/developer/docs/stable)
   - [Anthropic API](https://docs.anthropic.com/)

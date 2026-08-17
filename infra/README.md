@@ -19,11 +19,14 @@ M2 이후 워크플로우가 복잡해지면 SAM 또는 CDK 로 이전 검토 (C
 
 | 리소스 | 이름 (기본) | 용도 |
 |---|---|---|
-| Lambda | `portfolio-mvp-run_screening` | 스크리닝 실행 — `pipeline.run_screening` |
-| Step Functions | `portfolio-mvp-screening` | run_screening 호출 + 재시도. M2 에 Bull/Bear Map 추가 예정 |
+| Lambda (zip ×6) | `portfolio-mvp-{run_screening, agent_bullbear_bull/bear, agent_scenario, update_constituents, update_ohlcv}` | 1~3단계 + 데이터 갱신 (`deploy_lambda.sh`) |
+| Lambda (**컨테이너**) | `portfolio-mvp-run_optimizer` | 4단계 최적화 — 아래 컨테이너 절 (`deploy_lambda_container.sh`) |
+| ECR | `portfolio-mvp/run_optimizer` | optimizer 이미지 (태그 = git SHA) |
+| Step Functions | `portfolio-mvp-screening` | `RunScreening → BullBearMap → ScenarioMap → RunOptimizer` (1~4단계 체인) |
 | EventBridge Rule | `portfolio-mvp-weekly-screening` | Mon 06:00 ET (11:00 UTC) cron 트리거 |
-| IAM Role (Lambda) | `portfolio-mvp-run_screening-role` | Lambda 실행 (S3, Secrets) |
-| IAM Role (Step Functions) | `portfolio-mvp-step-functions-role` | Lambda invoke |
+| EventBridge Scheduler ×2 | `portfolio-mvp-update-{constituents-weekly, ohlcv-daily}-scheduler` | 데이터 갱신 |
+| IAM Role (Lambda) | `portfolio-mvp-run_screening-role` | Lambda 실행 (S3, Secrets) — 전 함수 공유 계열 |
+| IAM Role (Step Functions) | `portfolio-mvp-step-functions-role` | Lambda invoke (managed policy v5 — 5개 함수) |
 | IAM Role (EventBridge) | `portfolio-mvp-eventbridge-role` | Step Functions startExecution |
 
 ## 배포 순서
@@ -435,7 +438,11 @@ aws s3 cp s3://<S3_BUCKET>/screening/dt=2026-05-04/result.json -
 | EventBridge 가 발화하지만 Step Functions 미실행 | EventBridge role 의 states:StartExecution 권한 확인 |
 | Lambda 타임아웃 (15분 초과) | 분기 발표 시즌의 첫 실행이면 정상 (캐시 일괄 채움). 이후 주는 정상 시간 회복. 반복되면 Lambda 메모리 ↑ |
 
-## 다음 (M2 예정)
+## 다음
 
-- Step Functions 정의에 Bull/Bear Map state 추가 → `screening_workflow.asl.json` 만 갱신, 스크립트 동일
-- 비용·실행시간 누적 데이터 후 SAM/CDK 이전 결정
+- ~~M2 Bull/Bear Map~~ / ~~M3 ScenarioMap~~ / ~~M4 RunOptimizer~~ — 완료 (1~4단계 체인 운영 중)
+- **5단계 리밸런싱** (`docs/05-rebalancing.md` 설계 예정) — `portfolios/dt=.../target.json` 소비
+- **S3 versioning 활성화 검토** — 2026-08-17 파티션 오염 사고(원본 소실)의 재발 방지 안전망
+- **CI 컨테이너 자동화 검토** — run_optimizer docker build + ECR push (OIDC role 에 ecr 권한 필요)
+- #13 trigger batch Lambda 자동화 결정 (`docs/03-scenario.md §12.2 D`)
+- 비용·실행시간 누적 데이터 후 SAM/CDK 이전 결정 (보류 중)
