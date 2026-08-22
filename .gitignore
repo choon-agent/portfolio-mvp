@@ -31,3 +31,5 @@ build/
 
 # 회고 데이터 로컬 산출물 (retro §2 다운로드 + trigger batch 결과)
 retro_data/
+
+.claude/
