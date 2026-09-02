@@ -1,26 +1,45 @@
 #!/usr/bin/env bash
-# 컨테이너 이미지 Lambda 빌드·푸시·배포 — run_optimizer (04 §7.2, 컨테이너 방침 첫 적용)
+# 컨테이너 이미지 Lambda 빌드·푸시·배포 — run_optimizer (04 §7.2) / run_rebalancer (05 §7.2)
 #
 # 사용법:
-#   scripts/deploy_lambda_container.sh [<aws_function_name>]
-#   (기본: portfolio-mvp-run_optimizer)
+#   scripts/deploy_lambda_container.sh [optimizer|rebalancer] [<aws_function_name>]
+#   (기본: optimizer / portfolio-mvp-run_<component>)
+#   기존 호출 하위 호환: 첫 인자가 component 가 아니면 함수명으로 해석 (optimizer)
 #
 # 흐름:
-#   1. ECR 리포 없으면 생성 (portfolio-mvp/run_optimizer)
+#   1. ECR 리포 없으면 생성 (portfolio-mvp/run_<component>)
 #   2. docker build (linux/amd64) — git SHA 태그
 #   3. 빌드 스모크: 컨테이너 안에서 핵심 import 검증 (pyarrow 사고 교훈 —
 #      배포 전에 import 깨짐을 잡는다)
 #   4. ECR push
 #   5. Lambda 함수 없으면 create (Image 패키지, run_screening role 재사용,
-#      timeout 300 / memory 1024 — 04 §7.2), 있으면 update-function-code
+#      timeout/memory 는 component 별 — 04 §7.2 / 05 §7.2), 있으면 update-function-code
 #
 # 전제: Docker daemon 실행 중, AWS CLI 자격 증명.
 
 set -euo pipefail
 
-FUNCTION_NAME=${1:-portfolio-mvp-run_optimizer}
+COMPONENT=optimizer
+if [[ "${1:-}" == "optimizer" || "${1:-}" == "rebalancer" ]]; then
+  COMPONENT=$1
+  shift
+fi
+case "$COMPONENT" in
+  optimizer)
+    DOCKERFILE="infra/docker/optimizer.Dockerfile"
+    SMOKE="import pypfopt, pyarrow, pandas, numpy; import lambdas.run_optimizer.handler; print('smoke OK')"
+    TIMEOUT=300; MEMORY=1024
+    ;;
+  rebalancer)
+    DOCKERFILE="infra/docker/rebalancer.Dockerfile"
+    SMOKE="import pyarrow, pandas; import rebalancer.schemas, rebalancer.trade_rules; import lambdas.run_rebalancer.handler; print('smoke OK')"
+    TIMEOUT=120; MEMORY=512
+    ;;
+esac
+
+FUNCTION_NAME=${1:-portfolio-mvp-run_$COMPONENT}
 REGION=${AWS_REGION:-ap-northeast-2}
-REPO="portfolio-mvp/run_optimizer"
+REPO="portfolio-mvp/run_$COMPONENT"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TAG="$(git -C "$ROOT" rev-parse --short HEAD)"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
@@ -37,11 +56,11 @@ echo "==> docker build (linux/amd64) — tag $TAG"
 # 미지원 ("image manifest ... media type not supported") — 단일 매니페스트 강제.
 # buildx 플러그인 필요 (레거시 빌더는 cross-platform export 버그).
 docker build --platform linux/amd64 --provenance=false --sbom=false \
-  -f "$ROOT/infra/docker/optimizer.Dockerfile" -t "$REPO:$TAG" "$ROOT"
+  -f "$ROOT/$DOCKERFILE" -t "$REPO:$TAG" "$ROOT"
 
 echo "==> 빌드 스모크 (컨테이너 내 import 검증)"
 docker run --rm --platform linux/amd64 --entrypoint python "$REPO:$TAG" \
-  -c "import pypfopt, pyarrow, pandas, numpy; import lambdas.run_optimizer.handler; print('smoke OK')"
+  -c "$SMOKE"
 
 echo "==> ECR push: $IMAGE_URI"
 aws ecr get-login-password --region "$REGION" \
@@ -63,7 +82,7 @@ else
           --region "$REGION" --query 'Environment.Variables.S3_BUCKET' --output text)"
   aws lambda create-function --function-name "$FUNCTION_NAME" \
     --package-type Image --code ImageUri="$IMAGE_URI" \
-    --role "$ROLE" --timeout 300 --memory-size 1024 \
+    --role "$ROLE" --timeout "$TIMEOUT" --memory-size "$MEMORY" \
     --environment "Variables={S3_BUCKET=$BUCKET,LOG_LEVEL=INFO}" \
     --architectures x86_64 --region "$REGION" --no-cli-pager \
     --query "[FunctionName,State]" --output text

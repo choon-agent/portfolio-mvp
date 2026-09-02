@@ -10,6 +10,8 @@
   FMP_SECRET_ID       — 필수
   CONSTITUENTS_PREFIX — 기본 "metadata/constituents"
   OHLCV_PREFIX        — 기본 "ohlcv"
+  EXTRA_SYMBOLS       — 기본 "SPY" (쉼표 구분) — 구성종목 외 추가 수집.
+                        SPY 는 5단계 벤치마크 (docs/05-rebalancing.md §6, 검토 포인트 ④)
   LOG_LEVEL           — 기본 "INFO"
 
 IAM 요구사항:
@@ -69,7 +71,10 @@ def _load_symbols(cfg: dict[str, str]) -> list[str]:
             "bootstrap 스냅샷을 생성하세요."
         )
     constituents = arrow_to_constituents(table)
-    return sorted({c.symbol for c in constituents if c.is_current})
+    extra = {
+        s.strip() for s in os.environ.get("EXTRA_SYMBOLS", "SPY").split(",") if s.strip()
+    }
+    return sorted({c.symbol for c in constituents if c.is_current} | extra)
 
 
 # ---------- 핸들러 ----------
