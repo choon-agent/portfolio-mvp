@@ -93,7 +93,7 @@ class TargetPortfolio(BaseModel):
 
 class OptimizerBundle(BaseModel):
     primary: TargetPortfolio                   # 옵션 C (시나리오 ER) — 5단계 실제 입력
-    option_b_baseline: TargetPortfolio | None  # §6 — 비교용, 5단계 미사용
+    option_b_baseline: TargetPortfolio | None  # §6 — 비교용 (05 v0.2: option_b 페이퍼 계좌가 소비)
 ```
 
 저장: `s3://{bucket}/portfolios/dt={D}/target.json` (5단계 입력 계약 — 부록 A)
@@ -201,8 +201,8 @@ ER_b_i = compute_expected_return(확률만 교체, 같은 scenario_prices·confi
 ```
 
 - 추가 LLM 비용 0 (기존 opinion 재사용). `OptimizerBundle.option_b_baseline` 에 저장
-- 5단계는 primary 만 소비 — baseline 은 M3 말 12주 회고에서 두 포트폴리오의 가상
-  수익률 비교로만 사용 (observe-only)
+- baseline 은 observe-only — 05 v0.2 부터 option_b 페이퍼 계좌(동일 매매 규칙)가
+  소비해 **실현 수익률** 트랙 축적 (05 §3.6). 실전 전환 대상은 여전히 primary 만
 
 ## 7. 오케스트레이션·패키징
 
@@ -252,7 +252,7 @@ infra/docker/optimizer.Dockerfile
 - [ ] **목적함수 A/B** (max Sharpe vs min vol) — §1.4.2 #3 측정 자리잡은 후
 - [ ] **시간 지평 정합** (§4.1) — 시나리오 ER (~13주) vs 일간 상관 혼합의 이론적 비정합. v1 은 상대 비교 목적으로 수용, 정밀화는 v2
 - [ ] **Ledoit-Wolf shrinkage** — v1 단순 λ 고정의 상위 호환
-- [ ] **5단계 계약 확정** — 부록 A 는 초안, `docs/05-rebalancing.md` 설계 시 상호 확정
+- [x] **5단계 계약 확정** — `docs/05-rebalancing.md` v0.2 (2026-09-03) 와 상호 확정: 목표 부재 = 보유 유지 (05 §5 G1), option_b_baseline 도 5단계 소비 (05 §3.6), 금액 환산은 NAV 기준 소수점 주식 (05 §3.3). 부록 A 확정 표기
 
 ## 10. 테스트 전략 (CLAUDE.md 준수)
 
@@ -273,11 +273,11 @@ infra/docker/optimizer.Dockerfile
 7. ✅ **컨테이너 인프라** (2026-08-11) — `infra/docker/optimizer.Dockerfile` + ECR `portfolio-mvp/run_optimizer` + `scripts/deploy_lambda_container.sh` (빌드 스모크 포함 — packaging/screening 누락 2건 배포 전 검출) + Lambda 생성·invoke 검증 (dry-run 과 동일 산출, `portfolios/dt=2026-08-10/` 첫 기록). colima 빌드 함정 3건 infra/README 박제
 8. ✅ **ASL RunOptimizer state 추가** (2026-08-17) — ScenarioMap 에 ResultPath 부여 후 Next 체이닝, Catch→RecordOptimizerFailure (실패는 파이프라인 실패로 승격 안 함 — 3단계 산출 보존), step-functions policy v5 (run_optimizer invoke). E2E SUCCEEDED — **단, 과거 as_of dry-run 이 dt=2026-08-10 파티션을 오염시킨 사고 있음** (retro §0.5 08-17, infra/README 경고 박제). 2026-08-17 정기 실행부터 1~4단계 자동 운영
 
-## 부록 A. 5단계 (리밸런싱) 인터페이스 계약 (초안)
+## 부록 A. 5단계 (리밸런싱) 인터페이스 계약 (확정 — 05 v0.2, 2026-09-03)
 
 | 5단계 필요 | 본 단계 출력 | 비고 |
 |---|---|---|
-| 목표 비중 | `OptimizerBundle.primary.weights` + `cash_weight` | dt 파티션 |
-| 목표 부재 처리 | `portfolios/dt=D/target.json` 미존재 | "보유 유지" (5단계 설계에서 확정) |
-| 재현 lineage | `pricing_config_hash` / `covariance_params` / `excluded` | 감사·회고 |
-| 페이퍼 금액 환산 | 비중 × $10,000 / 주가 | **5단계 소관** (단주 처리 포함) |
+| 목표 비중 | `OptimizerBundle.primary.weights` + `cash_weight` | dt 파티션. **option_b_baseline 도 5단계가 소비** (option_b 계좌 — 05 §3.6, observe-only 유지) |
+| 목표 부재 처리 | `portfolios/dt=D/target.json` 미존재 | **"보유 유지" 확정** (05 §5 G1) |
+| 재현 lineage | `pricing_config_hash` / `covariance_params` / `excluded` | 감사·회고. 5단계 스냅샷이 `target_dt` 로 역참조 |
+| 페이퍼 금액 환산 | 비중 × NAV / 주가 | **5단계 소관** — 소수점 주식으로 단주 해소, NAV 기준 (고정 $10,000 아님 — 05 §3.2~3.3, 부록 A) |
