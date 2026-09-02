@@ -113,7 +113,7 @@ portfolio-mvp/
 - 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (작성 중)
 - 외부: FMP API 문서, Anthropic API 문서, AWS Lambda 문서
 
-## 현재 단계 (M3 후반 + 4단계 운영 — 2026-08-17 기준)
+## 현재 단계 (M3 후반 + 4·5단계 운영 — 2026-09-03 기준)
 
 - [x] M0 기반 (Charter / Repo / CLAUDE.md / README / 스캐폴딩 / FMP 캐싱 계층)
 - [x] **M1 — 1단계 스크리닝 (코드 기반) — 완료·운영 중**
@@ -133,10 +133,14 @@ portfolio-mvp/
   - **남은 작업**: #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval baseline /
     §12.3 (d) 극소 EPS 가드 (빈도 관찰 중)
 - [x] **4단계 최적화 — 구현 완료·자동 운영 편입 (2026-08-17)**
-  - `docs/04-optimizer.md` v0.2 / `src/optimizer/` 5모듈 + `run_optimizer` **컨테이너
+  - `docs/04-optimizer.md` v0.3 / `src/optimizer/` 5모듈 + `run_optimizer` **컨테이너
     Lambda** (ECR, 컨테이너 방침 첫 적용) / ASL RunOptimizer state (2026-08-17
-    정기 실행부터 1~4단계 자동). 옵션 B baseline 병렬 산출 (§1.4.2 #3).
-    다음: `docs/05-rebalancing.md` 5단계 설계
+    정기 실행부터 1~4단계 자동). 옵션 B baseline 병렬 산출 (§1.4.2 #3)
+- [x] **5단계 리밸런싱 — 구현 완료·배포 (2026-09-03)**
+  - `docs/05-rebalancing.md` v0.3 / `src/rebalancer/` 4모듈 + `run_rebalancer`
+    전용 컨테이너 Lambda + ASL RunRebalancer (09-07 정기 실행부터 **1~5단계 자동**).
+    페이퍼 계좌 2개 병렬 (primary + option_b — §1.4.2 #3 실현수익률 트랙),
+    08-17 백필 씨딩 완료. no-trade band 1.5%p + 범위 밖 면제, SPY 벤치마크 수집
 
 미해결 디자인 채무: M1 은 `docs/01-screening.md §10`, M3 은 `docs/03-scenario.md
 §12` (12.2 잔여 1 [~D] / 12.3 데이터 게이트 잔여 / 12.4 v2 3) 참조.

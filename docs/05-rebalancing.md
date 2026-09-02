@@ -3,8 +3,18 @@
 > **단계**: 5단계 — 리밸런싱 오케스트레이터 (**매매 결정 LLM ❌** — CHARTER §3.3 룰 기반. LLM "근거/요약 생성"은 v2 이월 §9)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/04-optimizer.md`](04-optimizer.md) — 본 단계 입력원 (부록 A 인터페이스 계약), 운영 중
-> **버전**: v0.2 (2026-09-03) — **설계 확정** (§8 검토 포인트 ①~⑤ 전건 사용자 승인)
-> **상태**: 설계 확정 — 구현 착수 (§10 순서)
+> **버전**: v0.3 (2026-09-03) — **구현 완료 (#1~#8) · 배포됨** — 2026-09-07 정기 실행부터 1~5단계 자동
+> **상태**: 운영 대기 (전 구간 E2E 는 09-07 정기 실행에서 확인 — 수동 as_of 실행 금지 교훈)
+>
+> **v0.3 변경 (구현 완료·배포)**:
+> ① §10 #1~#8 전부 완료 (커밋 ff83d59~) — `src/rebalancer/` 4모듈 + 테스트 42건,
+>   `run_rebalancer` 전용 컨테이너 Lambda (ECR, 512MB/120s) + ASL `RunRebalancer`
+>   (RecordOptimizerFailure 경로 포함 체이닝, step-functions policy v6), SPY 수집
+>   (update_ohlcv `EXTRA_SYMBOLS`, 2021-09~ 5년치 확보), CI zip 매트릭스 제외 등록.
+> ② **백필 완료 (§4.1)**: 08-17 씨딩 → 3주 리플레이 S3 박제. 실현 성과 (08-31 기준):
+>   primary NAV $9,542.76 (-4.57%) / option_b $9,551.84 (-4.48%) / SPY 동일 2주 -0.73%
+>   — §1.4.2 #3 실현수익률 트랙 가동 (08-31 주 -4.7% 급락이 지배적, 표본 2주 해석 주의).
+> ③ Lambda 단독 invoke 검증: 최신 dt 자동 결정 + 백필 스냅샷 멱등 skip 확인.
 >
 > **v0.2 확정 사항 5건** (§8 검토 포인트 — 2026-09-03 사용자 승인):
 > ① 체결 모델 = **직전 거래일(금요일) adj_close 를 체결가로 기록, 수수료·슬리피지 0, 소수점 주식 허용** (look-ahead 없음·재현성 우선)
@@ -308,18 +318,17 @@ scripts/run_rebalancer_dry.py     # 로컬 dry-run + 백필(--replay-from) + --f
 
 ## 10. 구현 순서 (커밋 단위)
 
-1. **schemas.py** — §2.2 모델 + 불변식 validator + 단위 테스트. (+ 04 부록 A 확정 반영)
-2. **trade_rules.py** — §3 순수 함수 (band·매도우선·비례축소·전량매도) + 테스트
-   (소형 fixture: 초기화·미세조정 스킵·종목 교체·후보 0·현금 부족 케이스)
-3. **performance.py** — §6 수익률·TE + 테스트
-4. **pricing.py + lambda_core.py** — S3 조립 + G1~G4 + 계좌 루프 + 목 테스트
-   (기존 fake store 패턴 재사용)
-5. **로컬 dry-run** — `scripts/run_rebalancer_dry.py`, 08-17~최신 주차 리플레이 검증
-6. **update_ohlcv 에 SPY 추가** + `rebalancer.Dockerfile`/ECR 리포지토리 생성 +
-   `deploy_lambda_container.sh` 로 빌드·배포 (import 스모크 포함) + invoke 검증
-7. **백필 실행** — §4.1 리플레이로 두 계좌 씨딩 (S3 박제, `--force` 경로 검증 겸)
-8. **ASL RunRebalancer state 추가** — §7.1 체이닝 (RecordOptimizerFailure 경로 포함)
-   + step-functions policy 갱신 + E2E. 다음 정기 실행부터 1~5단계 자동
+1. ✅ **schemas.py** (3f15d3c) — §2.2 모델 + 불변식 validator + 테스트 16건 (+ 04 부록 A 확정 ff83d59)
+2. ✅ **trade_rules.py** (28e3169) — §3 순수 함수 + 테스트 12건
+3. ✅ **performance.py** (3a4b220) — §6 수익률·TE + 테스트 6건
+4. ✅ **pricing.py + lambda_core.py** (afb8db4) — S3 조립 + G1~G4 + 계좌 루프 + 목 테스트 8건
+5. ✅ **로컬 dry-run** (3d69c50) — `scripts/run_rebalancer_dry.py`, 4주 리플레이 검증
+6. ✅ **SPY + 컨테이너 인프라** (e8c95ff) — update_ohlcv `EXTRA_SYMBOLS` / ECR
+   `portfolio-mvp/run_rebalancer` / Lambda 생성·invoke 검증 (colima 함정 #1 재확인 —
+   임시 DOCKER_CONFIG 로 우회)
+7. ✅ **백필 실행** (2026-09-03) — 08-17~08-31 두 계좌 씨딩 S3 박제 (v0.3 헤더 ②)
+8. ✅ **ASL RunRebalancer state** (1835525) — §7.1 체이닝 + policy v6 + CI zip 제외.
+   전 구간 E2E 는 09-07 정기 실행에서 확인 (수동 as_of 실행 금지 — 08-17 오염 교훈)
 
 ## 부록 A. 상류(4단계) 인터페이스 계약 — 확정
 

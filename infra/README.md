@@ -20,9 +20,9 @@ M2 이후 워크플로우가 복잡해지면 SAM 또는 CDK 로 이전 검토 (C
 | 리소스 | 이름 (기본) | 용도 |
 |---|---|---|
 | Lambda (zip ×6) | `portfolio-mvp-{run_screening, agent_bullbear_bull/bear, agent_scenario, update_constituents, update_ohlcv}` | 1~3단계 + 데이터 갱신 (`deploy_lambda.sh`) |
-| Lambda (**컨테이너**) | `portfolio-mvp-run_optimizer` | 4단계 최적화 — 아래 컨테이너 절 (`deploy_lambda_container.sh`) |
-| ECR | `portfolio-mvp/run_optimizer` | optimizer 이미지 (태그 = git SHA) |
-| Step Functions | `portfolio-mvp-screening` | `RunScreening → BullBearMap → ScenarioMap → RunOptimizer` (1~4단계 체인) |
+| Lambda (**컨테이너** ×2) | `portfolio-mvp-{run_optimizer, run_rebalancer}` | 4단계 최적화 / 5단계 리밸런싱 — 아래 컨테이너 절 (`deploy_lambda_container.sh [optimizer|rebalancer]`) |
+| ECR ×2 | `portfolio-mvp/{run_optimizer, run_rebalancer}` | 컨테이너 이미지 (태그 = git SHA) |
+| Step Functions | `portfolio-mvp-screening` | `RunScreening → BullBearMap → ScenarioMap → RunOptimizer → RunRebalancer` (1~5단계 체인) |
 | EventBridge Rule | `portfolio-mvp-weekly-screening` | Mon 06:00 ET (11:00 UTC) cron 트리거 |
 | EventBridge Scheduler ×2 | `portfolio-mvp-update-{constituents-weekly, ohlcv-daily}-scheduler` | 데이터 갱신 |
 | IAM Role (Lambda) | `portfolio-mvp-run_screening-role` | Lambda 실행 (S3, Secrets) — 전 함수 공유 계열 |
@@ -322,24 +322,25 @@ aws lambda create-function --region $REGION \
 `portfolio-mvp-agent_scenario` 의 `lambda:InvokeFunction` 권한도 추가해야 ScenarioMap
 이 호출할 수 있다 (§4-2 role 의 Resource 목록에 추가).
 
-## 컨테이너 이미지 Lambda — run_optimizer (4단계, 컨테이너 방침 첫 적용)
+## 컨테이너 이미지 Lambda — run_optimizer (4단계) / run_rebalancer (5단계)
 
-`portfolio-mvp-run_optimizer` 는 **zip 이 아닌 컨테이너 이미지** 함수다
-(numpy/scipy/cvxpy/PyPortfolioOpt 로 50MB zip 한계 초과 — 위 "배포 패키지 크기"
-방침 발동, `docs/04-optimizer.md §7.2`).
+`portfolio-mvp-run_optimizer` 와 `portfolio-mvp-run_rebalancer` 는 **zip 이 아닌
+컨테이너 이미지** 함수다 (optimizer 는 numpy/scipy/cvxpy 50MB 초과, rebalancer 는
+pyarrow — zip 슬리밍 사고 전례로 컨테이너, `docs/05-rebalancing.md §7.2`).
+배포는 공용 스크립트에 component 인자: `scripts/deploy_lambda_container.sh [optimizer|rebalancer]`.
 
-| 항목 | 값 |
-|---|---|
-| ECR 리포 | `portfolio-mvp/run_optimizer` (이미지 태그 = git short SHA) |
-| Dockerfile | `infra/docker/optimizer.Dockerfile` (+ `optimizer-requirements.txt`) |
-| 배포 | `scripts/deploy_lambda_container.sh` — 리포 생성→빌드→**스모크**→push→create/update |
-| Role | run_screening role 재사용 (S3 + CloudWatch — FMP/Anthropic 시크릿 불필요) |
-| 설정 | Memory 1024 / Timeout 300 / env `S3_BUCKET` / x86_64 |
+| 항목 | run_optimizer | run_rebalancer |
+|---|---|---|
+| ECR 리포 (태그 = git SHA) | `portfolio-mvp/run_optimizer` | `portfolio-mvp/run_rebalancer` |
+| Dockerfile | `infra/docker/optimizer.Dockerfile` | `infra/docker/rebalancer.Dockerfile` (경량 — cvxpy 불필요) |
+| Role | run_screening role 재사용 (S3 + CloudWatch — FMP/Anthropic 시크릿 불필요) | 동일 |
+| 설정 | Memory 1024 / Timeout 300 | Memory 512 / Timeout 120 |
+| env | `S3_BUCKET` | `S3_BUCKET` (+선택 `REBALANCE_BAND`/`INITIAL_CASH`/`ACCOUNTS_PREFIX`) |
 
 **CI 주의**: `deploy-lambdas.yml`(zip 매트릭스)에서 **제외**되어 있음 — Image 함수에
 zip 업데이트는 불가 (`Please provide ImageUri`, 2026-08-17 CI 실패로 확인 →
 워크플로우 `CONTAINER_LAMBDAS` 필터 + `deploy_lambda.sh` PackageType 가드 추가).
-optimizer 코드 변경 시 **로컬에서 `scripts/deploy_lambda_container.sh` 실행**.
+optimizer/rebalancer 코드 변경 시 **로컬에서 `scripts/deploy_lambda_container.sh [optimizer|rebalancer]` 실행**.
 CI 컨테이너 자동화(docker build + ECR push, OIDC role 에 ecr 권한 필요)는 검토 항목.
 
 **빌드 스모크**: `docker run --entrypoint python <image> -c "import pypfopt...; import lambdas.run_optimizer.handler"`

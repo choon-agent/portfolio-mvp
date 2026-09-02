@@ -94,7 +94,7 @@ jobs:
           # "Please provide ImageUri" 오류, 2026-08-17). 로컬
           # scripts/deploy_lambda_container.sh 로 별도 배포. CI 컨테이너
           # 자동화(docker build + ECR push)는 추후 검토 (infra/README).
-          CONTAINER_LAMBDAS="run_optimizer"
+          CONTAINER_LAMBDAS="run_optimizer run_rebalancer"
           for c in $CONTAINER_LAMBDAS; do
             targets=$(echo "${targets:-}" | grep -vx "$c" || true)
           done
