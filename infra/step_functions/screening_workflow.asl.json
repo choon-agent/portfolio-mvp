@@ -203,7 +203,7 @@
     },
     "RunOptimizer": {
       "Type": "Task",
-      "Comment": "M4 4단계 최적화 (docs/04-optimizer.md §7). 컨테이너 Lambda — LLM 호출 0. ScenarioMap 부분 실패 허용: optimizer 는 존재하는 expected_returns 만 로드 (G2 게이트). 실패해도 3단계 산출물은 이미 저장 — Catch 로 기록만 하고 종료 (5단계는 '목표 비중 없음 = 보유 유지' 해석).",
+      "Comment": "M4 4단계 최적화 (docs/04-optimizer.md §7). 컨테이너 Lambda — LLM 호출 0. ScenarioMap 부분 실패 허용: optimizer 는 존재하는 expected_returns 만 로드 (G2 게이트). 실패해도 3단계 산출물은 이미 저장 — Catch 로 기록 후에도 RunRebalancer 는 실행 (5단계가 '목표 비중 없음 = 보유 유지' 스냅샷 기록 — 05 §7.1).",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
         "FunctionName": "<<OPTIMIZER_LAMBDA>>",
@@ -238,14 +238,63 @@
           "Next": "RecordOptimizerFailure"
         }
       ],
-      "End": true
+      "Next": "RunRebalancer"
     },
     "RecordOptimizerFailure": {
       "Type": "Pass",
-      "Comment": "RunOptimizer 실패 기록 (CloudWatch 실행 이력으로 관찰). 5단계 설계에서 '목표 비중 부재' 처리 확정 — 04 부록 A.",
+      "Comment": "RunOptimizer 실패 기록 (CloudWatch 실행 이력으로 관찰) 후 RunRebalancer 로 진행 — 5단계가 '목표 비중 부재 = 보유 유지' 로 처리 (05 §5 G1). $.result 보존을 위해 ResultPath 사용.",
       "Parameters": {
         "optimizer_failed": true,
         "error.$": "$.optimizer_error"
+      },
+      "Next": "RunRebalancer",
+      "ResultPath": "$.optimizer_failure"
+    },
+    "RunRebalancer": {
+      "Type": "Task",
+      "Comment": "M5 5단계 리밸런싱 (docs/05-rebalancing.md §7). 전용 컨테이너 Lambda — LLM 호출 0. target 부재(상류 실패) 주는 보유 유지 스냅샷만 기록 (G1). 멱등 가드: 같은 dt snapshot 존재 시 계좌별 skip (§4.3).",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "<<REBALANCER_LAMBDA>>",
+        "Payload": {
+          "dt.$": "$.result.as_of_date"
+        }
+      },
+      "ResultSelector": {
+        "result.$": "$.Payload"
+      },
+      "ResultPath": "$.rebalancer_result",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "Comment": "리밸런싱 실패는 파이프라인 실패로 승격하지 않음 — 1~4단계 산출물 보존. state 미갱신이므로 다음 주 정상 실행이 자연 복구 (05 §5).",
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.rebalancer_error",
+          "Next": "RecordRebalancerFailure"
+        }
+      ],
+      "End": true
+    },
+    "RecordRebalancerFailure": {
+      "Type": "Pass",
+      "Comment": "RunRebalancer 실패 기록 (CloudWatch 실행 이력으로 관찰). 계좌 state 는 미갱신 — 다음 주 Δw 재산출로 자연 수렴 (05 §5).",
+      "Parameters": {
+        "rebalancer_failed": true,
+        "error.$": "$.rebalancer_error"
       },
       "End": true
     }

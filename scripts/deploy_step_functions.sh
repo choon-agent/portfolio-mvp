@@ -16,6 +16,7 @@
 #                            <<BEAR_LAMBDA>>          → ${PREFIX}-agent_bullbear_bear
 #                            <<SCENARIO_LAMBDA>>      → ${PREFIX}-agent_scenario
 #                            <<OPTIMIZER_LAMBDA>>     → ${PREFIX}-run_optimizer
+#                            <<REBALANCER_LAMBDA>>    → ${PREFIX}-run_rebalancer
 #
 # 사전 조건:
 #   - run_screening, agent_bullbear_bull, agent_bullbear_bear, agent_scenario
@@ -36,6 +37,7 @@ BULL_LAMBDA="${PREFIX}-agent_bullbear_bull"
 BEAR_LAMBDA="${PREFIX}-agent_bullbear_bear"
 SCENARIO_LAMBDA="${PREFIX}-agent_scenario"
 OPTIMIZER_LAMBDA="${PREFIX}-run_optimizer"
+REBALANCER_LAMBDA="${PREFIX}-run_rebalancer"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFINITION_TEMPLATE="$REPO_ROOT/infra/step_functions/screening_workflow.asl.json"
@@ -57,6 +59,7 @@ sed -e "s|<<RUN_SCREENING_LAMBDA>>|${RUN_SCREENING_LAMBDA}|g" \
     -e "s|<<BEAR_LAMBDA>>|${BEAR_LAMBDA}|g" \
     -e "s|<<SCENARIO_LAMBDA>>|${SCENARIO_LAMBDA}|g" \
     -e "s|<<OPTIMIZER_LAMBDA>>|${OPTIMIZER_LAMBDA}|g" \
+    -e "s|<<REBALANCER_LAMBDA>>|${REBALANCER_LAMBDA}|g" \
     "$DEFINITION_TEMPLATE" > "$TMP_DEF"
 
 # 치환 누락 가드 — << 가 남아 있으면 정의 오류
@@ -74,6 +77,7 @@ echo "    Bull Lambda         : $BULL_LAMBDA"
 echo "    Bear Lambda         : $BEAR_LAMBDA"
 echo "    Scenario Lambda     : $SCENARIO_LAMBDA"
 echo "    Optimizer Lambda    : $OPTIMIZER_LAMBDA"
+echo "    Rebalancer Lambda   : $REBALANCER_LAMBDA"
 echo "    Execution role      : $ROLE_ARN"
 
 # 기존 state machine ARN 조회
