@@ -32,7 +32,8 @@ def test_start_and_top_states(asl: dict) -> None:
     assert asl["StartAt"] == "RunScreening"
     assert set(asl["States"]) == {
         "RunScreening", "BullBearMap", "ScenarioMap",
-        "RunOptimizer", "RecordOptimizerFailure",  # M4 (04 §7.1)
+        "RunOptimizer", "RecordOptimizerFailure",        # M4 (04 §7.1)
+        "RunRebalancer", "RecordRebalancerFailure",      # M5 (05 §7.1)
     }
 
 
@@ -47,13 +48,29 @@ def test_chain_run_to_bullbear_to_scenario(asl: dict) -> None:
 
 
 def test_optimizer_state_wiring(asl: dict) -> None:
-    """M4 (04 §7.1): dt 전달, 실패는 파이프라인 실패로 승격하지 않음."""
+    """M4 (04 §7.1): dt 전달, 실패는 파이프라인 실패로 승격하지 않음.
+    M5 편입 후 성공·실패 양 경로 모두 RunRebalancer 로 이어짐 (05 §7.1)."""
     opt = asl["States"]["RunOptimizer"]
     assert opt["Parameters"]["Payload"]["dt.$"] == "$.result.as_of_date"
     assert opt["Catch"][0]["Next"] == "RecordOptimizerFailure"
-    assert opt["End"] is True
-    assert asl["States"]["RecordOptimizerFailure"]["Type"] == "Pass"
-    assert asl["States"]["RecordOptimizerFailure"]["End"] is True
+    assert opt["Next"] == "RunRebalancer"
+    assert "End" not in opt
+    rof = asl["States"]["RecordOptimizerFailure"]
+    assert rof["Type"] == "Pass"
+    assert rof["Next"] == "RunRebalancer"
+    # ResultPath 없이는 Pass 가 $.result 를 덮어써 RunRebalancer 의 dt 참조가 깨짐
+    assert rof["ResultPath"] == "$.optimizer_failure"
+
+
+def test_rebalancer_state_wiring(asl: dict) -> None:
+    """M5 (05 §7.1): dt 전달, 실패 비승격 (state 미갱신 → 다음 주 자연 복구)."""
+    reb = asl["States"]["RunRebalancer"]
+    assert reb["Parameters"]["FunctionName"] == "<<REBALANCER_LAMBDA>>"
+    assert reb["Parameters"]["Payload"]["dt.$"] == "$.result.as_of_date"
+    assert reb["Catch"][0]["Next"] == "RecordRebalancerFailure"
+    assert reb["End"] is True
+    assert asl["States"]["RecordRebalancerFailure"]["Type"] == "Pass"
+    assert asl["States"]["RecordRebalancerFailure"]["End"] is True
 
 
 # ---------- G1: BullBearMap 체이닝 교정 ----------
@@ -121,7 +138,8 @@ def test_placeholders_match_deploy_script() -> None:
         "BULL_LAMBDA",
         "BEAR_LAMBDA",
         "SCENARIO_LAMBDA",
-        "OPTIMIZER_LAMBDA",  # M4
+        "OPTIMIZER_LAMBDA",   # M4
+        "REBALANCER_LAMBDA",  # M5
     }
 
     deploy = (ROOT / "scripts" / "deploy_step_functions.sh").read_text(encoding="utf-8")
