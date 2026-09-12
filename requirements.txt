@@ -7,4 +7,10 @@ lxml>=5.0,<6.0
 # 단위 테스트는 FakeAnthropicClient 로 모킹하므로 SDK 미설치 환경에서도
 # pytest 통과. anthropic_adapter.py / scripts/run_bullbear_golden.py /
 # Lambda 핸들러(M2 #7) 만 SDK 직접 사용.
-anthropic>=0.40,<2.0
+#
+# ⚠ 핀 고정 (2026-09-12): `<2.0` 느슨한 상한으로 09-03 CI 재빌드가 SDK 1.3.0 을
+# 번들 → 1.x 는 Messages.create 의 `temperature` 를 제거해 Bull/Bear 40/40 실패,
+# 09-07 주 3단계 결번 (retro §0.5). 로컬 venv(0.49.0, deepeval 제약)와 동일
+# 범위로 고정해 CI/로컬 parity 보장. SDK 1.x 이행은 temperature=0 결정성
+# 정책(02 §10) 재설계와 함께 M3 말 재검토 안건 (retro §0.8).
+anthropic>=0.49,<0.50
