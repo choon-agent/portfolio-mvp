@@ -19,7 +19,7 @@ from agents.scenario.schemas import (
     ScenarioOpinion,
 )
 from optimizer import data_loader, lambda_core
-from optimizer.data_loader import ConfigMismatchError
+from optimizer.data_loader import ConfigMismatchError, NoPassedSymbolsError
 from optimizer.schemas import OptimizerBundle
 
 DT = "2026-08-10"
@@ -140,6 +140,16 @@ def test_gate_config_mismatch_fails_run(store) -> None:
     )
     with pytest.raises(ConfigMismatchError):                       # G4
         data_loader.load_gated_universe("test-bucket", DT)
+
+
+def test_gate_no_passed_symbols_fails_run(store) -> None:
+    """G5 — ER 전무(상류 실패)는 '후보 0 → 전량 매도' 와 구분해 런 실패.
+    2026-09-07 SDK 사고 재현: Bull/Bear 전건 실패 → expected_returns 0건."""
+    for k in [k for k in store["objects"] if k.startswith(f"expected_returns/dt={DT}/")]:
+        del store["objects"][k]
+    with pytest.raises(NoPassedSymbolsError, match="통과 종목 0"):
+        lambda_core.handle({"dt": DT}, None)
+    assert not store["writes"]                                    # target 미발행
 
 
 def test_return_matrix_g3(store, monkeypatch) -> None:

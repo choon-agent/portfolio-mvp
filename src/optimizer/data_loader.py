@@ -6,6 +6,11 @@
   G3 상관 결측   — OHLCV < MIN_OHLCV_DAYS 거래일
   G4 config 불일치 — 전 종목 pricing_config 동일 검증, 위반 시 런 전체 실패
                     (부분 배포 등 조용한 오염 방지 — epsDiluted 교훈)
+  G5 통과 종목 0   — G1~G2 후 남는 종목이 없으면 런 전체 실패. "후보 0 = 전량
+                    매도"(§4.5) 는 ER 이 *존재하되 전부 ≤0* 일 때만 유효 — ER 이
+                    아예 없는 상류 실패(2026-09-07 SDK 사고: Bull/Bear 40/40 실패
+                    → 3단계 전부 skip) 를 전량 매도 신호로 오역하는 것 차단.
+                    실패 → 5단계 보유 유지 (05 §5 G1)
 
 ER ≤ 0 은 게이트가 아니라 후보 규칙 (§4.5) — lambda_core 가 처리하되
 excluded 에 "er_not_positive" 로 함께 기록 (회고 lineage).
@@ -29,7 +34,10 @@ from common.s3_io import read_json, read_parquet
 from optimizer.covariance import log_returns
 from optimizer.schemas import CovarianceParams
 
-__all__ = ["GateResult", "load_gated_universe", "load_return_matrix", "config_hash"]
+__all__ = [
+    "GateResult", "ConfigMismatchError", "NoPassedSymbolsError",
+    "load_gated_universe", "load_return_matrix", "config_hash",
+]
 
 MIN_OHLCV_DAYS = 60
 
@@ -54,6 +62,10 @@ class GateResult:
 
 class ConfigMismatchError(RuntimeError):
     """G4 — 같은 dt 안에서 pricing_config 가 종목마다 다름 (런 전체 실패)."""
+
+
+class NoPassedSymbolsError(RuntimeError):
+    """G5 — 게이트 통과 종목 0 (상류 실패 신호 — 전량 매도 target 발행 차단)."""
 
 
 def config_hash(config_dump: dict) -> str:
@@ -114,7 +126,13 @@ def load_gated_universe(bucket: str, dt: str) -> GateResult:
         raise ConfigMismatchError(
             f"dt={dt} pricing_config 불일치 — {len(hashes)}종의 config 혼재"
         )
-    result.pricing_config_hash = hashes.pop() if hashes else ""
+    if not result.passed:                                     # G5
+        raise NoPassedSymbolsError(
+            f"dt={dt} 게이트 통과 종목 0 (universe {result.universe_size}, "
+            f"excluded {dict(sorted(result.excluded.items()))}) — 상류(2~3단계) "
+            "실패로 간주, target 미발행 (5단계 보유 유지)"
+        )
+    result.pricing_config_hash = hashes.pop()
     return result
 
 

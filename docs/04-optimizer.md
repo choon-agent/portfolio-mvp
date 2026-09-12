@@ -4,7 +4,7 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/03-scenario.md`](03-scenario.md) — 본 단계 입력원 (부록 B 인터페이스 계약), 운영 중
 > **후행 문서**: `docs/05-rebalancing.md` (작성 예정) — 본 단계 출력(`TargetPortfolio`)을 입력으로 받음
-> **버전**: v0.3 (2026-08-17)
+> **버전**: v0.4 (2026-09-12) — G5 게이트 추가 (§5). v0.3 (2026-08-17)
 > **상태**: **구현 완료 (#1~#8) · 자동 운영 중** — 2026-08-17 정기 실행부터 1~4단계 자동
 >
 > **v0.3 변경 (구현 완료·운영 편입)**:
@@ -179,8 +179,12 @@ weights = MV_해 × 투자비중                       # §4.3~4.4 는 후보군
 | G2 ER 결측 | expected_returns 파일 없음 (시나리오 스킵 종목) | `"expected_return_missing"` |
 | G3 상관 결측 | OHLCV < 60 거래일 (신규 상장 등) → 제외 | `"insufficient_ohlcv"` |
 | G4 config 불일치 | 전 종목 `pricing_config` 동일 검증 — 불일치 시 **런 전체 실패** (부분 배포 등 이상 신호) | (실패 — §8) |
+| G5 통과 종목 0 (v0.4) | G1~G2 후 잔여 0 → **런 전체 실패**. "후보 0 = 전량 매도"(§4.5)는 ER 이 *존재하되 전부 ≤0* 일 때만 — ER 전무(상류 실패)를 매도 신호로 오역 차단. 5단계는 보유 유지 (05 §5 G1) | (실패 — §8) |
 
 - G1 은 v0.1 결정 ④ (제외). DD 형(극소 EPS, §03 §12.3 (d))도 flag 경유로 자연 제외됨
+- G5 는 2026-09-07 사고 후 추가: Bull/Bear 40/40 실패(SDK 1.x `temperature` 제거)로
+  expected_returns 0건 → 당시엔 `pricing_config_hash="n/a"` 가 스키마 `min_length=8`
+  에 걸려 *우연히* 실패했고 전량 매도 target 이 발행되지 않음. 우연을 명시 게이트로 승격
 - 제외 사유는 `TargetPortfolio.excluded` 로 lineage 보존 — 주간 리포트·회고 입력
 
 ## 6. 옵션 B baseline (§03 §1.4.2 #3 측정 인프라)
