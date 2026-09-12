@@ -52,6 +52,11 @@
 
 - 2026-08-17 (정기 · **1~4단계 첫 완전 자동 운영** — RunOptimizer 편입 후): 20/20 ok, 재시도 0. universe 481→20, turnover 높음 (WBD/CFG 등 신규) → Bull/Bear 40 호출 풀 미스 ~$0.71 + 시나리오 ~$0.37 = **~$1.08/주** (턴오버 주간 상한 수준). 위반 1/20 — **DD 2주 연속 (d) 유형** (극소 EPS. 이번 주는 momentum_z 5.31 + P/E null 로 **스크리닝 rank 1** 선정 — (d) 가드 논의 시 참고). 음수 skew 12/20(60%). **RunOptimizer 첫 자동 산출** (`portfolios/dt=2026-08-17/`): 후보 7 → **현금 규칙 첫 실전 발동** (invest 70%, 현금 30%), 6종목 (APA/DAL/EIX 15% cap + ALL 12.6/DVA 6.5/NEE 5.9. MPC 는 3% 컷 탈락), primary ER 2.10% vs 옵션 B baseline 2.51% — §1.4.2 #3 주간 비교 데이터 축적 시작. trigger batch: +6 채점 (SPG/TPR/WDC 늦은 발표 — SPG bull:fcf_yoy 4주치 발동, fcf threshold 남발 패턴 재확인). **오염 파티션 처리**: dt=2026-08-10 WDC 평가 1건이 08-17 재계산본 잔재로 채점·업로드된 것 발견 → 삭제 + batch 에 `--skip-dts` 기본값(2026-08-10) 추가로 재발 차단.
 
+- 2026-08-24 (정기): 20/20 ok, 재시도 0, Bull/Bear ~$0.70. universe 479→20. 위반 1/20 (DD 3주 연속 (d)). 음수 skew 11/20(55%). optimizer 후보 8 → 현금 20%, 7종목 (ALL/CF/EIX/HST cap). primary ER 3.29% vs baseline 4.84% (2주 연속 baseline 우위). **구조 관찰 (세션 분석)**: 후보 8 중 7 이 bear=base=현재가 퇴화 → ER = p_bull × 52주고점 여력과 소수점까지 일치 (peer P/E leg 무력) / LLM bull 확률 5주 연속 [0.20,0.35] sd 0.035 (종목 변별 없음) → §0.8 안건 등재.
+- 2026-08-31 (정기): 20/20 ok, 재시도 0, ~$0.72. universe 480→20. 위반 1/20 (DD 4주 연속, flag 문자열 전주와 동일). 후보 9 → 현금 10%, 7종목 (AIZ/MU 3% 컷). primary ER 3.44% vs baseline 4.12% (3주 연속 우위, 이번 주는 분산까지 낮아 dominance). **반대편 퇴화**: VLO·MPC 는 현재가=52주 고점 → bull=base=현재가 → ER 자동 음수 — 1단계 모멘텀 선정 ↔ 3단계 ER 산식 정면 충돌. 턴오버 one-way 16.7% (전주 32.9%).
+- 2026-09-03: **5단계 구현·배포** (05 v0.3) + 08-17 백필 씨딩 (primary/option_b 두 계좌). 실현 2주: primary -4.57% / option_b -4.48% / SPY -0.73%.
+- 2026-09-07 (정기 · **1~5단계 첫 자동 체인** — ⚠ **3단계 결번**): 스크리닝 20/20 ok (universe 480). **Bull/Bear 40/40 실패** — `TypeError: Messages.create() got an unexpected keyword argument 'temperature'`. 원인: 09-03 push 의 CI 재빌드가 `anthropic>=0.40,<2.0` 느슨한 핀으로 **SDK 1.3.0** 번들 (1.x 는 temperature 제거, 0.125 까지 존재). 시나리오 20/20 skip(bullbear_missing) → optimizer 실패 (통과 0 → `pricing_config_hash="n/a"` 스키마 위반 — *우연*) → **RunRebalancer 보유 유지 스냅샷 정상 기록** (SF SUCCEEDED, 5단계 실패 설계 첫 실전 검증: primary +1.83% / SPY +0.41%). LLM 비용 ~0 (전건 즉시 TypeError). **조치 (09-12)**: ① `anthropic>=0.49,<0.50` 고정 + 3 zip 재배포, ② optimizer G5 게이트 (통과 0 → 명시 실패, 04 v0.4), ③ 컨테이너 Lambda 2개 로그 권한 누락 발견 (role 정책 run_screening 로그 그룹 한정 — 8/11 부터 로그 0) → 정책 v3. SDK 1.x 이행은 §0.8 안건 (temperature=0 결정성 정책 재설계 동반). **12주 판정 표본**: 09-07 은 3단계 결번 처리.
+
 ## 0.6 4주 회고 결과 (2026-06-22)
 
 **판정**: M3 시나리오 4주 운영 — **운영 health 전 기준 합격, 옵션 C 유지**. 산출물에 음수 skew 1건 확인(설계된 보수성 부작용), 측정 인프라(#12) 활성화로 데이터 기반 config 결정 준비.
@@ -117,7 +122,9 @@ camelCase 통일 + 픽스처를 실제 API 표기로 갱신 (픽스처가 코드
 - [ ] #13 trigger batch Lambda 자동화 (§12.2 D) + 월간 비용 리포트 Lambda 승격 (같은 결정으로 묶음)
 - [ ] #14 DeepEval baseline (§10.5)
 - [ ] S3 versioning 활성화 (08-17 파티션 오염 사고 재발 방지) / 완전 자동 하드캡(Budgets Action) — 비용 추세 보고
-- [ ] §12.3 (d) 극소 EPS 가드 (DD 빈도 데이터로 판단) / 12.4 v2 3건 스코프 재확인
+- [ ] §12.3 (d) 극소 EPS 가드 (DD 4주 연속 rank 1 → 제외 — 빈도 답 나옴) / 12.4 v2 3건 스코프 재확인
+- [ ] **Anthropic SDK 1.x 이행** — `temperature` 파라미터 제거 (09-07 사고). temperature=0 결정성 정책(02 §10)·캐시 키·golden 스냅샷 재설계 동반. 이행 전까지 `<0.50` 핀 유지. 의존성 lockfile(pip-compile) 도입 검토 (CI 암묵 업그레이드 재발 방지)
+- [ ] **ER 산식 퇴화·1↔3단계 방향 충돌** (08-24/08-31 관찰) — §12.3 config A/B 의 `bear_uncapped` 재실행 + 확률 calibration 을 판정 전 백테스트로
 
 ## 1. 선행 읽기
 

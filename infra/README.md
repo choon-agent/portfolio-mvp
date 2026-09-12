@@ -222,6 +222,12 @@ M1 의 `run_screening` 과 달리 LLM 에이전트 Lambda (`agent_bullbear_bull`
 > 장애 원인 — Cython `_substrait.so` 만 lazy). `deploy_lambda.sh` 에 core 필수 .so
 > 존재 가드 있음.
 >
+> **⚠ 의존성 핀 교훈 (2026-09-07 사고)**: zip 은 CI 가 매 push 마다 `pip install -r
+> requirements.txt` 로 **재해석**한다. `anthropic>=0.40,<2.0` 처럼 메이저 상한이 느슨하면
+> 코드 변경 없는 push 에서도 새 메이저(1.3.0 — `temperature` 제거)가 번들되어 전 LLM
+> Lambda 가 즉사한다 (Bull/Bear 40/40 실패, 3단계 결번). 외부 SDK 는 **로컬 venv 와
+> 같은 마이너 범위로 핀** (`anthropic>=0.49,<0.50`). lockfile 도입은 retro §0.8.
+
 > **향후 번들이 다시 50MB 근접 시 (M4 optimizer 의존성 추가 등): 컨테이너 이미지
 > 전환이 1순위 방침** (2026-07-10 결정, 2주 장애 회고). 근거 —
 > - 10GB 이미지 한계 → 슬림화·가드 코드 자체가 불필요 (근본 원인 제거)
@@ -336,6 +342,13 @@ pyarrow — zip 슬리밍 사고 전례로 컨테이너, `docs/05-rebalancing.md
 | Role | run_screening role 재사용 (S3 + CloudWatch — FMP/Anthropic 시크릿 불필요) | 동일 |
 | 설정 | Memory 1024 / Timeout 300 | Memory 512 / Timeout 120 |
 | env | `S3_BUCKET` | `S3_BUCKET` (+선택 `REBALANCE_BAND`/`INITIAL_CASH`/`ACCOUNTS_PREFIX`) |
+
+**로그 권한 주의 (2026-09-12 발견)**: 두 컨테이너 함수는 run_screening role 을
+재사용하는데, 그 role 의 `logs:CreateLogStream/PutLogEvents` 가 run_screening 로그
+그룹 **한 개로 한정**되어 있어 8/11~9/7 동안 로그가 0건이었다 (CreateLogGroup 은
+와일드카드라 그룹만 생기고 스트림 쓰기 거부). 정책 v3 에서 `run_optimizer`/
+`run_rebalancer` 로그 그룹 추가. **이 role 을 재사용하는 함수를 추가하면 로그 그룹
+리소스도 함께 추가할 것.**
 
 **CI 주의**: `deploy-lambdas.yml`(zip 매트릭스)에서 **제외**되어 있음 — Image 함수에
 zip 업데이트는 불가 (`Please provide ImageUri`, 2026-08-17 CI 실패로 확인 →
