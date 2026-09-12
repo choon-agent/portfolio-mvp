@@ -362,7 +362,13 @@ CI 컨테이너 자동화(docker build + ECR push, OIDC role 에 ecr 권한 필�
 
 > **로컬(colima) 빌드 함정 3건 (2026-08-11 실측)**:
 > 1. `~/.docker/config.json` 의 `credsStore: osxkeychain` (Docker Desktop 잔재) —
->    colima 에서 헬퍼 부재로 빌드 실패. 해당 키 제거 또는 임시 `DOCKER_CONFIG` 사용
+>    colima 에서 헬퍼 부재로 ECR push 실패. 해당 키 제거 또는 임시 `DOCKER_CONFIG` 사용.
+>    **임시 DOCKER_CONFIG 레시피 (2026-09-12 검증)**: `$TMP/config.json` 에
+>    `{"cliPluginsExtraDirs":["/opt/homebrew/lib/docker/cli-plugins"]}` + **`$TMP/cli-plugins/docker-buildx`
+>    를 brew 바이너리(`/opt/homebrew/lib/docker/cli-plugins/docker-buildx`)로 symlink**
+>    (`~/.docker/cli-plugins/docker-buildx` 는 Docker.app 경로를 가리키는 깨진 링크 —
+>    그걸 따라가면 레거시 빌더로 떨어져 `unknown flag: --provenance`) +
+>    `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` (임시 config 엔 colima context 없음).
 > 2. **buildx 필수** — 레거시 빌더는 cross-platform(arm64→amd64) export 버그
 >    (`failed to export image ... not found`). brew `docker-buildx` 를 cli-plugins 에 링크
 > 3. buildx 의 provenance/SBOM attestation(manifest list)은 **Lambda 미지원**
