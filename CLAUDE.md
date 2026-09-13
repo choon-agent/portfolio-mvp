@@ -16,10 +16,10 @@ LLM 에이전트 오케스트레이션을 활용한 주식 포트폴리오 관�
 - **주요 서비스**: Lambda, S3, Athena, EventBridge, Step Functions
 - **데이터 소스**: Financial Modeling Prep (FMP) API
 - **LLM**: Anthropic Claude API (Sonnet 4.6 기본, Haiku 4.5 폴백)
-- **IaC**: Plain ASL JSON + AWS CLI 스크립트 (`infra/step_functions/`, `scripts/deploy_step_functions.sh`). Lambda 는 zip(`deploy_lambda.sh`) + **컨테이너 이미지**(`deploy_lambda_container.sh` — run_optimizer, numpy/scipy 계열이 zip 50MB 초과. infra/README 참조). SAM/CDK 재검토는 보류 중.
-- **테스트**: pytest (단위 테스트). 통합 테스트(moto/AWS 모킹)는 M2 이후 도입 예정.
-- **LLM 응답 품질 평가**: DeepEval G-Eval (judge = Sonnet 4.6, 기본 3 criteria — `docs/02-bull-bear.md §11.5` baseline). PoC 단계는 로컬 pytest, M3+ Lambda 자동화 예정.
-- **의존성 관리**: `requirements.txt` (zip Lambda 번들) + `requirements-dev.txt` (로컬 — pytest, boto3, deepeval, PyPortfolioOpt) + `infra/docker/optimizer-requirements.txt` (컨테이너 전용) 분리
+- **IaC**: Plain ASL JSON + AWS CLI 스크립트 (`infra/step_functions/`, `scripts/deploy_step_functions.sh`). Lambda 는 zip(`deploy_lambda.sh`, CI 자동) + **컨테이너 이미지**(`deploy_lambda_container.sh [optimizer|rebalancer]` — run_optimizer(numpy/scipy zip 초과)·run_rebalancer(pyarrow). CI 제외 — 로컬 배포. infra/README 참조). SAM/CDK 재검토는 보류 중.
+- **테스트**: pytest (단위 테스트 + fake store 목 테스트, `src/tests/`). 통합 테스트(moto)는 미도입 — 컨테이너 배포 스크립트의 import 스모크 + 로컬 dry-run 스크립트가 대신함.
+- **LLM 응답 품질 평가**: DeepEval G-Eval (judge = Sonnet 4.6, 기본 3 criteria — `docs/02-bull-bear.md §11.5` baseline). PoC 단계는 로컬 pytest, Lambda 자동화는 미착수 (#14 baseline 과 함께 M3 말 재검토 안건).
+- **의존성 관리**: `requirements.txt` (zip Lambda 번들) + `requirements-dev.txt` (로컬 — pytest, boto3, deepeval, PyPortfolioOpt) + `infra/docker/{optimizer,rebalancer}-requirements.txt` (컨테이너 전용) 분리. **외부 SDK 는 로컬 venv 와 같은 마이너 범위로 핀** (`anthropic>=0.49,<0.50` — 09-07 CI 암묵 업그레이드 사고, retro §0.5)
 
 ## 디렉토리 구조 (목표)
 
@@ -110,10 +110,10 @@ portfolio-mvp/
 ## 참고 문서
 
 - 프로젝트 헌장: `CHARTER.md`
-- 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (작성 중)
+- 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (5단계 전부 확정·운영) + `docs/03-scenario-retro.md` (운영 로그·M3 말 안건)
 - 외부: FMP API 문서, Anthropic API 문서, AWS Lambda 문서
 
-## 현재 단계 (M3 후반 + 4·5단계 운영 — 2026-09-03 기준)
+## 현재 단계 (M3 후반 + 4·5단계 운영 — 2026-09-12 기준)
 
 - [x] M0 기반 (Charter / Repo / CLAUDE.md / README / 스캐폴딩 / FMP 캐싱 계층)
 - [x] **M1 — 1단계 스크리닝 (코드 기반) — 완료·운영 중**
@@ -130,8 +130,10 @@ portfolio-mvp/
     2026-07-14 부터**, 12주 판정 ~10월 초) / bear cap v0.16→v0.17 primary 승격 (4b9ca19)
   - #13 트리거 자동검증: 로컬 배치 가동 (`scripts/run_trigger_batch.py` — 주 1회 수동
     실행, `--upload`. S3 `trigger_evaluations/` 누적, observe-only)
-  - **남은 작업**: #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval baseline /
-    §12.3 (d) 극소 EPS 가드 (빈도 관찰 중)
+  - **남은 작업** (retro §0.8 로 일원화): #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval
+    baseline / §12.3 (d) 극소 EPS 가드 (DD 5주 연속 rank 1→제외, 빈도 답 나옴) /
+    **Anthropic SDK 1.x 이행** (temperature 제거 — 09-07 사고, 현재 `<0.50` 핀) /
+    ER 산식 퇴화·1↔3단계 방향 충돌 백테스트 (08-24/08-31 관찰)
 - [x] **4단계 최적화 — 구현 완료·자동 운영 편입 (2026-08-17)**
   - `docs/04-optimizer.md` v0.3 / `src/optimizer/` 5모듈 + `run_optimizer` **컨테이너
     Lambda** (ECR, 컨테이너 방침 첫 적용) / ASL RunOptimizer state (2026-08-17
@@ -140,7 +142,9 @@ portfolio-mvp/
   - `docs/05-rebalancing.md` v0.3 / `src/rebalancer/` 4모듈 + `run_rebalancer`
     전용 컨테이너 Lambda + ASL RunRebalancer (09-07 정기 실행부터 **1~5단계 자동**).
     페이퍼 계좌 2개 병렬 (primary + option_b — §1.4.2 #3 실현수익률 트랙),
-    08-17 백필 씨딩 완료. no-trade band 1.5%p + 범위 밖 면제, SPY 벤치마크 수집
+    08-17 백필 씨딩 완료. no-trade band 1.5%p + 범위 밖 면제, SPY 벤치마크 수집.
+    09-07 첫 자동 체인: 3단계 결번(SDK 사고)에도 보유 유지 스냅샷 정상 — 실패 설계 검증.
+    **전 구간 첫 완전 성공은 09-14 확인 예정**
 
 미해결 디자인 채무: M1 은 `docs/01-screening.md §10`, M3 은 `docs/03-scenario.md
 §12` (12.2 잔여 1 [~D] / 12.3 데이터 게이트 잔여 / 12.4 v2 3) 참조.

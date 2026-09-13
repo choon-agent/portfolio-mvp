@@ -4,7 +4,7 @@
 > S&P 500 유니버스, 주 1회 리밸런싱, Bull/Bear 에이전트 기반 종목 리서치.
 
 **기간**: 2026-04-20 ~ 2026-10-20 (6개월 MVP)
-**현재 단계**: **1~4단계 자동 운영 중 (스크리닝 + Bull/Bear + 시나리오 + 포트폴리오 최적화). 5단계(리밸런싱) 설계 다음**
+**현재 단계**: **1~5단계 자동 운영 (스크리닝 → Bull/Bear → 시나리오 → 최적화 → 리밸런싱, 2026-09-07 체인 편입). 페이퍼 계좌 2개(primary/option_b) 운용 중. 다음 체크포인트: M3 말 재검토 (~2026-10-06)**
 
 ---
 
@@ -34,18 +34,20 @@
        ↓
 [4] 포트폴리오 최적화  ✅ 운영 — PyPortfolioOpt MV + 현금 규칙, 컨테이너 Lambda (LLM 사용 X)
        ↓
-[5] 리밸런싱          ⏳ 다음 — 룰 기반 매매, LLM 은 근거 생성만
+[5] 리밸런싱          ✅ 운영 — 룰 기반 매매 (no-trade band), 페이퍼 계좌 2개, 컨테이너 Lambda (LLM 사용 X)
 ```
 
 포지션 최대 15종목(완전 투자 시 10~15 목표 — 양수 기대수익 후보 부족 시 현금 보유), 섹터당 ≤35%, 월 LLM 비용 상한 $200.
 
-**현재 운영 상태** (1~4단계 자동 운영, 2026-08-17):
-- 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` → `ScenarioMap` → **`RunOptimizer`** → S3 `portfolios/dt=.../target.json` (목표 비중)
+**현재 운영 상태** (1~5단계 자동 운영, 2026-09-12 기준):
+- 매주 월 06:00 ET (EventBridge cron) → Step Functions `RunScreening` → `BullBearMap` → `ScenarioMap` → `RunOptimizer` → **`RunRebalancer`** → S3 `portfolios/dt=.../target.json` (목표 비중) + `accounts/{primary,option_b}/` (페이퍼 계좌 스냅샷·상태)
+- 5단계: 직전 거래일 종가 체결·비용 0·소수점 주식, no-trade band 1.5%p(+CHARTER 범위 밖 면제), 상류 실패 시 보유 유지. **계좌 2개 병렬** — 옵션 C(primary) vs 옵션 B baseline(option_b) 실현수익률 비교 (`docs/05-rebalancing.md`). 2026-08-17 백필 씨딩
+- ⚠ 2026-09-07: anthropic SDK 1.x(`temperature` 제거)가 CI 재빌드로 번들되어 Bull/Bear 전건 실패 → 3단계 결번, 5단계는 보유 유지로 정상 기록. 09-12 핀 고정·재배포 완료 (retro §0.5)
 - LLM 비용 ~$0.4~1.1/주 (턴오버에 따른 캐시 미스 폭). 4단계는 LLM 0 — PyPortfolioOpt MV + CHARTER 제약(10~15종목·종목 ≤15%·섹터 ≤35%) + **현금 규칙** (양수 기대수익 후보 부족 시 부분 투자)
 - 옵션 C: LLM ≠ 가격 산정 분리 — LLM 은 확률·narrative·무효화 트리거만, 가격은 결정적 산식 + base·bear 현재가 cap (v0.17). 옵션 B baseline 포트폴리오 병렬 산출로 A/B 측정 중
 - `run_optimizer` 는 **컨테이너 이미지 Lambda** (ECR — numpy/scipy 계열이 zip 50MB 한계 초과)
 - 트리거 자동 검증(#13) 로컬 배치 가동 — 분기 발표 후 tripwire 채점 + 확률 calibration 을 S3 `trigger_evaluations/` 에 누적 (observe-only)
-- 다음: 5단계 리밸런싱 설계 (`docs/05-rebalancing.md`) — 목표 비중 → 페이퍼 매매 변환
+- 다음: **M3 말 재검토 (~2026-10-06)** — 유효 12주 판정(Brier·트리거 적중률·옵션 C vs B 실현수익률) + Charter 재검토 + 실전 전환 판단 (`docs/03-scenario-retro.md §0.8`)
 
 ---
 
@@ -237,7 +239,7 @@ portfolio-mvp/
 
 ### ✅ 3단계 시나리오 모델링 (M3 — 운영 중)
 
-**설계** ([docs/03-scenario.md v0.14](docs/03-scenario.md), §2.4/§4/§5/§6/§7/§10~§12 검토 박제):
+**설계** ([docs/03-scenario.md v0.17](docs/03-scenario.md), §2.4/§4/§5/§6/§7/§10~§12 검토 박제 — v0.17 base·bear 현재가 cap):
 - **옵션 C — LLM ≠ 가격 산정 분리**: LLM 은 narrative + 시나리오 확률(bull/base/bear) + 무효화 트리거만 생성, `scenario_prices` 는 결정적 산식(`pricing.py`)으로 계산. 할루시네이션을 가격에서 차단 (CHARTER §6 정합)
 - **결정적 가격 산식** — bull(percentile)/base(peer P/E·cap)/bear 를 historical·peer·52w fallback 사다리로 산출, config(`ScenarioPricingConfig`)로 공격성 조정. percentile 은 numpy 의존 없이 손수 linear interp (콜드스타트 최소)
 - **`scenario_input_hash` 결정성 캐시** — M2 `context_input_hash` 패턴 재사용, 같은 입력 재호출 시 LLM 호출 생략 (재실행 폭주 방지 + 재현성)
@@ -253,15 +255,30 @@ portfolio-mvp/
 - 첫 수동 운영(2026-05-31)에서 narrative 300자 한계로 3종목(CRL/WTW/EIX) 실패 → v0.14 max_length 300→500 완화 후 20/20
 - 관찰: expected_return 음수 skew(16→17/20, 보수 config), 종목 turnover ~25%(주간 캐시 무효) → 4주 회고에서 config·hysteresis 판단 ([docs/03-scenario-retro.md](docs/03-scenario-retro.md))
 
-**남은 작업**: #11 첫 운영 안정화 / #12 sensitivity 로깅 / #13 트리거 자동검증 batch / #14 DeepEval baseline (M3 후반·5주차, §11 참조)
+**이후 운영 (요약 — 상세 [retro §0.5](docs/03-scenario-retro.md))**: 4주 회고 합격(06-22) / 6·29~7·6 2주 결번(pyarrow 배포 사고) / 07-14 epsDiluted 버그 수정 → **유효 데이터 regime 시작** / 08-04 bear cap v0.17 승격 / #12 sensitivity·#13 트리거 배치(로컬 PoC) 가동 / 09-07 SDK 사고 결번.
+**남은 작업**: #13 Lambda 자동화 결정 / #14 DeepEval baseline / §12.3 (d) 극소 EPS 가드 / SDK 1.x 이행 — M3 말 재검토(§0.8)로 일원화
+
+### ✅ 4단계 포트폴리오 최적화 (2026-08-17 자동 운영 편입)
+
+**설계** ([docs/04-optimizer.md v0.4](docs/04-optimizer.md)): PyPortfolioOpt mean-variance(max Sharpe) + CHARTER 제약(long-only·종목 ≤15%·섹터 ≤35%·최소 3%) + **현금 규칙**(양수 ER 후보 n<10 이면 투자비중 n/10) + 하이브리드 Σ(시나리오 분산 대각 + 252d 상관·shrinkage·var floor). 옵션 B baseline 포트폴리오 병렬 산출.
+**구현**: `src/optimizer/` 5모듈 + `run_optimizer` **컨테이너 Lambda**(ECR — numpy/scipy 계열 zip 초과) + ASL `RunOptimizer`(실패 비승격). 게이트 G1~G5 — G5(통과 종목 0 → 런 실패)는 09-07 사고 후 추가.
+**운영 관찰** (08-17~08-31): 현금 규칙 매주 발동(30→20→10%), baseline 예측 ER 3주 연속 우위. ER 산식 퇴화(후보 대부분 bear=base=현재가 → ER ≈ p_bull × 52주고점 여력) 및 LLM 확률 상수성 관찰 → M3 말 안건.
+
+### ✅ 5단계 리밸런싱 (2026-09-03 배포 · 09-07 체인 편입)
+
+**설계** ([docs/05-rebalancing.md v0.3](docs/05-rebalancing.md)): 목표 비중 × 페이퍼 계좌 상태 → 룰 기반 매매(LLM 0). 체결가 = 직전 거래일 adj_close, 비용 0, 소수점 주식 / no-trade band 1.5%p + 3~15% 범위 밖 드리프트 면제 / 매도 우선·현금 부족 시 매수 비례 축소 / target 부재 = 보유 유지 / 멱등(dt 스냅샷 존재 시 skip).
+**구현**: `src/rebalancer/` 4모듈(schemas·trade_rules·performance·pricing/lambda_core) + `run_rebalancer` 전용 컨테이너 Lambda + ASL `RunRebalancer`(optimizer 실패 경로에서도 실행 → 성과 시계열 유지). SPY 벤치마크 수집, TE = 주간 액티브 수익률 std × √52.
+**계좌**: `accounts/primary`(옵션 C) + `accounts/option_b`(baseline) — 08-17 백필 씨딩. 09-07 기준 primary NAV $9,717 / SPY 대비 열위 (표본 3주).
 
 ### ✅ 문서화
 - CHARTER (헌장): 우선순위·제약·성공 기준 확정
 - CLAUDE.md (개발 규칙): 코딩 규칙, 커밋 컨벤션, 비용 상한
 - [docs/01-screening.md](docs/01-screening.md): 1단계 설계 (M1 운영 중)
 - [docs/02-bull-bear.md](docs/02-bull-bear.md) **v0.8**: 2단계 설계 (M2 운영 중) — 운영 모니터링 정책 §11 + 4주 누적 평가 포함
-- [docs/03-scenario.md](docs/03-scenario.md) **v0.14**: 3단계 설계 (M3 운영 중) — 옵션 C, 검토 박제 §2.4~§12
-- [docs/03-scenario-retro.md](docs/03-scenario-retro.md): M3 4주 운영 회고 프롬프트 + 체크리스트 + 주차별 운영 로그
+- [docs/03-scenario.md](docs/03-scenario.md) **v0.17**: 3단계 설계 (M3 운영 중) — 옵션 C, 검토 박제 §2.4~§12
+- [docs/03-scenario-retro.md](docs/03-scenario-retro.md): M3 운영 로그(주차별)·4주 회고 결과·**M3 말 재검토 안건 §0.8**
+- [docs/04-optimizer.md](docs/04-optimizer.md) **v0.4**: 4단계 설계 (운영 중) — MV·현금 규칙·게이트 G1~G5
+- [docs/05-rebalancing.md](docs/05-rebalancing.md) **v0.3**: 5단계 설계 (운영 중) — 체결 모델·band·계좌 2개·TE 정의
 - [infra/README.md](infra/README.md): AWS 인프라 배포·운영 가이드 (LLM Lambda 생성 설정 포함)
 
 ---
@@ -277,12 +294,12 @@ portfolio-mvp/
 4. EventBridge 정기 트리거 연결
 
 ### M3 (3개월차, Phase 1 종료 — 진행 중)
-5. ✅ **3단계 시나리오 모델링** — 구현 #1~#10 완료, 자동 운영 중 (위 "진행된 작업" 참조)
-6. ⏳ **M3 후반 잔여** — #12 sensitivity 로깅 / #13 트리거 자동검증 batch(분기 발표 시즌) / #14 DeepEval baseline + 4주 운영 회고([docs/03-scenario-retro.md](docs/03-scenario-retro.md))
-7. ⏳ **4~5단계 연결** — 포트폴리오 최적화 (PyPortfolioOpt) + 리밸런싱 (룰 기반)
-8. ⏳ **페이퍼 트레이딩 첫 주간 실행 성공** — 5단계 모두 연결된 첫 end-to-end
-9. ⏳ **Charter 재검토 및 실전 전환 판단** — [CHARTER.md §4.1](CHARTER.md) 4개 기준 충족 시 소액 실전 전환
-10. ⏳ **블로그 1편 초고**
+5. ✅ **3단계 시나리오 모델링** — 자동 운영 중, 4주 회고 합격, v0.17
+6. ✅ **#12 sensitivity 로깅 / #13 트리거 배치(로컬 PoC)** — 운영 중. ⏳ #13 Lambda 자동화 결정 / #14 DeepEval baseline
+7. ✅ **4~5단계 연결** — 08-17 RunOptimizer, 09-07 RunRebalancer 체인 편입
+8. ✅ **페이퍼 트레이딩 첫 주간 실행** — 09-03 백필 씨딩 + 09-07 첫 자동 체인 (3단계 결번이었으나 5단계 보유 유지 정상). 5단계 전 구간 첫 완전 성공은 **09-14 실행에서 확인**
+9. ⏳ **M3 말 재검토 (~2026-10-06)** — 유효 12주 판정(§1.4.2 #1~#3) + [CHARTER.md §4.1](CHARTER.md) 4기준(성공률 3개월은 10월 중순 충족 가능) + Charter 감사 이월 — 안건은 [retro §0.8](docs/03-scenario-retro.md)
+10. ⏳ **Charter 성공 기준 트랙 착수** (미착수 — §4): 백테스트 엔진 + 모멘텀 vs 밸류 비교 / **블로그 1편 초고** / 에이전트 3패턴 비교표 (Debate 패턴 v2)
 
 ### 운영 안정화 항목 (4주 누적 시점 평가)
 - **M2 Bull/Bear 4주 평가 완료** ([docs/02-bull-bear.md v0.8](docs/02-bull-bear.md)): $2.76/월, 160 invoke 100% 성공, retry/fallback 0
@@ -488,8 +505,8 @@ git push origin main
   - [docs/01-screening.md](docs/01-screening.md) ✅ M1 운영
   - [docs/02-bull-bear.md](docs/02-bull-bear.md) v0.8 ✅ M2 운영
   - [docs/03-scenario.md](docs/03-scenario.md) v0.17 ✅ M3 운영 + [docs/03-scenario-retro.md](docs/03-scenario-retro.md) (운영 로그·회고)
-  - [docs/04-optimizer.md](docs/04-optimizer.md) v0.3 ✅ 운영 (MV 최적화, 컨테이너 Lambda)
-  - `docs/05-rebalancing.md` (작성 예정)
+  - [docs/04-optimizer.md](docs/04-optimizer.md) v0.4 ✅ 운영 (MV 최적화, 컨테이너 Lambda)
+  - [docs/05-rebalancing.md](docs/05-rebalancing.md) v0.3 ✅ 운영 (룰 기반 리밸런싱, 페이퍼 계좌 2개)
 - **외부**:
   - [FMP Stable API](https://site.financialmodelingprep.com/developer/docs/stable)
   - [Anthropic API](https://docs.anthropic.com/)
@@ -530,4 +547,14 @@ git push origin main
 | 2026-05-31 | **시나리오 첫 수동 운영** (20종목) — narrative 300자 한계로 3종목(CRL/WTW/EIX) 실패 → v0.14 max_length 300→500 완화 후 20/20 ($0.054 추가) |
 | 2026-06-01 | **시나리오 첫 자동 스케줄 운영** (Week 1) — 20/20, 재시도 0%, $0.36. 음수 skew·캐시 동작 관찰 |
 | 2026-06-08 | 시나리오 운영 Week 2 — 20/20, 재시도 0%, $0.36, flags 0. **종목 turnover 25%** 발견 (캐시 주간 무효 → 풀 비용) |
-| — | M3 후반: #12 sensitivity 로깅 / #13 트리거 batch / #14 DeepEval + 4주 회고, 이후 4~5단계 연결 |
+| 2026-06-22 | **M3 4주 운영 회고 합격** (80/80, 재시도 0, ~$1.45/월) — 옵션 C 유지, 음수 skew 관찰 |
+| 2026-06-29~07-06 | 2주 **결번** — pyarrow 슬리밍 배포 사고 (전 Lambda import 즉사, 302f3cb 복구) |
+| 2026-07-14 | epsDiluted 필드 버그 수정 → **유효 데이터 regime 시작** (12주 판정 기산점) |
+| 2026-08-04 | 시나리오 v0.17 — bear 현재가 cap primary 승격 (가격 순서 위반 7→0) |
+| 2026-08-08 | #13 트리거 자동검증 로컬 배치 첫 실행 (163쌍 채점, Brier 0.619 — 구 regime 표본) |
+| 2026-08-11 | `run_optimizer` **컨테이너 Lambda** 첫 배포 (컨테이너 방침 첫 적용) |
+| 2026-08-17 | **1~4단계 첫 완전 자동 운영** — 현금 규칙 첫 발동 (후보 7 → 현금 30%). 같은 날 dt=08-10 파티션 오염 사고 (수동 as_of 실행 금지 교훈) |
+| 2026-09-03 | **5단계 리밸런싱 설계 v0.2 확정·구현·배포** (`src/rebalancer/`, 전용 컨테이너, ASL RunRebalancer) + 08-17 백필 씨딩 |
+| 2026-09-07 | **1~5단계 첫 자동 체인** — ⚠ anthropic SDK 1.x 번들로 Bull/Bear 40/40 실패(3단계 결번), 5단계 보유 유지 정상 |
+| 2026-09-12 | 복구: SDK 핀 `<0.50` + 3 zip 재배포, optimizer G5 게이트, 컨테이너 Lambda 로그 권한 수정 (8/11~ 로그 0건 발견) |
+| — | 다음: 09-14 전 구간 첫 완전 성공 확인 → M3 말 재검토(~10-06) → CHARTER §4.1 실전 전환 판단(10월 중순~) |

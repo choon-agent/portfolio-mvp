@@ -26,6 +26,7 @@ M2 이후 워크플로우가 복잡해지면 SAM 또는 CDK 로 이전 검토 (C
 | EventBridge Rule | `portfolio-mvp-weekly-screening` | Mon 06:00 ET (11:00 UTC) cron 트리거 |
 | EventBridge Scheduler ×2 | `portfolio-mvp-update-{constituents-weekly, ohlcv-daily}-scheduler` | 데이터 갱신 |
 | IAM Role (Lambda) | `portfolio-mvp-run_screening-role` | Lambda 실행 (S3, Secrets) — 전 함수 공유 계열 |
+| IAM Policy 버전 | step-functions policy **v6** (6 Lambda invoke) / Lambda basic-exec **v3** (run_screening·run_optimizer·run_rebalancer 로그 그룹) | 함수 추가 시 두 정책 모두 갱신 |
 | IAM Role (Step Functions) | `portfolio-mvp-step-functions-role` | Lambda invoke (managed policy v5 — 5개 함수) |
 | IAM Role (EventBridge) | `portfolio-mvp-eventbridge-role` | Step Functions startExecution |
 
@@ -470,9 +471,9 @@ aws s3 cp s3://<S3_BUCKET>/screening/dt=2026-05-04/result.json -
 
 ## 다음
 
-- ~~M2 Bull/Bear Map~~ / ~~M3 ScenarioMap~~ / ~~M4 RunOptimizer~~ — 완료 (1~4단계 체인 운영 중)
-- **5단계 리밸런싱** (`docs/05-rebalancing.md` 설계 예정) — `portfolios/dt=.../target.json` 소비
-- **S3 versioning 활성화 검토** — 2026-08-17 파티션 오염 사고(원본 소실)의 재발 방지 안전망
-- **CI 컨테이너 자동화 검토** — run_optimizer docker build + ECR push (OIDC role 에 ecr 권한 필요)
-- #13 trigger batch Lambda 자동화 결정 (`docs/03-scenario.md §12.2 D`)
+- ~~M2 Bull/Bear Map~~ / ~~M3 ScenarioMap~~ / ~~M4 RunOptimizer~~ / ~~M5 RunRebalancer~~ — 완료 (**1~5단계 체인 운영 중**, 2026-09-07 편입. 전 구간 첫 완전 성공은 09-14 확인)
+- **S3 versioning 활성화** — 08-17 파티션 오염 사고(원본 소실) + 5단계 `accounts/*/state.json` 덮어쓰기 구조의 안전망. 미설정 상태. 비용 고려: `ohlcv/` 일일 재기록(~480 파일)로 비현행 버전 누적 → **noncurrent 30일 만료 lifecycle 과 함께** 켤 것 (M3 말 재검토 C 항목)
+- **CI 컨테이너 자동화 검토** — run_optimizer/run_rebalancer docker build + ECR push (OIDC role 에 ecr 권한 필요). 현재 로컬 `deploy_lambda_container.sh` (colima 함정 레시피 위 참조)
+- **의존성 lockfile** (pip-compile 등) — 09-07 SDK 암묵 업그레이드 재발 방지 (retro §0.8)
+- #13 trigger batch Lambda 자동화 + 월간 비용 리포트 Lambda 승격 (같은 결정 — `docs/03-scenario.md §12.2 D`). 현재 둘 다 로컬 수동 (`scripts/run_trigger_batch.py`, `scripts/run_cost_report.py`)
 - 비용·실행시간 누적 데이터 후 SAM/CDK 이전 결정 (보류 중)

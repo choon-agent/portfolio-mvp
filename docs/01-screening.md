@@ -432,7 +432,7 @@ LLM 미사용이므로 비용 계산은 인프라 한정.
 - [ ] **데이터 결측 종목 정책**: 두 팩터 모두 결측인 종목은 자동 제외. 한쪽만 결측인 종목을 어디까지 허용할지 (현재안: 결측 컴포넌트=0 중립) — 첫 주간 실행 후 실측 분포 보고 조정.
 - [ ] **Survivorship bias**: 편출 종목 OHLCV는 보존되지만 본 MVP에서는 활용 안 함. 백테스트 트랙으로 이관 시점.
 - [x] ~~**`peer_context` 범위**~~: 2026-04-28 30종목 dry-run 에서 singleton sub_sector(MPC, USB)가 빈 peer_context 를 만드는 사례 발견 → **sector 폴백 도입**. 동작: 같은 sub_sector 우선 → 부족하면 같은 sector 의 다른 sub_sector 에서 보충 → 모두 없으면 빈 리스트. ([`peer_context.py`](../src/screening/peer_context.py) `attach_peer_context` 의 폴백 체인 docstring 참고).
-- [ ] **선정 종목 안정성**: 주 단위 turnover가 너무 높으면 거래비용 부담. M1 종료 시 4주 turnover 측정, 필요 시 hysteresis(랭크 버퍼) 도입.
+- [~] **선정 종목 안정성**: 주 단위 turnover가 너무 높으면 거래비용 부담. M1 종료 시 4주 turnover 측정, 필요 시 hysteresis(랭크 버퍼) 도입. → **2026-09-03 5단계로 이관·부분 확정**: 매매 층위의 hysteresis 는 `docs/05-rebalancing.md §3.5` no-trade band(1.5%p) 로 처리. 스크리닝 층위(rank-20 경계 노이즈 — retro §0.5 W3 SPG/NTRS 왕복, 08-24 WDC 1주 보유)의 랭크 버퍼는 **미도입** — band 단독 4주 운영 후 턴오버 데이터로 결정 (05 §8).
 - [ ] **Sector-specific 팩터 정책** (M1 dry-run, 2026-04-28 발견): 은행/보험/REIT 등 **금융 sector 는 EV/EBITDA·FCF Yield 가 본질적으로 부적절**. 이유:
   - 예금(은행)·보험준비금(보험)이 EV 정의의 부채에 들어가면서 EV 가 비대해짐 → EV/EBITDA 가 sector 평균 30+ 로 튐
   - 대출 자산 증가가 CF 차감으로 잡혀 영업 호조에도 FCF 음수 흔함 (예: Citigroup TTM FCF -$362B 가 실제 FMP 응답값)

@@ -3,7 +3,7 @@
 > **단계**: 4단계 — 포트폴리오 최적화 (**LLM 사용 ❌** — CHARTER §3.3, 순수 코드)
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/03-scenario.md`](03-scenario.md) — 본 단계 입력원 (부록 B 인터페이스 계약), 운영 중
-> **후행 문서**: `docs/05-rebalancing.md` (작성 예정) — 본 단계 출력(`TargetPortfolio`)을 입력으로 받음
+> **후행 문서**: [`docs/05-rebalancing.md`](05-rebalancing.md) v0.3 (운영 중) — 본 단계 출력(`TargetPortfolio`)을 입력으로 받음 (부록 A 계약 확정)
 > **버전**: v0.4 (2026-09-12) — G5 게이트 추가 (§5). v0.3 (2026-08-17)
 > **상태**: **구현 완료 (#1~#8) · 자동 운영 중** — 2026-08-17 정기 실행부터 1~4단계 자동
 >
