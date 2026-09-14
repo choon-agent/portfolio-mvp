@@ -13,6 +13,10 @@ Part A. 포트폴리오 시뮬: config 6종(primary / balanced / base_cap_10 / a
 Part B. 구조 진단 (주차 × config): 후보 중 bear=base=현재가 퇴화 비율 /
   ER 과 p_bull×return_52w_high 의 Spearman 순위상관 / 스크리닝 momentum_z 상위 5
   중 ER≤0 비율 (1↔3단계 방향 충돌) / 제외 사유 분포.
+Part C. config 별 calibration: trigger_evaluations/ 에 저장된 앵커 종가(발표 후 첫
+  거래일)를 각 config 의 scenario_prices bin 으로 재분류 → realized 분포·Brier.
+  확률은 LLM 출력 동일(option_b 만 score 확률) — bin 경계 차이만 측정.
+  `--only-calibration` 으로 Part A/B 생략 가능.
 
 해석 원칙: 8주 표본 — 성과 순위 확정 금지, 구조 판정용 (후보 확보·퇴화·턴오버·게이트).
 
@@ -44,6 +48,7 @@ from agents.scenario.pricing_config import (  # noqa: E402
     ScenarioPricingConfig,
     alternative_configs,
 )
+from agents.scenario.trigger_evaluator import brier_score, realized_scenario  # noqa: E402
 from agents.scenario.schemas import (  # noqa: E402
     ExpectedReturn,
     ExpectedReturnsBundle,
@@ -52,7 +57,7 @@ from agents.scenario.schemas import (  # noqa: E402
 )
 from common.s3_io import read_json  # noqa: E402
 from optimizer import data_loader, lambda_core  # noqa: E402
-from optimizer.baseline import option_b_expected_return  # noqa: E402
+from optimizer.baseline import option_b_expected_return, option_b_probabilities  # noqa: E402
 from optimizer.data_loader import GateResult, SymbolData, config_hash  # noqa: E402
 from optimizer.schemas import CovarianceParams  # noqa: E402
 from rebalancer.performance import tracking_error, weekly_return  # noqa: E402
@@ -217,6 +222,48 @@ def structure_diag(wk: WeekData, config: str, flag_policy: str) -> dict:
     }
 
 
+# ---------- Part C: config 별 calibration ----------
+
+
+def calibration_by_config(
+    bucket: str, weeks: list[WeekData], configs: list[str], policies: list[str]
+) -> list[dict]:
+    rows: list[dict] = []
+    for wk in weeks:
+        for sym in wk.bundles:
+            ev = read_json(bucket, f"trigger_evaluations/dt={wk.dt}/symbol={sym}.json")
+            anchor = (ev or {}).get("calibration", {}).get("anchor_close")
+            if anchor is None:
+                continue
+            probs_llm = {s.label: s.probability for s in wk.opinion[sym].scenarios}
+            for c in configs:
+                er = config_er(wk, sym, c)
+                if er is None:
+                    continue
+                probs = (option_b_probabilities(wk.ctx[sym].bull_opinion, wk.ctx[sym].bear_opinion)
+                         if c == "option_b" else probs_llm)
+                realized = realized_scenario(float(anchor), dict(er.scenario_prices))
+                for p in policies:
+                    if p == "exclude" and er.data_quality_flags:
+                        continue
+                    rows.append({"dt": wk.dt, "sym": sym, "config": c, "policy": p,
+                                 "realized": realized, "brier": brier_score(probs, realized)})
+    return rows
+
+
+def calibration_summary(rows: list[dict]) -> list[str]:
+    if not rows:
+        return ["(calibration 표본 없음)"]
+    df = pd.DataFrame(rows)
+    lines = ["| config | policy | n | realized bull/base/bear | Brier 평균 |", "|---|---|---|---|---|"]
+    for (c, p), g in df.groupby(["config", "policy"], sort=False):
+        vc = g.realized.value_counts()
+        lines.append(f"| {c} | {p} | {len(g)} | {vc.get('bull', 0)}/{vc.get('base', 0)}/{vc.get('bear', 0)} "
+                     f"| {g.brier.mean():.3f} |")
+    lines.append("> uniform ≈ 0.667 / 합격선 < 0.25 (§1.4.2 #1, 12주 누적 기준). 확률은 LLM 동일 — bin 경계 효과만.")
+    return lines
+
+
 # ---------- 실행 ----------
 
 
@@ -230,6 +277,7 @@ def main() -> int:
     ap.add_argument("--flag-policies", default="exclude,ignore")
     ap.add_argument("--band", type=float, default=0.015)
     ap.add_argument("--output-dir", default="retro_data/backtest")
+    ap.add_argument("--only-calibration", action="store_true", help="Part A/B 생략")
     args = ap.parse_args()
     os.environ.setdefault("S3_BUCKET", args.bucket)
 
@@ -242,6 +290,16 @@ def main() -> int:
     print(f"주차 {len(dts)}: {dts}\nconfig {configs} × policy {policies}")
 
     weeks = [load_week(args.bucket, dt, params) for dt in dts]
+    out = ROOT / args.output_dir / f"{dts[0]}_{dts[-1]}"
+    out.mkdir(parents=True, exist_ok=True)
+    if args.only_calibration:
+        cal = calibration_by_config(args.bucket, weeks, configs, policies)
+        pd.DataFrame(cal).to_csv(out / "calibration.csv", index=False)
+        text = "\n".join([f"# Part C — config 별 calibration ({dts[0]}~{dts[-1]})", "",
+                           *calibration_summary(cal)])
+        (out / "calibration.md").write_text(text)
+        print("\n" + text)
+        return 0
     keys = [(c, p) for c in configs for p in policies]
     states = {k: None for k in keys}
     prev_nav: dict[tuple[str, str], float] = {}
@@ -294,8 +352,6 @@ def main() -> int:
 
     # ---------- 요약 ----------
     df = pd.DataFrame(weekly_rows)
-    out = ROOT / args.output_dir / f"{dts[0]}_{dts[-1]}"
-    out.mkdir(parents=True, exist_ok=True)
     df.to_csv(out / "weekly.csv", index=False)
     (out / "targets.json").write_text(json.dumps(targets, indent=1))
 
@@ -317,6 +373,9 @@ def main() -> int:
             f"{g.n_candidates.fillna(0).mean():.1f} | {int(g.hold.sum())} | "
             f"{g.degen_frac.mean():.2f} | {g.spearman_er_vs_pbull52w.mean():.2f} | "
             f"{g.mom_top5_er_nonpos.mean():.2f} |")
+    cal = calibration_by_config(args.bucket, weeks, configs, policies)
+    pd.DataFrame(cal).to_csv(out / "calibration.csv", index=False)
+    lines += ["", "## Part C — config 별 calibration", "", *calibration_summary(cal)]
     lines += ["", "> 8주 표본 — 성과 순위 확정 금지. 구조 판정(후보 확보·퇴화·턴오버·게이트)용.",
               f"> weekly.csv / targets.json: {out}"]
     (out / "summary.md").write_text("\n".join(lines))

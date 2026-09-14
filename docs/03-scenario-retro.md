@@ -116,6 +116,28 @@ camelCase 통일 + 픽스처를 실제 API 표기로 갱신 (픽스처가 코드
 - [ ] CHARTER §4.1 실전 전환 4기준 — 주간 성공률 ≥90% 은 07-13 재기산으로 **10월 중순에야 3개월 충족 가능** (전환 판단은 그 이후로 밀릴 수 있음을 인지)
 - [ ] §12.3 config A/B 확정 — sensitivity 4종 대안 × 4단계 백테스트 (04 §9 파라미터 재검증 겸)
 
+  **▶ 사전 백테스트 결과 (2026-09-14 실행 — `scripts/run_config_backtest.py`, 07-14~09-14 8주, LLM 0)**
+  ER 은 현재 config 정의로 매주 재계산(저장값은 08-04 승격 전후 정의가 섞임 — v0.17 주차 재계산 vs 저장 불일치 0건). 4단계 as_of 절단 + 5단계 동일 규칙 리플레이. SPY 동기간 +1.66%.
+
+  | config (flag=exclude) | 누적 | TE(연) | 턴오버/주 | 평균 현금 | 평균 후보 | 퇴화 비율 | ρ(ER, p_bull×52wH) | mom top5 ER≤0 |
+  |---|---|---|---|---|---|---|---|---|
+  | **primary (v0.17)** | +2.41% | **18.9%** | 45% | 20% | 8.2 | **0.78** (07-14 0.57 → 09-14 0.92) | 0.46 (0.13→0.64) | 0.78 |
+  | option_b | +1.43% | 19.3% | 45% | 19% | 8.5 | 0.76 | 0.48 | 0.72 |
+  | balanced | +6.25% | 16.1% | 43% | 5% | 9.9 | 0.42 | 0.22 | 0.85 |
+  | base_cap_10 | +4.95% | 19.2% | 40% | 44% | 5.6 | 0.00 | 0.68 | 0.65 |
+  | aggressive | +13.57% | 13.6% | 49% | 0% | 13.1 | 0.00 | 0.14 | 0.60 |
+  | bear_uncapped | +4.89% | 6.8% | 21% | **82%** | 1.8 | 0.00 | 0.19 | 0.88 |
+
+  **판정 (구조 기준 — 8주 성과 순위는 확정하지 않음; aggressive +13.6% 는 08-17 한 주 +7.1% 의존)**:
+  1. **v0.17 bear cap 유지 지지** — bear_uncapped 는 G1 flag 로 후보 1.8/현금 82% (운영 불가). flag 무시 시 +12% 이나 이는 역전 종목(EIX +41% 류)을 사는 왜곡 — 성과가 아니라 산식 오류.
+  2. **primary 의 퇴화가 시간에 따라 심화** (0.57 → 0.92): base cap 0 + bear cap 0 결합의 구조적 귀결. 퇴화 0 인 config 는 전부 **base cap 10%** 를 여는 쪽(base_cap_10·aggressive) — 퇴화 해소 레버는 bull 공격성이 아니라 base cap. 단 base_cap_10 단독은 base>bull 순서 위반 flag 로 후보가 줄어(현금 44%) bull 산식 동반 조정(=aggressive 조합) 또는 순서 위반 처리 재정의 필요 → **재검토 안건: base cap 0→10% + bull 결합 방식 A/B 를 v0.18 후보로**.
+  3. **1↔3단계 방향 충돌은 config 무관** (top-5 모멘텀 종목의 60~88% 가 ER≤0, 전 config) — config A/B 로 못 고침. 1단계 모멘텀 팩터 vs 3단계 52주고점 앵커 설계 이슈로 별도 안건.
+  4. **옵션 C vs B (8주 정합 리플레이)**: C +2.41% vs B +1.43% — 예측 ER 4주 연속 B 우위와 실현은 반대. 실계좌 4주(-2.71% 동률)와 함께 "차이 없음" 이 현재 결론. 확률 상수성(§0.5 08-24)과 정합.
+  5. ⚠ **primary TE 18.9% > CHARTER §4.1 15%** — 7주 액티브 수익률 기준. 집중 포지션(7종목·15% cap)의 idiosyncratic 성분이 원인 (현금 비중이 아님 — bear_uncapped 현금 82% 는 TE 6.8%). §4.1 실전 전환 판단 시 미충족 가능성 인지.
+  6. flag 정책은 primary 에 무영향 (exclude=ignore) — v0.17 에서 flag 종목은 어차피 ER≤0.
+  7. **Part C — config 별 calibration (앵커 종가 재분류, n=48 = 유효 regime 발표분)**: Brier primary 0.610 / balanced 0.549 / aggressive 0.564 / option_b **0.659** — 전 config uniform(0.667) 근처, 합격선 0.25 와 거리 멀고 **config 간 변별 없음** (bin 경계는 부차, 확률 자체가 정보량 없음 — §0.5 08-24 확률 상수성과 정합). realized **bear 0~2/48** — 이 창에서 bear 가 거의 실현 안 됐는데 LLM bear 확률은 상시 ~0.28 → bear 과대. option_b 가 최악 = confidence 점수화가 LLM 확률보다도 못함. **#1 Brier 판정은 12주 시점에도 불합격이 거의 확실** — 재검토에서 "확률을 어디서 얻을 것인가"(LLM 확률 폐기·경험적 base rate·calibration 보정) 를 안건으로.
+  재현: `.venv/bin/python scripts/run_config_backtest.py --from 2026-07-14` → `retro_data/backtest/2026-07-14_2026-09-14/{summary.md,weekly.csv,targets.json,calibration.csv}`
+
 **B. Charter 준수 감사 이월 (2026-08-17 감사 ③④)**
 - [ ] **③ 성공 기준 트랙 점검·착수 계획**: (a) 백테스트 엔진 1개 + 모멘텀 vs 밸류 비교 (§4 퀀트 — 미구현), (b) 블로그 1편 초고 (§7 체크포인트 — 미착수), (c) 에이전트 3패턴 비교표 — Orchestrator(SF 체인) ✅ / Self-Verification(#13) ✅ / 병렬 Debate(02 §10 v2 이월) 상태에서 프롬프트·비용·품질 비교표 작성
 - [ ] **④ Athena 정리**: 계획(CHARTER §3.4·CLAUDE.md 스택) 대비 실사용 0 — 스택에서 제거 vs 회고 분석용 실사용 결정
