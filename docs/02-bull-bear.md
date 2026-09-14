@@ -628,6 +628,16 @@ LLM-as-judge 기반 hard rule 회귀 검증. 시스템 프롬프트의 hard rule
 
 baseline 리포트 전문 (judge reasoning 포함): [`tests/golden/bullbear/reports/deepeval_report.json`](../tests/golden/bullbear/reports/deepeval_report.json). 리포트는 골든 디렉토리 *하위* `reports/` 에 저장 — top-level 에 두면 [`test_bullbear_golden`](../src/tests/test_bullbear_golden.py) 의 `glob("*.json")` 이 리포트를 snapshot 으로 잘못 픽업.
 
+
+**2026-09-14 Sonnet 5 재평가** ([`reports/deepeval_report_sonnet5_2026-09-15.json`](../tests/golden/bullbear/reports/deepeval_report_sonnet5_2026-09-15.json), judge = Sonnet 4.6 유지, 골든 8건 Sonnet 5 재생성 후):
+
+| criterion | pass | 실패 스냅샷 (score) |
+|---|---|---|
+| `evidence_grounded` | 7/8 | AAPL_bear 0.7 |
+| `risks_are_company_specific` | 5/8 | NVDA_bull 0.6 / XOM_bear 0.5 / XOM_bull 0.6 |
+| `signals_not_primary_evidence` | **4/8** | AAPL_bear 0.4 / AAPL_bull 0.7 / NVDA_bull 0.7 / XOM_bear 0.5 |
+
+**16/24 (66.7%) vs baseline 32/32** — 모델 교체에 따른 **품질 회귀 확인**. judge reasoning 상 공통 패턴: Sonnet 5 가 스크리닝 z-score(momentum/value)를 argument 의 1차 근거로 직접 인용 (`signals_not_primary_evidence` 위반 — 4.6 은 0회), key_risks 에 sector 일반론 혼입. §11 정책(criterion fail → judge reasoning 검토 후 system prompt 강화) 적용 대상 — **09-21 첫 운영 실행 결과 확인 후 프롬프트 보강 + DeepEval 재실행(~$0.4)** 을 M3 말 재검토 전 처리 (retro §0.8). judge 가 4.6 이라 cross-family 평가가 됐다는 점은 self-preference bias 항목(§9)과 반대 방향 — 회귀 폭 일부는 judge 편향일 수 있음 (동일 family judge 로 재평가 시 비교).
 **관찰**:
 - `risks_are_company_specific` 가 가장 약한 차원 — 3건 (NVDA_bear, XOM_bear, XOM_bull) 이 임계값 정확히 동률. 공통 패턴 두 가지:
   - (a) 외부 정보 도입: `iPhone 17` (AAPL_bear), `Pioneer acquisition` (XOM 양쪽) — input 에 명시되지 않은 catalyst 를 risk 시나리오에 사용.
