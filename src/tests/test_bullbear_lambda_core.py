@@ -66,7 +66,7 @@ class _FakeAnthropic:
         system: str,
         user: str,
         max_tokens: int,
-        temperature: float,
+        temperature: float | None,
     ) -> RawCompletion:
         self.calls += 1
         if not self.responses:

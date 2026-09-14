@@ -3,46 +3,51 @@
     "symbol": "AAPL",
     "stance": "bear",
     "as_of_date": "2026-04-27",
-    "summary": "AAPL trades at a premium to most peers despite below-peer FCF yield and decelerating revenue growth, leaving limited margin of safety at current valuation.",
+    "summary": "AAPL trades near peer-high multiples despite a growth profile and FCF yield that lag GOOGL and META.",
     "arguments": [
       {
-        "claim": "AAPL's FCF yield of 3.80% is the lowest among peers except MSFT, yet AAPL's 5Y revenue CAGR of +7.5% does not justify a premium over higher-yielding, faster-growing peers like META (FCF yield 5.00%) and GOOGL (FCF yield 4.50%).",
-        "evidence": "FCF Yield TTM: AAPL 3.80% vs. META 5.00% and GOOGL 4.50%; AAPL 5Y Revenue CAGR +7.5% vs. META and GOOGL which carry higher FCF yields implying better capital return efficiency at lower implied multiples.",
+        "claim": "Apple's valuation premium over faster-growing, higher-yielding peers is not justified by fundamentals.",
+        "evidence": "P/E TTM of 29.50 exceeds GOOGL (24.00) and META (26.00), while FCF Yield TTM of 3.80% trails both GOOGL (4.50%) and META (5.00%).",
         "confidence": "medium"
       },
       {
-        "claim": "AAPL's P/E of 29.50x sits above the peer median (~28.5x blended, but above GOOGL at 24x and META at 26x) while its 5Y EPS CAGR of +10% is not materially superior to justify the premium over those cheaper peers.",
-        "evidence": "P/E TTM: AAPL 29.50 vs. GOOGL 24.00 and META 26.00; AAPL 5Y EPS CAGR +10.00% — a modest growth premium that does not clearly warrant a 13–23% P/E premium over GOOGL and META respectively.",
+        "claim": "Sequential revenue and earnings show sharp quarter-over-quarter deceleration entering 2026.",
+        "evidence": "Revenue fell from $120.00B (2025-12-31) to $95.00B (2026-03-31), and diluted EPS dropped from 2.10 to 1.55 in the same period — a ~26% sequential EPS decline.",
         "confidence": "medium"
       },
       {
-        "claim": "Sequential revenue deceleration outside the December quarter reveals heavy dependence on a single seasonal peak, with the most recent quarter (Mar-2026 $95B) only modestly above the Jun-2025 trough ($85B), suggesting limited organic growth momentum.",
-        "evidence": "Revenue: Dec-2025 $120.0B (peak) vs. Mar-2026 $95.0B, Sep-2025 $89.0B, Jun-2025 $85.0B — the non-holiday quarters cluster tightly in an $85–95B band, indicating the 5Y Revenue CAGR of +7.5% is heavily skewed by seasonal spikes rather than broad-based growth.",
+        "claim": "Free cash flow generation is decelerating faster than the long-term trend suggests.",
+        "evidence": "FCF fell from $35.00B in 2025-12-31 to $25.00B in 2026-03-31, even though the 5Y FCF CAGR is only +6.00%, the weakest of the three growth metrics disclosed (Revenue +7.50%, EPS +10.00%).",
         "confidence": "medium"
       },
       {
-        "claim": "AAPL's EV/EBITDA of 22.0x is above GOOGL (17.0x) and META (15.5x), meaning investors are paying a significant enterprise-value premium for a business with a lower FCF yield and comparable or slower growth.",
-        "evidence": "EV/EBITDA TTM: AAPL 22.00 vs. GOOGL 17.00 (29% premium) and META 15.50 (42% premium); AAPL FCF Yield 3.80% is lower than both GOOGL (4.50%) and META (5.00%).",
-        "confidence": "high"
+        "claim": "Stock has already priced in most of the recovery from its 52-week low, limiting the case for further re-rating on fundamentals that are softening.",
+        "evidence": "Price is +22.00% from the 52-week low and only -3.00% from the 52-week high, while the most recent quarter shows revenue and EPS declines versus the prior quarter.",
+        "confidence": "low"
+      },
+      {
+        "claim": "Value screen signals confirm the stock is expensive relative to its own factor profile, not just versus peers.",
+        "evidence": "Value z-score of -0.30 indicates below-average value characteristics despite a positive momentum z-score of +0.95, suggesting price strength is outrunning fundamental cheapness.",
+        "confidence": "low"
       }
     ],
     "key_risks_to_thesis": [
-      "Apple Intelligence / AI-driven upgrade cycle: If the on-device AI features embedded in the iPhone 17 series trigger a supercycle, revenue in non-holiday quarters could break materially above the $85–95B band, invalidating the stagnation argument and justifying the premium multiple.",
-      "Services segment re-rating: If Apple's high-margin Services revenue (not broken out in the data but a known mix-shift driver) accelerates its share of total revenue, the market could assign a software-like multiple to the blended business, making the current EV/EBITDA of 22x look cheap relative to pure-play SaaS peers.",
-      "Aggressive capital return expansion: Apple has historically used its massive FCF ($21–35B per quarter) for buybacks that structurally reduce share count and lift EPS; an announced acceleration of buybacks or a special dividend could compress the P/E faster than earnings growth alone, supporting the current valuation."
+      "The 2026-03-31 quarter's revenue and EPS drop versus 2025-12-31 could reflect normal seasonal patterns (holiday quarter strength followed by a seasonal step-down) rather than a genuine deceleration, in which case the sequential decline argument weakens materially.",
+      "If Apple's premium multiple is being sustained by services-mix shift or margin expansion not visible in the revenue/EPS/FCF lines shown, the peer-multiple comparison could be misleading.",
+      "Continued momentum (momentum z-score +0.95, 1Y return +18.00%) could persist and further compress the argument that valuation must converge toward peers with lower FCF yield support."
     ],
-    "model": "claude-sonnet-4-6",
-    "input_tokens": 1599,
-    "output_tokens": 1025,
-    "cost_usd": 0.020172
+    "model": "claude-sonnet-5",
+    "input_tokens": 2415,
+    "output_tokens": 1010,
+    "cost_usd": 0.014929999999999999
   },
   "attempts": [
     {
-      "model": "claude-sonnet-4-6",
+      "model": "claude-sonnet-5",
       "stage": "primary",
-      "input_tokens": 1599,
-      "output_tokens": 1025,
-      "cost_usd": 0.020172,
+      "input_tokens": 2415,
+      "output_tokens": 1010,
+      "cost_usd": 0.014929999999999999,
       "succeeded": true,
       "error": null
     }

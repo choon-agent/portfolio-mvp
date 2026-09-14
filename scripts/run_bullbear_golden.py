@@ -9,7 +9,7 @@
 - JPM:  Financials / Diversified Banks — sector-specific 팩터 보강 효과 평가
         (docs §10: EV/EBITDA·FCF Yield 가 구조적으로 왜곡되는 케이스)
 
-비용 추정: 4종목 × 2 stance × ~$0.02/호출 ≈ **$0.16** (Sonnet 4.6, temperature=0).
+비용 추정: 4종목 × 2 stance × ~$0.02/호출 ≈ **$0.16** (Sonnet 5, temperature 미전송).
 
 실행:
   PYTHONPATH=src ANTHROPIC_API_KEY=sk-... .venv/bin/python scripts/run_bullbear_golden.py

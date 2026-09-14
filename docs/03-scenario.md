@@ -98,7 +98,7 @@
 
 Bull/Bear 의견을 입력으로 받아 *3 시나리오 (bull/base/bear) × 확률 + 무효화 트리거*를 LLM 으로 생성, 코드 측 결정적 산식이 가격 범위 + expected return + variance 산출. 4단계 포트폴리오 최적화의 입력.
 
-- 모델: **Sonnet 4.6** (Haiku 4.5 폴백 — 02-bull-bear §4.2 동일 사다리)
+- 모델: **Sonnet 5** (Haiku 4.5 폴백 — 02-bull-bear §4.2 동일 사다리, 2026-09-14 4.6 에서 이행)
 - 호출량: 종목당 1회 × 주 15~20 종목 = **주 15~20회 / 월 ~60~80회**
 - 예상 비용: **월 ~$1.2~1.6** (CHARTER §3.3 시나리오 단계 추정과 정합)
 - 출력: Pydantic 검증 JSON (`ScenarioOpinion`) + 결정적 산식으로 변환된 `ExpectedReturn`
@@ -743,7 +743,7 @@ class ExpectedReturnsBundle(BaseModel):
 | 입력 합계 | **~3,350 tok** |
 | 출력 (JSON: 3 scenarios + triggers) | ~500 tok |
 
-Sonnet 4.6 단가 (2026-04 기준): 입력 $3/1M, 출력 $15/1M
+Sonnet 5 단가 (2026-09 기준): 입력 $2/1M, 출력 $10/1M (Sonnet 4.6 시절 $3/$15 — 아래 산출은 4.6 기준 상한)
 - 호출당 비용: 3,350 × $3/1M + 500 × $15/1M ≈ **$0.018**
 
 > **⚠ 추정 미검증 (golden #8 전) — M2 실측 교차검증** (v0.7):

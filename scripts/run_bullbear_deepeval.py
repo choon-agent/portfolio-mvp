@@ -256,7 +256,7 @@ def main() -> int:
     args.output.write_text(
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    print(f"\nReport saved: {args.output.relative_to(ROOT)}")
+    print(f"\nReport saved: {args.output.resolve().relative_to(ROOT)}")
 
     return 0 if failed == 0 else 1
 

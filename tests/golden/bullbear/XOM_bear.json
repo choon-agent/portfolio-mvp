@@ -3,51 +3,51 @@
     "symbol": "XOM",
     "stance": "bear",
     "as_of_date": "2026-04-27",
-    "summary": "XOM trades at a premium to most peers while revenue growth is modest and recent momentum has stalled, suggesting limited upside relative to cheaper integrated-oil alternatives.",
+    "summary": "XOM's revenue and EPS are declining sequentially, its multiples are rich versus refining-heavy peers, and 6M momentum has already turned negative.",
     "arguments": [
       {
-        "claim": "XOM commands a P/E premium over most peers despite no clear earnings-growth advantage, making its relative valuation difficult to justify.",
-        "evidence": "XOM P/E TTM of 12.00 is above COP (11.00), MPC (8.50), and PSX (10.00); only CVX (13.50) is higher. Yet XOM's 5Y EPS CAGR of +14% is not materially differentiated from peers who trade at steeper discounts, meaning investors are paying up without a clear growth premium.",
+        "claim": "Recent earnings momentum is deteriorating rather than growing.",
+        "evidence": "Revenue fell from $92.00B (2025-12-31) to $88.00B (2026-03-31) and diluted EPS dropped from 2.85 to 2.60 over the same period, a two-quarter reversal after the prior uptrend.",
         "confidence": "medium"
       },
       {
-        "claim": "Revenue growth has been essentially flat over the trailing four quarters, with the most recent quarter showing a sequential decline from the prior-quarter peak.",
-        "evidence": "Revenue was $85.00B (Q2-2025), $87.00B (Q3-2025), $92.00B (Q4-2025), then fell back to $88.00B (Q1-2026) — a $4B sequential drop — and the 5Y revenue CAGR is only +4.00%, indicating structural top-line stagnation.",
+        "claim": "XOM trades at a valuation premium to several peers despite weaker free cash flow yield.",
+        "evidence": "XOM's FCF Yield TTM of 8.50% is below COP (9.00%), PSX (9.50%), and MPC (11.00%), yet its EV/EBITDA of 6.50 is higher than COP (5.80), MPC (5.20), and PSX (6.00).",
         "confidence": "medium"
       },
       {
-        "claim": "FCF declined sequentially in the most recent quarter, reversing a prior build-up and suggesting the peak FCF generation may already be behind us.",
-        "evidence": "FCF peaked at $16.00B in Q4-2025 and fell to $14.00B in Q1-2026, a $2B quarter-over-quarter decline, while revenue also contracted — both metrics moving in the same negative direction simultaneously.",
+        "claim": "Price action shows a stalling trend despite a full-year gain, suggesting the rally has lost steam.",
+        "evidence": "6M return is -3.00% and the stock is -8.00% from its 52-week high, even though 1Y return is +12.00%.",
         "confidence": "medium"
       },
       {
-        "claim": "Near-term price momentum has turned negative, with the stock down 3% over the last six months and sitting 8% below its 52-week high, indicating the market is already de-rating the name.",
-        "evidence": "6M return of -3.00% and current price -8.00% from the 52-week high, despite a still-positive 1Y return of +12.00% — the more recent trend is clearly deteriorating.",
-        "confidence": "medium"
+        "claim": "Long-term revenue growth remains anemic, raising doubts about the durability of the recent EPS CAGR.",
+        "evidence": "5Y Revenue CAGR is only +4.00% versus 5Y EPS CAGR of +14.00%, implying EPS growth has outpaced top-line growth and may be reliant on margin or buyback effects rather than organic demand.",
+        "confidence": "low"
       },
       {
-        "claim": "XOM's FCF yield of 8.50% is below cheaper peers COP (9.00%), MPC (11.00%), and PSX (9.50%), meaning investors receive less cash-return compensation per dollar invested relative to alternatives in the same sector.",
-        "evidence": "FCF Yield TTM: XOM 8.50% vs. COP 9.00%, MPC 11.00%, PSX 9.50% — XOM is the second-lowest FCF yield in the peer group while carrying a higher P/E than three of the four peers.",
-        "confidence": "medium"
+        "claim": "FCF growth has decelerated relative to EPS growth over the same long-term window, hinting at cash conversion pressure.",
+        "evidence": "5Y FCF CAGR of +9.00% trails the 5Y EPS CAGR of +14.00%, and quarterly FCF of $14.00B (2026-03-31) is below the $16.00B posted in 2025-12-31.",
+        "confidence": "low"
       }
     ],
     "key_risks_to_thesis": [
-      "XOM's Pioneer Natural Resources acquisition could deliver synergies and Permian production growth that materially accelerates FCF above the current run-rate, invalidating the 'peak FCF' argument if Q1-2026 proves to be a one-quarter dip rather than a trend.",
-      "A sustained rebound in crude oil prices (driven by OPEC+ supply discipline or geopolitical disruption) could rapidly expand EPS and FCF, compressing the P/E and FCF-yield gap versus peers and making the current valuation look cheap in hindsight.",
-      "XOM's integrated downstream and chemicals segments provide earnings diversification that pure-play E&P peers like COP lack; if refining margins recover from a trough, XOM's earnings quality advantage over peers could justify its persistent P/E premium."
+      "A rebound in crude and refining margins could quickly reverse the recent quarterly revenue and EPS declines, given the sequential drop follows several prior quarters of growth.",
+      "XOM's beta of 0.95 and defensive integrated model may attract flows in a risk-off environment, supporting the stock even as peer multiples look cheaper.",
+      "The value screen already flags XOM as statistically cheap (Value z-score +1.20, P/E 12.00), so any stabilization in quarterly results could quickly re-rate the multiple higher rather than lower."
     ],
-    "model": "claude-sonnet-4-6",
-    "input_tokens": 1600,
-    "output_tokens": 954,
-    "cost_usd": 0.01911
+    "model": "claude-sonnet-5",
+    "input_tokens": 2418,
+    "output_tokens": 982,
+    "cost_usd": 0.014656
   },
   "attempts": [
     {
-      "model": "claude-sonnet-4-6",
+      "model": "claude-sonnet-5",
       "stage": "primary",
-      "input_tokens": 1600,
-      "output_tokens": 954,
-      "cost_usd": 0.01911,
+      "input_tokens": 2418,
+      "output_tokens": 982,
+      "cost_usd": 0.014656,
       "succeeded": true,
       "error": null
     }

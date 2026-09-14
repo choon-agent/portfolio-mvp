@@ -1,0 +1,194 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LambdaManagePortfolioFunctions",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetPolicy",
+        "lambda:CreateFunction",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:PublishVersion",
+        "lambda:InvokeFunction",
+        "lambda:ListVersionsByFunction",
+        "lambda:TagResource"
+      ],
+      "Resource": "arn:aws:lambda:ap-northeast-2:879780444466:function:portfolio-mvp-*"
+    },
+    {
+      "Sid": "LambdaList",
+      "Effect": "Allow",
+      "Action": ["lambda:ListFunctions", "lambda:GetAccountSettings"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PassPortfolioRoles",
+      "Effect": "Allow",
+      "Action": ["iam:PassRole", "iam:GetRole"],
+      "Resource": [
+        "arn:aws:iam::879780444466:role/portfolio-mvp-*",
+        "arn:aws:iam::879780444466:role/service-role/portfolio-mvp-*"
+      ],
+      "Condition": {
+        "StringEqualsIfExists": {
+          "iam:PassedToService": [
+            "lambda.amazonaws.com",
+            "states.amazonaws.com",
+            "scheduler.amazonaws.com",
+            "events.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "StepFunctionsPortfolio",
+      "Effect": "Allow",
+      "Action": [
+        "states:CreateStateMachine",
+        "states:UpdateStateMachine",
+        "states:DescribeStateMachine",
+        "states:StartExecution",
+        "states:ListExecutions",
+        "states:DescribeExecution",
+        "states:GetExecutionHistory",
+        "states:StopExecution",
+        "states:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:states:ap-northeast-2:879780444466:stateMachine:portfolio-mvp-*",
+        "arn:aws:states:ap-northeast-2:879780444466:execution:portfolio-mvp-*:*"
+      ]
+    },
+    {
+      "Sid": "StepFunctionsList",
+      "Effect": "Allow",
+      "Action": "states:ListStateMachines",
+      "Resource": "*"
+    },
+    {
+      "Sid": "SchedulerPortfolio",
+      "Effect": "Allow",
+      "Action": [
+        "scheduler:GetSchedule",
+        "scheduler:UpdateSchedule",
+        "scheduler:CreateSchedule"
+      ],
+      "Resource": "arn:aws:scheduler:ap-northeast-2:879780444466:schedule/default/portfolio-mvp-*"
+    },
+    {
+      "Sid": "SchedulerList",
+      "Effect": "Allow",
+      "Action": "scheduler:ListSchedules",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EventBridgeRulesPortfolio",
+      "Effect": "Allow",
+      "Action": [
+        "events:PutRule",
+        "events:PutTargets",
+        "events:DescribeRule",
+        "events:ListTargetsByRule",
+        "events:EnableRule",
+        "events:DisableRule"
+      ],
+      "Resource": "arn:aws:events:ap-northeast-2:879780444466:rule/portfolio-mvp-*"
+    },
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": ["ecr:GetAuthorizationToken", "ecr:DescribeRepositories"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrPushPortfolioRepos",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:DescribeImages",
+        "ecr:ListImages",
+        "ecr:GetRepositoryPolicy",
+        "ecr:SetRepositoryPolicy"
+      ],
+      "Resource": "arn:aws:ecr:ap-northeast-2:879780444466:repository/portfolio-mvp/*"
+    },
+    {
+      "Sid": "S3PortfolioBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:GetObjectTagging",
+        "s3:PutObjectTagging"
+      ],
+      "Resource": [
+        "arn:aws:s3:::portfolio-mvp-data-s3",
+        "arn:aws:s3:::portfolio-mvp-data-s3/*"
+      ]
+    },
+    {
+      "Sid": "S3ListBuckets",
+      "Effect": "Allow",
+      "Action": "s3:ListAllMyBuckets",
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecretsPortfolio",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+      "Resource": "arn:aws:secretsmanager:ap-northeast-2:879780444466:secret:portfolio-mvp/*"
+    },
+    {
+      "Sid": "LogsPortfolioLambdas",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogStreams",
+        "logs:GetLogEvents",
+        "logs:FilterLogEvents",
+        "logs:StartLiveTail"
+      ],
+      "Resource": [
+        "arn:aws:logs:ap-northeast-2:879780444466:log-group:/aws/lambda/portfolio-mvp-*",
+        "arn:aws:logs:ap-northeast-2:879780444466:log-group:/aws/lambda/portfolio-mvp-*:*",
+        "arn:aws:logs:ap-northeast-2:879780444466:log-group:/aws/vendedlogs/states/portfolio-mvp-*",
+        "arn:aws:logs:ap-northeast-2:879780444466:log-group:/aws/vendedlogs/states/portfolio-mvp-*:*"
+      ]
+    },
+    {
+      "Sid": "LogsDescribeGroups",
+      "Effect": "Allow",
+      "Action": ["logs:DescribeLogGroups", "logs:StopLiveTail"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CostExplorerRead",
+      "Effect": "Allow",
+      "Action": ["ce:GetCostAndUsage", "ce:GetCostForecast"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SelfKeyRotation",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListAccessKeys",
+        "iam:CreateAccessKey",
+        "iam:UpdateAccessKey",
+        "iam:DeleteAccessKey",
+        "iam:GetUser"
+      ],
+      "Resource": "arn:aws:iam::879780444466:user/${aws:username}"
+    }
+  ]
+}

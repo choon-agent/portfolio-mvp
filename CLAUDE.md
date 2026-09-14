@@ -15,7 +15,7 @@ LLM 에이전트 오케스트레이션을 활용한 주식 포트폴리오 관�
 - **클라우드**: AWS (리전: `ap-northeast-2`)
 - **주요 서비스**: Lambda, S3, Athena, EventBridge, Step Functions
 - **데이터 소스**: Financial Modeling Prep (FMP) API
-- **LLM**: Anthropic Claude API (Sonnet 4.6 기본, Haiku 4.5 폴백)
+- **LLM**: Anthropic Claude API (**Sonnet 5** 기본 — 2026-09-14 4.6 에서 이행, Haiku 4.5 폴백). Sonnet 5 는 `temperature` 등 sampling 파라미터를 거부하므로 요청에서 제외, `thinking` 은 `disabled` 명시 (`anthropic_adapter.py`)
 - **IaC**: Plain ASL JSON + AWS CLI 스크립트 (`infra/step_functions/`, `scripts/deploy_step_functions.sh`). Lambda 는 zip(`deploy_lambda.sh`, CI 자동) + **컨테이너 이미지**(`deploy_lambda_container.sh [optimizer|rebalancer]` — run_optimizer(numpy/scipy zip 초과)·run_rebalancer(pyarrow). CI 제외 — 로컬 배포. infra/README 참조). SAM/CDK 재검토는 보류 중.
 - **테스트**: pytest (단위 테스트 + fake store 목 테스트, `src/tests/`). 통합 테스트(moto)는 미도입 — 컨테이너 배포 스크립트의 import 스모크 + 로컬 dry-run 스크립트가 대신함.
 - **LLM 응답 품질 평가**: DeepEval G-Eval (judge = Sonnet 4.6, 기본 3 criteria — `docs/02-bull-bear.md §11.5` baseline). PoC 단계는 로컬 pytest, Lambda 자동화는 미착수 (#14 baseline 과 함께 M3 말 재검토 안건).
@@ -60,7 +60,7 @@ portfolio-mvp/
 - 일간 데이터는 당일 캐시, 분기 재무는 90일 캐시
 
 ### LLM 에이전트
-- 모델 선택 기본값: **Sonnet 4.6** (이유 없이 Opus 금지 — 비용)
+- 모델 선택 기본값: **Sonnet 5** (이유 없이 Opus 금지 — 비용). `temperature`/`top_p`/`top_k` 전송 금지 (400)
 - 프롬프트는 `src/agents/prompts/` 하위에 별도 파일로 분리
 - 모든 LLM 호출은 다음을 로깅: `timestamp, model, input_tokens, output_tokens, cost_usd, purpose`
 - 에이전트 출력은 Pydantic 모델로 검증 (JSON mode 활용)
@@ -132,7 +132,7 @@ portfolio-mvp/
     실행, `--upload`. S3 `trigger_evaluations/` 누적, observe-only)
   - **남은 작업** (retro §0.8 로 일원화): #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval
     baseline / §12.3 (d) 극소 EPS 가드 (DD 5주 연속 rank 1→제외, 빈도 답 나옴) /
-    **Anthropic SDK 1.x 이행** (temperature 제거 — 09-07 사고, 현재 `<0.50` 핀) /
+    **Anthropic SDK 1.x 이행** (09-07 사고, 현재 `<0.50` 핀 — temperature 제거는 09-14 Sonnet 5 이행으로 선행 완료) /
     ER 산식 퇴화·1↔3단계 방향 충돌 백테스트 (08-24/08-31 관찰)
 - [x] **4단계 최적화 — 구현 완료·자동 운영 편입 (2026-08-17)**
   - `docs/04-optimizer.md` v0.3 / `src/optimizer/` 5모듈 + `run_optimizer` **컨테이너

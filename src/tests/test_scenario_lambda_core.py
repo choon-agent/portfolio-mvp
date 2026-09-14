@@ -185,7 +185,7 @@ def test_cache_miss_calls_llm_and_writes(env: None, store) -> None:
     assert out["cache"] == "miss"
     assert out["attempts"] == 1
     assert fake.calls == 1
-    assert out["cost_usd"] == pytest.approx(0.0174)
+    assert out["cost_usd"] == pytest.approx(0.0116)  # Sonnet 5 단가 $2/$10
     # S3 저장 3개
     assert SCENARIOS_KEY in store.writes
     assert ER_KEY in store.writes

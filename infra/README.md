@@ -8,6 +8,8 @@
 ```
 infra/
 ├── README.md                                  ← 이 파일
+├── iam/
+│   └── local-dev-policy.json                  ← 로컬 개발용 IAM 유저 최소 권한 정책 (§IAM 5)
 └── step_functions/
     └── screening_workflow.asl.json            ← Step Functions 상태 정의
 ```
@@ -176,6 +178,47 @@ Step Functions 자동 배포를 위해 **다음 권한을 인라인으로 추가
   넘기는 것 차단
 - `states:*` 는 `Resource: "*"` 인데, list/describe 는 리소스 스코프 안 됨. 필요 시 create/update 만
   특정 ARN 으로 좁힐 수 있음 (`arn:aws:states:ap-northeast-2:<ACCOUNT>:stateMachine:portfolio-mvp-*`)
+
+### 5) 로컬 개발용 IAM 유저 (`portfolio-mvp-local-dev`) — 2026-09-14 도입
+
+로컬에서 `scripts/` (배포·dry-run·트리거 배치·비용 리포트) 를 돌릴 때 쓰는 access key 는
+**AdministratorAccess 가 아닌 전용 유저** 를 사용. 정책 원본은 `infra/iam/local-dev-policy.json`
+(customer-managed `portfolio-mvp-local-dev-policy`). `admin` 유저는 콘솔+MFA 전용으로 남기고
+access key 는 두지 않는다 (09-14 기존 admin 키 Inactive 처리).
+
+허용 범위 (모두 `ap-northeast-2`, `portfolio-mvp-*` 리소스로 스코프):
+
+| 서비스 | 허용 | 비고 |
+|---|---|---|
+| Lambda | Get/Create/UpdateCode/UpdateConfig/Publish/Invoke | `deploy_lambda*.sh` |
+| IAM | `PassRole`/`GetRole` — `portfolio-mvp-*` 역할만, PassedToService 조건 | create-function / create-state-machine |
+| Step Functions | Create/Update/Describe/Start/List/StopExecution | `ListStateMachines` 만 `*` |
+| Scheduler / Events | Get/Update/CreateSchedule, PutRule/PutTargets/Enable/Disable | `emergency_stop.sh` |
+| ECR | 로그인 + `portfolio-mvp/*` 리포 push/pull | 컨테이너 Lambda 배포 |
+| S3 | `portfolio-mvp-data-s3` List/Get/Put/Delete | `run_*_dry.py`, `run_trigger_batch.py` |
+| Secrets Manager | `portfolio-mvp/*` GetSecretValue/Describe | FMP·Anthropic 키 |
+| CloudWatch Logs | `/aws/lambda/portfolio-mvp-*` tail/filter | `DescribeLogGroups` 만 `*` |
+| Cost Explorer | GetCostAndUsage/Forecast | `run_cost_report.py` |
+| IAM (self) | 본인 access key List/Create/Update/Delete | 키 자체 로테이션 |
+
+**금지된 것**: IAM 역할/정책 생성·수정, 다른 프로젝트(`choon-*`) 리소스, Lambda 삭제, 버킷 생성·삭제.
+새 역할이나 시크릿이 필요한 초기 1회 작업은 콘솔(admin, MFA) 에서 수행.
+
+정책 변경 시 (파일 수정 후 새 버전 발행 — admin 콘솔 또는 CloudShell 에서):
+
+```bash
+aws iam create-policy-version \
+  --policy-arn arn:aws:iam::<ACCOUNT>:policy/portfolio-mvp-local-dev-policy \
+  --policy-document file://infra/iam/local-dev-policy.json --set-as-default
+```
+
+키 로테이션 (전용 유저 본인 권한으로 가능):
+
+```bash
+aws iam create-access-key --user-name portfolio-mvp-local-dev   # 새 키 → ~/.aws/credentials [default]
+aws iam update-access-key --user-name portfolio-mvp-local-dev --access-key-id <OLD> --status Inactive
+aws iam delete-access-key --user-name portfolio-mvp-local-dev --access-key-id <OLD>   # 확인 후
+```
 
 ## GitHub Actions 변수 (vars)
 

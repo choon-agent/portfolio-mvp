@@ -58,7 +58,7 @@
 | 언어 | Python 3.12 |
 | 클라우드 | AWS (`ap-northeast-2`) — Lambda, S3, EventBridge, Athena, Step Functions |
 | 데이터 | Financial Modeling Prep (FMP) API + Wikipedia (S&P 500 구성종목) |
-| LLM | Anthropic Claude (Sonnet 4.6 기본, Haiku 4.5 폴백) |
+| LLM | Anthropic Claude (Sonnet 5 기본, Haiku 4.5 폴백) |
 | 저장 포맷 | Parquet (S3) |
 | 배포 | GitHub Actions + OIDC → Lambda direct upload |
 | 스키마 검증 | Pydantic |
@@ -353,7 +353,7 @@ portfolio-mvp/
 
 - **LLM 비용 상한 월 $200** ([CHARTER §2.2](CHARTER.md))
   - LLM 호출 추가 시 커밋 메시지에 예상 월 비용 영향 기재 필수 (CLAUDE.md 규칙)
-  - Sonnet 4.6 기본, Opus 는 이유 없이 금지
+  - Sonnet 5 기본, Opus 는 이유 없이 금지
 
 ### 운영 관련
 
@@ -473,7 +473,7 @@ git push origin main
 |---|---|---|
 | S&P 500 유니버스 | 유동성 충분, FMP 데이터 기확보, 실험 반복 속도 ↑ | [CHARTER §3.1](CHARTER.md) |
 | 주 1회 리밸런싱 | 거래비용·LLM 비용 과다 방지 | [CHARTER §2.4](CHARTER.md) |
-| 기본 모델 Sonnet 4.6 | 비용 대비 성능. Opus 는 이유 없이 금지 | [CLAUDE.md](CLAUDE.md) |
+| 기본 모델 Sonnet 5 | 비용 대비 성능. Opus 는 이유 없이 금지 | [CLAUDE.md](CLAUDE.md) |
 | LLM 은 근거 생성만, 매매는 룰 기반 | 할루시네이션 리스크 차단 | [CHARTER §6](CHARTER.md) |
 | 월 LLM 비용 상한 $200 | 하드캡. 초과 시 에이전트 수 축소 → 모델 다운그레이드 | [CHARTER §2.2](CHARTER.md) |
 | Wikipedia 를 S&P 500 구성종목 소스로 | FMP 플랜 제약 + 현재/이력 테이블 동일 페이지 제공 | 구현 |

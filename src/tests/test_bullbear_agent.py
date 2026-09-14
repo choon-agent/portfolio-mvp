@@ -60,7 +60,7 @@ class FakeAnthropicClient:
         system: str,
         user: str,
         max_tokens: int,
-        temperature: float,
+        temperature: float | None,
     ) -> RawCompletion:
         self.calls.append(
             FakeCall(
@@ -322,10 +322,11 @@ def test_run_agent_success_on_first_attempt():
     assert result.attempts[0].model == DEFAULT_PRIMARY_MODEL
 
 
-def test_run_agent_passes_temperature_zero_by_default():
+def test_run_agent_omits_temperature_by_default():
+    # Sonnet 5 는 temperature 비기본값을 400 으로 거부 — 기본은 None(미전송)
     fake = FakeAnthropicClient([_completion(_valid_payload())])
     run_bullbear_agent(_ctx(), "bull", caller=fake)
-    assert fake.calls[0].temperature == 0.0
+    assert fake.calls[0].temperature is None
 
 
 def test_run_agent_uses_stance_specific_system_prompt():

@@ -35,7 +35,7 @@ class FakeCall:
     system: str
     user: str
     max_tokens: int
-    temperature: float
+    temperature: float | None
 
 
 class FakeAnthropicClient:
@@ -145,11 +145,11 @@ def test_meta_injected_not_from_llm() -> None:
     op = run_scenario_agent(_ctx(), caller=fake).opinion
     assert op.symbol == "AAPL"
     assert op.as_of_date == AS_OF
-    assert op.model == "claude-sonnet-4-6"
+    assert op.model == "claude-sonnet-5"
     assert op.input_tokens == 3300
     assert op.output_tokens == 500
-    # cost = 3300*3/1e6 + 500*15/1e6 = 0.0099 + 0.0075 = 0.0174
-    assert op.cost_usd == pytest.approx(0.0174)
+    # Sonnet 5 단가: cost = 3300*2/1e6 + 500*10/1e6 = 0.0066 + 0.0050 = 0.0116
+    assert op.cost_usd == pytest.approx(0.0116)
 
 
 def test_json_fence_stripped() -> None:
@@ -204,8 +204,8 @@ def test_total_cost_sums_attempts() -> None:
     ])
     result = run_scenario_agent(_ctx(), caller=fake)
     assert result.total_cost_usd == pytest.approx(
-        _compute_cost("claude-sonnet-4-6", 100, 10, {"claude-sonnet-4-6": {"input": 3.0, "output": 15.0}})
-        + 0.0174
+        _compute_cost("claude-sonnet-5", 100, 10, {"claude-sonnet-5": {"input": 2.0, "output": 10.0}})
+        + 0.0116
     )
 
 
@@ -245,4 +245,4 @@ def test_config_override_max_tokens() -> None:
     fake = FakeAnthropicClient([_completion(_valid_payload())])
     run_scenario_agent(_ctx(), caller=fake, config=AgentConfig(max_tokens=4096))
     assert fake.calls[0].max_tokens == 4096
-    assert fake.calls[0].temperature == 0.0
+    assert fake.calls[0].temperature is None

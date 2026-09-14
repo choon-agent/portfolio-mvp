@@ -206,7 +206,7 @@ def run_scenario_agent(
     인자:
         ctx: ScenarioContext (Bull/Bear 의견 2개 + 가격 컨텍스트).
         caller: Anthropic 호출 어댑터 (Lambda 는 AnthropicSDKCaller, 테스트는 Fake).
-        config: 모델·temperature·max_tokens. None 이면 기본값 (Bull/Bear 와 동일).
+        config: 모델·temperature·max_tokens. None 이면 기본값 (Bull/Bear 와 동일, temperature 미전송).
         pricing: USD/1M 단가. None 이면 DEFAULT_PRICING.
         purpose: 로그의 purpose 필드.
 

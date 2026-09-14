@@ -16,6 +16,14 @@ SDK 의존:
 - max_retries=0 — agent.py 의 사다리(primary → primary_retry → fallback) 가
   재시도 책임. SDK 자체 재시도를 켜면 사다리 의도와 충돌(검증 실패 시 사다리
   통과 못 하고 SDK 안에서 같은 모델로만 재시도하는 케이스 등).
+
+요청 형태 (Sonnet 5 이행, 2026-09-14):
+- temperature 는 None 이면 kwarg 자체를 생략 — Sonnet 5 는 sampling 파라미터
+  비기본값을 400 으로 거부. 값이 오면 그대로 전달 (Haiku 4.5 실험용).
+- thinking 은 기본 {"type": "disabled"} 명시 — Sonnet 5 는 thinking 필드를
+  생략하면 adaptive thinking 이 *켜져서* (4.6 은 꺼짐) thinking 토큰 과금 +
+  max_tokens 잠식이 생김. 4.6 과 동일한 비용 프로파일을 유지하기 위해 끔.
+  adaptive 실험은 AnthropicSDKCaller(thinking={"type": "adaptive"}) 로.
 """
 from __future__ import annotations
 
@@ -25,11 +33,19 @@ from agents.bull_bear.agent import RawCompletion
 
 logger = logging.getLogger(__name__)
 
+# Sonnet 5 기본: thinking 명시적으로 끔 (모듈 docstring 참조).
+DEFAULT_THINKING: dict[str, str] = {"type": "disabled"}
+
 
 class AnthropicSDKCaller:
     """anthropic.Anthropic.messages.create → RawCompletion 정규화."""
 
-    def __init__(self, *, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        thinking: dict[str, str] | None = None,
+    ) -> None:
         try:
             import anthropic  # noqa: F401 — lazy import, 미설치 시 명확한 에러
         except ImportError as exc:
@@ -40,6 +56,7 @@ class AnthropicSDKCaller:
 
         self._anthropic = anthropic
         self._client = anthropic.Anthropic(api_key=api_key, max_retries=0)
+        self._thinking = thinking if thinking is not None else DEFAULT_THINKING
 
     def call(
         self,
@@ -48,15 +65,18 @@ class AnthropicSDKCaller:
         system: str,
         user: str,
         max_tokens: int,
-        temperature: float,
+        temperature: float | None,
     ) -> RawCompletion:
-        msg = self._client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
+        kwargs: dict[str, object] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+            "thinking": self._thinking,
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        msg = self._client.messages.create(**kwargs)
 
         text_parts: list[str] = []
         for block in msg.content:

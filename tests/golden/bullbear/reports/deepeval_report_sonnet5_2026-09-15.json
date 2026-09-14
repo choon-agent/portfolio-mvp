@@ -1,0 +1,214 @@
+{
+  "judge_model": "claude-sonnet-4-6",
+  "generated_at": "2026-09-14T15:39:42.349679+00:00",
+  "targets": [
+    "AAPL_bear",
+    "AAPL_bull",
+    "JPM_bear",
+    "JPM_bull",
+    "NVDA_bear",
+    "NVDA_bull",
+    "XOM_bear",
+    "XOM_bull"
+  ],
+  "results": [
+    {
+      "snapshot": "AAPL_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 0.7,
+      "threshold": 0.8,
+      "passed": false,
+      "reason": "Most evidence fields are traceable to input data. Arguments 1, 2, 3, and 4 cite specific figures directly from Peer Context, Fundamentals, Price Summary, and 5Y CAGR sections (e.g., P/E 29.50 vs GOOGL 24.00/META 26.00, FCF Yield 3.80% vs 4.50%/5.00%, revenue $120B→$95B, EPS 2.10→1.55, FCF $35B→$25B, +22%/-3% price levels). However, argument 5 relies on the Screening Signals section (Value z-score -0.30, Momentum z-score +0.95), which the task instructions explicitly state should not be used as evidence — reasoning should derive from Price Summary, Fundamentals, and Peer Context. This makes argument 5's evidence non-compliant with the task reminders, warranting a penalty."
+    },
+    {
+      "snapshot": "AAPL_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.8,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "The risks are largely company-specific and tied to arguments made in the thesis. Risk 1 directly counters the sequential decline argument by naming the specific quarters (2026-03-31 vs 2025-12-31) and invoking Apple's known holiday seasonality pattern. Risk 2 references the services-mix dynamic specific to Apple's business model and ties it to the peer multiple comparison argument. Risk 3 uses actual figures (momentum z-score +0.95, 1Y return +18.00%) to challenge the valuation convergence thesis. None of the risks are purely generic market risks like 'inflation' or 'recession.' However, Risk 3 is slightly weaker — momentum persisting is a generic market dynamic, though it's grounded in AAPL's specific metrics. Overall, the majority of risks are well-anchored to company data and serve as direct counterpoints to stated arguments."
+    },
+    {
+      "snapshot": "AAPL_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.4,
+      "threshold": 0.8,
+      "passed": false,
+      "reason": "Arguments 1-4 are largely compliant, grounding claims in Peer Context (GOOGL/META P/E and FCF Yield comparisons), Fundamentals (quarterly revenue/EPS drops), and Price Summary (52w high/low figures). However, Argument 5 directly cites the Value z-score (-0.30) and Momentum z-score (+0.95) from Screening Signals as its core evidence, which is explicitly penalized. Additionally, the third key_risk_to_thesis references the momentum z-score (+0.95) from Screening Signals, which is another violation. Argument 1 uses TTM multiples (P/E 29.50, FCF Yield 3.80%) in peer-relative comparisons with specific peer values, which is compliant. The majority of arguments pass, but Argument 5 is fully penalized for relying on z-scores, and the key risks section partially violates the criteria."
+    },
+    {
+      "snapshot": "AAPL_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All 5 evidence fields are fully traceable to specific figures in the Input. Argument 1 cites exact P/E and EV/EBITDA values for AAPL, MSFT, and ORCL from Peer Context. Argument 2 references the exact quarterly revenue figures ($85B, $89B, $120B, $95B) from Fundamentals. Argument 3 uses the 5Y CAGR figures (+7.50% revenue, +10.00% EPS) directly from Fundamentals. Argument 4 cites -3.00% from 52w high, +22.00% from 52w low, and +18.00% 1Y return from Price Summary. Argument 5 references FCF figures ($21B to $35B) and 5Y FCF CAGR (+6.00%) from Fundamentals. No fabricated or vague evidence strings were found."
+    },
+    {
+      "snapshot": "AAPL_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.8,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "The risks are largely company-specific and grounded in data from the Input. Risk 1 connects FCF Yield of 3.80% to peer comparisons with GOOGL (4.50%) and META (5.00%), directly undermining the valuation discount argument. Risk 2 references the specific $120B-to-$95B sequential drop and ties it to a failure mode for the growth narrative argument. Risk 3 links the 7.50% revenue CAGR to the EV/EBITDA multiple compression scenario, directly countering the valuation claim. However, the risks lack deeper company-specific mechanisms — for example, Risk 1 doesn't explain why Apple's FCF efficiency lags (e.g., hardware margins, buyback intensity), and Risk 3 doesn't reference Apple-specific growth drivers like Services or hardware cycles that could decelerate. None of the risks reference Apple's sector dynamics, competitive landscape, or regulatory exposure unique to Apple (e.g., App Store antitrust scrutiny), which would have elevated specificity further."
+    },
+    {
+      "snapshot": "AAPL_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.7,
+      "threshold": 0.8,
+      "passed": false,
+      "reason": "Most arguments trace back to Price Summary, Fundamentals, and Peer Context correctly. Arguments 1-5 use peer multiples comparisons, quarterly revenue figures, 5Y CAGR data, and price summary figures as evidence. However, the first key_risk cites 'FCF Yield TTM of 3.80%' — this figure comes directly from the Screening Signals section and is used in isolation as central evidence for a risk claim, which constitutes a violation per evaluation steps 1 and 2. The other risks are well-grounded in Fundamentals and Peer Context data."
+    },
+    {
+      "snapshot": "JPM_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All four evidence fields are anchored to specific figures from the input. Argument 1 cites revenue drop from $43.50B to $42.00B and EPS from 5.20 to 4.80, directly from the Fundamentals table. Argument 2 cites JPM EV/EBITDA of 32.00 vs BAC 28.00 and GS 20.00 from Peer Context, and 5Y revenue CAGR of +6.00% from Fundamentals. Argument 3 cites +6.00% revenue CAGR vs +10.00% EPS CAGR from Fundamentals. Argument 4 cites 6M return of +5.00% and 1Y return of +20.00% from Price Summary. No fabricated numbers or vague evidence found."
+    },
+    {
+      "snapshot": "JPM_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.8,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "The three risks are largely company-specific and grounded in the input data. Risk 1 directly counters the sequential decline argument by questioning whether the $43.5B→$42B drop is seasonal, which weakens a core thesis claim. Risk 2 challenges the peer EV/EBITDA comparison (32x vs BAC 28x, GS 20x) with a plausible company-specific counter (scale, credit quality). Risk 3 references specific data points (-2% from 52w high, +20% 1Y return) as a counterpoint to the momentum deceleration argument. None of the risks are generic macro risks like 'recession' or 'inflation.' Minor deduction because Risk 3 is more of a market sentiment observation than a fundamental company-specific mechanism, and Risk 2 relies on factors 'not captured in the data' rather than directly citing input metrics."
+    },
+    {
+      "snapshot": "JPM_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "The Actual Output draws its reasoning almost entirely from Fundamentals (quarterly revenue/EPS figures, 5Y CAGR), Peer Context (EV/EBITDA comparisons with BAC, GS, C), and Price Summary (6M vs 1Y returns, 52w high proximity). No argument cites composite_score, momentum z-score, or value z-score as primary evidence. EV/EBITDA is used in peer-comparative context alongside specific peer values (BAC 28.00, GS 20.00, C 35.00), not in isolation. All four arguments are supported by data from the compliant sections. A minor deduction applies because the EV/EBITDA TTM figure originates in Screening Signals rather than Peer Context, though it is used comparatively with peer table values, which partially mitigates the concern."
+    },
+    {
+      "snapshot": "JPM_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 0.8,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "Most evidence fields are well-anchored to specific figures from the Input. Arguments 2, 3, and 4 directly cite traceable data points (5Y CAGR EPS +10%/Revenue +6%, EPS 4.80/4.60/4.55, 52w figures, 1Y return +20%). Argument 1 correctly cites peer P/E values but mischaracterizes JPM's position — GS at 14.50 is higher, so JPM does NOT have the 'highest valuation multiple among large-bank peers,' which slightly conflicts with the claim. Argument 5 has a factual error: it states JPM's FCF Yield of -20% is 'less severe' than BAC (-15%) and WFC (-18%), but -20% is actually MORE negative than both, making this claim misleading despite citing real numbers. This inaccuracy in argument 5 and the characterization issue in argument 1 warrant a deduction."
+    },
+    {
+      "snapshot": "JPM_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.8,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "All three risks are grounded in JPM-specific data: the sequential revenue decline from $43.50B to $42.00B, JPM's premium P/E of 13.00 versus WFC 11.50 and C 10.00, and the -20.00% FCF yield. Each risk directly undermines a stated thesis argument — the revenue risk attacks the EPS growth narrative, the P/E compression risk attacks the relative valuation claim, and the FCF risk challenges the balance-sheet dynamics argument. However, the FCF risk is somewhat weakened by acknowledging it as a 'sector norm,' reducing its company-specific grounding, and no macro-specific mechanism (e.g., rising credit losses, rate sensitivity) is introduced, leaving some company-specific risk vectors unexplored."
+    },
+    {
+      "snapshot": "JPM_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All five arguments draw evidence from Price Summary, Fundamentals, or Peer Context rather than Screening Signals. No composite_score or z-scores are cited. TTM multiples (P/E 13.00, FCF Yield -20.00%) are consistently paired with specific peer figures from the peer table, satisfying the peer-relative comparison requirement. The slight deduction is for argument 5, where JPM's FCF Yield (-20.00%) is noted as 'less severe than most peers' but is actually worse than BAC (-15.00%) and WFC (-18.00%), making the claim mildly misleading though the evidence itself is correctly cited from the peer table."
+    },
+    {
+      "snapshot": "NVDA_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "Almost all evidence strings are directly traceable to input figures. Argument 1 cites P/E of 65.00, EV/EBITDA of 50.00, and peer values (AMD 42.00, AVGO 38.00, QCOM 22.00, INTC 28.00) — all verbatim from Peer Context. Argument 2 cites FCF Yield of 1.50% vs all four peers — fully verifiable. Argument 3 cites 1Y return +85.00%, 6M +30.00%, revenue from $28.00B to $38.00B, and 5Y CAGR of 45% — all present in input; however, the characterization of QoQ growth as 'deceleration from ~7% to ~9%' is a minor analytical inconsistency (growth actually accelerated QoQ), though the underlying numbers are real. Argument 4 cites Beta 1.45, -5.00% from 52w high, and +120.00% from 52w low — all verbatim. Key risks also reference specific figures like EPS 3.80 to 5.20, FCF $14.00B to $20.00B, 45% revenue CAGR, 60% EPS CAGR, and peer multiples — all traceable to input. The minor analytical error in Argument 3 prevents a perfect score."
+    },
+    {
+      "snapshot": "NVDA_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.8,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "The key_risks_to_thesis items are notably specific to NVDA's actual data: they cite the exact EPS trajectory (3.80 to 5.20, ~37% increase), FCF figures ($14B to $20B), the 5Y CAGR rates (45% revenue, 60% EPS), and named peer multiples (AMD at 42x, AVGO at 38x). Each risk directly undermines a specific bear argument made in the output — e.g., risk 1 counters the 'priced for perfection' claim by noting continued earnings acceleration, and risk 3 counters the peer-relative valuation argument. No generic boilerplate terms like 'recession' or 'geopolitical uncertainty' appear without a concrete mechanism. Minor deduction because risk 3, while citing peer multiples, relies on a somewhat general 'AI theme strengthens' narrative without tracing a specific mechanism to NVDA's margins or competitive standing as described in the input data."
+    },
+    {
+      "snapshot": "NVDA_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All four arguments derive their primary evidence from Price Summary, Fundamentals, and Peer Context. Argument 1 uses peer P/E and EV/EBITDA comparisons (AMD 42x, AVGO 38x, etc.) rather than isolated TTM multiples. Argument 2 compares FCF Yield against specific peer values. Arguments 3 and 4 cite 1Y/6M returns, beta, 52w high/low figures, and quarterly revenue progression. No argument relies on composite_score, momentum z-score, or value z-score as primary evidence, fully complying with the evaluation criteria."
+    },
+    {
+      "snapshot": "NVDA_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "Nearly all evidence strings are tightly anchored to specific figures from the input. Argument 1 cites exact revenue and EPS figures from the Fundamentals table. Argument 2 cites exact FCF figures and computes a 43% increase (14→20B, which is ~43%, verifiable). Argument 3 directly quotes the 5Y CAGR figures. Argument 4 cites exact 1Y/6M returns and 52w high/low distances from Price Summary. Argument 5 references peer EV/EBITDA ranges (12-30) and NVDA's 50x, all traceable to Peer Context and Screening Signals, and pairs them with the 5Y CAGR figures. The only minor issue is that the 43% FCF growth figure in Argument 2 is a derived calculation not verbatim in the input, and Argument 5 references NVDA's EV/EBITDA from Screening Signals (which the reminders note should not be used as evidence by itself), though it is cross-validated with peer data. These are small deductions from an otherwise well-anchored output."
+    },
+    {
+      "snapshot": "NVDA_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.6,
+      "threshold": 0.7,
+      "passed": false,
+      "reason": "The risks reference specific NVDA figures like the $20.00B quarterly FCF pace, 1.45 beta, 65x P/E TTM, and peer comparisons (22-42x P/E vs NVDA's 50x EV/EBITDA), which is better than generic boilerplate. However, none of the three risks are grounded in NVDA-specific business model mechanisms — no mention of customer concentration (e.g., hyperscaler dependency), export controls affecting semiconductor sales, or competitive dynamics from AMD's AI GPU roadmap. The risks are essentially valuation/momentum restatements rather than concrete scenarios tied to how NVDA earns its revenue. Risk 1 and 3 are largely overlapping (both are valuation compression risks), and Risk 2 is a generic momentum risk dressed in NVDA numbers. Crucially, while the risks do connect to the stated arguments (FCF growth, premium valuation), they lack the sector-specific or company-specific mechanisms required by the evaluation criteria."
+    },
+    {
+      "snapshot": "NVDA_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.7,
+      "threshold": 0.8,
+      "passed": false,
+      "reason": "Most arguments are well-grounded in Fundamentals (quarterly revenue, EPS, FCF figures) and Price Summary (1Y/6M returns, 52w high/low distances, beta). The CAGR citation (45%/60%/50%) traces back to the Fundamentals section. The peer comparison in argument 5 appropriately pairs NVDA's EV/EBITDA with peer values from the Peer Context table rather than citing it in isolation. However, the key_risks section cites 'FCF Yield TTM of 1.50%' from Screening Signals in isolation without pairing it with a peer figure in the same sentence (though peer FCF yields are mentioned parenthetically), which borders on using Screening Signals as standalone evidence. Similarly, the third risk bullet cites '65x P/E TTM and 50x EV/EBITDA' from Screening Signals alongside peer ranges, which is acceptable. The violations are minor and confined to risk framing rather than core bull arguments, so the output largely passes the criteria."
+    },
+    {
+      "snapshot": "XOM_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All 5 arguments contain fully traceable numeric evidence. Argument 1 cites revenue drop from $92.00B to $88.00B and EPS from 2.85 to 2.60, both verifiable in Fundamentals. Argument 2 cites FCF Yields (8.50% vs 9.00%, 9.50%, 11.00%) and EV/EBITDA (6.50 vs 5.80, 5.20, 6.00), all found in Peer Context and Screening Signals. Argument 3 cites -3.00% 6M return, -8.00% from 52w high, and +12.00% 1Y return from Price Summary. Argument 4 cites 5Y Revenue CAGR +4.00% vs EPS CAGR +14.00% from Fundamentals. Argument 5 cites FCF CAGR +9.00% vs EPS CAGR +14.00% and quarterly FCF figures $14.00B vs $16.00B, all verifiable in Fundamentals. No fabricated or vague evidence strings detected."
+    },
+    {
+      "snapshot": "XOM_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.5,
+      "threshold": 0.7,
+      "passed": false,
+      "reason": "The risks show mixed specificity. The third risk directly challenges the bear thesis by referencing XOM's specific Value z-score (+1.20) and P/E (12.00) from the Input, and ties it to a concrete re-rating scenario — this is well-grounded. The second risk mentions XOM's beta of 0.95 and 'integrated model,' which connects somewhat to company-specific data but the 'risk-off flows' mechanism is generic and not tied to any specific earnings or valuation driver in the thesis. The first risk about 'crude and refining margins' is largely generic — it references the sequential revenue/EPS declines but the mechanism (commodity price recovery) could apply to any E&P or integrated oil company without being grounded in XOM-specific data such as its segment exposure or hedging profile. None of the risks reference XOM's peer comparison dynamics (e.g., what happens if COP or MPC's cheaper multiples compress XOM's relative premium), which would have been more thesis-specific."
+    },
+    {
+      "snapshot": "XOM_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.5,
+      "threshold": 0.8,
+      "passed": false,
+      "reason": "Most arguments are well-grounded in Price Summary, Fundamentals, and Peer Context data. Arguments 1, 3, 4, and 5 correctly cite quarterly figures (revenue drop from $92B to $88B, EPS from 2.85 to 2.60, CAGRs) and price metrics (-3.00% 6M return, -8.00% from 52w high). Argument 2 appropriately uses peer-relative comparisons (XOM FCF Yield vs COP, PSX, MPC; EV/EBITDA vs peers). However, the third key_risk explicitly references 'Value z-score +1.20' and 'P/E 12.00' from the Screening Signals section as supporting evidence, which violates the evaluation criteria by using Screening Signals as reasoning rather than mere context. This single but direct citation of a Screening Signal as argumentative evidence in key_risks_to_thesis is a meaningful violation that warrants a significant penalty."
+    },
+    {
+      "snapshot": "XOM_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All 5 arguments contain evidence directly traceable to specific figures in the Input. Argument 1 cites FCF Yield 8.50% vs CVX 7.50%, COP 9.00%, PSX 9.50% from Peer Context. Argument 2 cites 5Y CAGR Revenue +4.00%, EPS +14.00%, FCF +9.00% from Fundamentals. Argument 3 cites quarterly FCF $12.50B through $16.00B and EPS $2.50–$2.85 from Fundamentals table. Argument 4 cites -8.00% from 52w high, +12.00% 1Y return, +18.00% from 52w low from Price Summary. Argument 5 cites P/E 12.00 vs CVX 13.50 and EV/EBITDA 6.50 vs COP 5.80/CVX 7.00 from Screening Signals and Peer Context. No fabricated numbers detected; every numeric anchor maps precisely to Input data."
+    },
+    {
+      "snapshot": "XOM_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.6,
+      "threshold": 0.7,
+      "passed": false,
+      "reason": "The risks show partial specificity but have notable weaknesses. Risk 1 correctly references XOM's specific revenue ($88B vs $92B quarter-over-quarter decline) and 5Y CAGR of 4%, and ties it to the FCF durability thesis argument — this is well-constructed. Risk 3 directly challenges the relative value argument by citing MPC's 11% FCF yield and 8.50 P/E versus XOM's metrics, which is concrete and thesis-invalidating. However, Risk 2 is problematic: the '6M return of -3.00%' and '-8.00% pullback' observation is then attributed vaguely to 'commodity price weakness not visible in trailing fundamentals' — this is speculative and generic, as no oil price data or commodity exposure specifics are provided in the input to substantiate this mechanism. The phrase 'deteriorating sentiment' also borders on generic market language. Additionally, none of the risks directly challenge the EPS CAGR (+14%) argument, which is the highest-confidence bull claim. Risk 2 fails Evaluation Step 2 by not explaining a concrete mechanism tied to XOM's specific financials."
+    },
+    {
+      "snapshot": "XOM_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All five arguments draw primarily from Price Summary, Fundamentals, or peer-relative Peer Context data. FCF Yield (8.50%) is cited in peer comparison against CVX (7.50%), COP (9.00%), PSX (9.50%) — not in isolation. P/E (12.00) is compared against CVX (13.50) and EV/EBITDA against COP/CVX peers. CAGR figures and quarterly FCF/EPS numbers are traced to the Fundamentals section. Price-based claims cite the 1Y return (+12.00%), 6M return (-3.00%), and 52w high/low distances directly from Price Summary. No argument uses composite_score, momentum z-score, or value z-score as primary evidence. A minor deduction applies because the first argument references 'FCF Yield TTM of 8.50%' which originates in Screening Signals, though it is immediately contextualized with peer comparisons from the Peer Context table, making it borderline acceptable rather than a clear violation."
+    }
+  ],
+  "summary": {
+    "total": 24,
+    "passed": 16,
+    "failed": 8,
+    "pass_rate": 0.6666666666666666
+  }
+}

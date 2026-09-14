@@ -8,7 +8,8 @@
 3. JSON 파싱 + Pydantic 검증 (출력 형태 강제)
 4. 재시도/폴백 사다리: Sonnet → Sonnet retry → Haiku
 5. 토큰/비용 산출 + 호출 로그 (CLAUDE.md 로깅 규칙)
-6. 결정성 보조: temperature=0 기본값, context_input_hash 노출 (캐시 키 재료)
+6. 결정성 보조: context_input_hash 노출 (캐시 키 재료). temperature 는 기본 미전송
+   (Sonnet 5 는 sampling 파라미터를 400 으로 거부 — 2026-09-14 이행)
 
 LLM 호출은 일어나지만 SDK 직접 의존은 없음 — Protocol AnthropicCaller 를
 주입식으로 받음. 단위 테스트는 FakeAnthropicClient 로 모킹 (CLAUDE.md "LLM
@@ -19,7 +20,8 @@ I/O 책임 분리 (CLAUDE.md):
 - Lambda 핸들러(#7): API 키 secrets 조회, S3 입출력, 캐시 hit/miss, SDK 어댑터 생성
 
 결정성 (docs §10 운영 동등성 시나리오):
-- temperature=0 기본 — Anthropic 가 near-deterministic
+- temperature 는 기본 미전송 — Sonnet 5 부터 temperature/top_p/top_k 비기본값은 400.
+  (Sonnet 4.6 시절 temperature=0 도 near-deterministic 이었을 뿐 완전 결정은 아니었음)
 - to_prompt_markdown 결정성 + BullBearOpinion Pydantic 검증으로 *형태* 100% 보장
 - *내용* 동등성은 Lambda 핸들러의 S3 출력 캐시(#7) 와 결합해 (symbol, as_of_date,
   stance, input_hash) 동일 시 LLM 호출 자체를 생략 → 100% 결정적
@@ -46,19 +48,23 @@ logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-DEFAULT_PRIMARY_MODEL = "claude-sonnet-4-6"
+DEFAULT_PRIMARY_MODEL = "claude-sonnet-5"  # 2026-09-14 Sonnet 4.6 → 5 이행
 DEFAULT_FALLBACK_MODEL = "claude-haiku-4-5-20251001"
 
 # USD per 1M tokens. CHARTER §3.3 기준 (2026-04 시점). 실제 단가 변동 가능 —
 # 호출 측이 override 가능하도록 외부 인자로도 받음.
 DEFAULT_PRICING: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+    "claude-sonnet-5": {"input": 2.0, "output": 10.0},
+    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},  # 구 로그 재계산용 보존
     "claude-haiku-4-5-20251001": {"input": 1.0, "output": 5.0},
 }
 
 # 출력 실측: 골든 케이스 8회 평균 ~900 토큰, 최대 1024(잘림). 1024 는 too tight —
 # arguments 5 + 각 evidence 길고 + key_risks 3 자세히 쓰면 1000 초과 빈번.
 # 2048 로 여유. 비용은 *실제* 사용량만 청구되므로 상한 확대는 비용 증가 X.
+# Sonnet 5 이행 (2026-09-14): 새 토크나이저가 같은 텍스트에 ~30% 더 많은 토큰을 씀.
+# 이행 직전 3주 실측 max 961(bullbear)/722(scenario) × 1.3 ≈ 1250/940 — thinking 을
+# disabled 로 두므로 2048 유지. stop_reason=max_tokens 관찰 시 상향.
 DEFAULT_MAX_TOKENS = 2048
 
 PROMPT_PURPOSE = "bullbear"
@@ -71,15 +77,16 @@ PROMPT_PURPOSE = "bullbear"
 class AgentConfig:
     """단일 호출 설정. 호출 측이 필요시 override.
 
-    temperature=0 는 결정성 우선 — docs §10 "동일 질의 동일 답변" 정책의
-    출발점. Anthropic 은 temperature=0 에서도 100% 결정적은 아니지만 (`near-
-    deterministic`), 본 모듈 레벨에서 가능한 최선.
+    temperature 는 None(기본) 이면 요청에 포함하지 않는다. Sonnet 5 는
+    temperature/top_p/top_k 비기본값을 400 으로 거부하므로 (2026-09-14 이행)
+    결정성은 docs §10 의 S3 출력 캐시(input_hash) 로 확보한다. 값을 주면
+    어댑터가 그대로 전달 — Haiku 4.5 등 허용 모델로 실험할 때만 사용.
     """
 
     primary_model: str = DEFAULT_PRIMARY_MODEL
     fallback_model: str = DEFAULT_FALLBACK_MODEL
     max_tokens: int = DEFAULT_MAX_TOKENS
-    temperature: float = 0.0
+    temperature: float | None = None
 
 
 # ---------- 외부 SDK 추상화 ----------
@@ -110,7 +117,7 @@ class AnthropicCaller(Protocol):
         system: str,
         user: str,
         max_tokens: int,
-        temperature: float,
+        temperature: float | None,
     ) -> RawCompletion: ...
 
 
@@ -283,7 +290,7 @@ def run_bullbear_agent(
         ctx: 평탄화된 입력 컨텍스트.
         stance: "bull" 또는 "bear" — system 프롬프트와 메타 필드 양쪽에 사용.
         caller: Anthropic 호출 어댑터 (Lambda 핸들러는 SDK 래퍼, 테스트는 Fake).
-        config: 모델·temperature·max_tokens 등. None 이면 기본값 (temperature=0).
+        config: 모델·temperature·max_tokens 등. None 이면 기본값 (temperature 미전송).
         pricing: USD/1M 단가 매핑. None 이면 DEFAULT_PRICING.
         purpose: 로그의 purpose 필드 (CLAUDE.md 로깅 규칙).
 
