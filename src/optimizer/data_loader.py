@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
+from datetime import date
 
 import boto3
 import pandas as pd
@@ -137,9 +138,19 @@ def load_gated_universe(bucket: str, dt: str) -> GateResult:
 
 
 def load_return_matrix(
-    bucket: str, symbols: list[str], params: CovarianceParams
+    bucket: str,
+    symbols: list[str],
+    params: CovarianceParams,
+    *,
+    as_of: date | None = None,
 ) -> tuple[pd.DataFrame, dict[str, str]]:
-    """OHLCV → (일자 × 종목) 로그수익률 행렬 + G3 제외 목록."""
+    """OHLCV → (일자 × 종목) 로그수익률 행렬 + G3 제외 목록.
+
+    as_of: 이 날짜 이하의 행만 사용 (look-ahead 차단). 정기 실행은 dt 를 넘겨도
+    결과 동일 (OHLCV 가 dt 이전까지만 존재) — 과거 주차 리플레이·백테스트에서
+    미래 가격이 상관 창에 섞이는 것을 막는 용도 (retro §0.8 사전 백테스트).
+    None 이면 전체 시계열 (구 동작).
+    """
     series: dict[str, pd.Series] = {}
     excluded: dict[str, str] = {}
     for sym in symbols:
@@ -147,7 +158,10 @@ def load_return_matrix(
         if table is None:
             excluded[sym] = "insufficient_ohlcv"              # G3
             continue
-        adj = table.to_pandas().set_index("date")["adj_close"]
+        df = table.to_pandas()
+        if as_of is not None:
+            df = df[pd.to_datetime(df["date"]).dt.date <= as_of]
+        adj = df.set_index("date")["adj_close"]
         r = log_returns(adj, params.corr_window_days)
         if len(r) < MIN_OHLCV_DAYS:
             excluded[sym] = "insufficient_ohlcv"              # G3

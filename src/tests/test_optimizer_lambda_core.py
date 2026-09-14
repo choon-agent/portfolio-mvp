@@ -5,6 +5,7 @@ import json
 from datetime import date, datetime, timezone
 
 import numpy as np
+import pandas as pd
 import pyarrow as pa
 import pytest
 
@@ -20,7 +21,7 @@ from agents.scenario.schemas import (
 )
 from optimizer import data_loader, lambda_core
 from optimizer.data_loader import ConfigMismatchError, NoPassedSymbolsError
-from optimizer.schemas import OptimizerBundle
+from optimizer.schemas import CovarianceParams, OptimizerBundle
 
 DT = "2026-08-10"
 AS_OF = date(2026, 8, 10)
@@ -153,7 +154,6 @@ def test_gate_no_passed_symbols_fails_run(store) -> None:
 
 
 def test_return_matrix_g3(store, monkeypatch) -> None:
-    from optimizer.schemas import CovarianceParams
     monkeypatch.setattr(
         data_loader, "read_parquet",
         lambda b, k: None if "AAA" in k else _ohlcv(1),
@@ -163,6 +163,25 @@ def test_return_matrix_g3(store, monkeypatch) -> None:
     )
     assert excluded == {"AAA": "insufficient_ohlcv"}               # G3
     assert list(returns.columns) == ["BBB"]
+
+
+def test_return_matrix_as_of_truncates_future_rows(store) -> None:
+    """as_of 이후 행은 상관 창에서 제외 (백테스트 look-ahead 차단)."""
+    full, _ = data_loader.load_return_matrix(
+        "test-bucket", ["AAA", "BBB"], CovarianceParams(corr_window_days=1000)
+    )
+    cut, _ = data_loader.load_return_matrix(
+        "test-bucket", ["AAA", "BBB"], CovarianceParams(corr_window_days=1000),
+        as_of=date(2025, 6, 30),
+    )
+    assert len(cut) < len(full)
+    assert max(pd.to_datetime(cut.index).date) <= date(2025, 6, 30)
+    # as_of 가 시계열 끝 이후면 전체와 동일 (정기 실행 경로 불변)
+    same, _ = data_loader.load_return_matrix(
+        "test-bucket", ["AAA", "BBB"], CovarianceParams(corr_window_days=1000),
+        as_of=date(2030, 1, 1),
+    )
+    assert len(same) == len(full)
 
 
 def test_handle_end_to_end(store) -> None:

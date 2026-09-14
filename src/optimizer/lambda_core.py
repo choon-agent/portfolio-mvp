@@ -115,7 +115,8 @@ def handle(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     gate = data_loader.load_gated_universe(cfg["bucket"], dt)
     returns, g3_excluded = data_loader.load_return_matrix(
-        cfg["bucket"], sorted(gate.passed), params
+        cfg["bucket"], sorted(gate.passed), params,
+        as_of=datetime.strptime(dt, "%Y-%m-%d").date(),   # look-ahead 차단
     )
 
     primary = _build_portfolio(
