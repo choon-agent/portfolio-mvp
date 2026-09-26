@@ -638,6 +638,20 @@ baseline 리포트 전문 (judge reasoning 포함): [`tests/golden/bullbear/repo
 | `signals_not_primary_evidence` | **4/8** | AAPL_bear 0.4 / AAPL_bull 0.7 / NVDA_bull 0.7 / XOM_bear 0.5 |
 
 **16/24 (66.7%) vs baseline 32/32** — 모델 교체에 따른 **품질 회귀 확인**. judge reasoning 상 공통 패턴: Sonnet 5 가 스크리닝 z-score(momentum/value)를 argument 의 1차 근거로 직접 인용 (`signals_not_primary_evidence` 위반 — 4.6 은 0회), key_risks 에 sector 일반론 혼입. §11 정책(criterion fail → judge reasoning 검토 후 system prompt 강화) 적용 대상 — **09-21 첫 운영 실행 결과 확인 후 프롬프트 보강 + DeepEval 재실행(~$0.4)** 을 M3 말 재검토 전 처리 (retro §0.8). judge 가 4.6 이라 cross-family 평가가 됐다는 점은 self-preference bias 항목(§9)과 반대 방향 — 회귀 폭 일부는 judge 편향일 수 있음 (동일 family judge 로 재평가 시 비교).
+
+**2026-09-26 프롬프트 보강 후 재평가 — Sonnet 5 신규 baseline** ([`reports/deepeval_report_sonnet5_promptv3_2026-09-26.json`](../tests/golden/bullbear/reports/deepeval_report_sonnet5_promptv3_2026-09-26.json), judge = Sonnet 4.6, 골든 8건 재생성 $0.14 + judge $0.37):
+
+| criterion | 최저 | 평균 | pass |
+|---|---|---|---|
+| `evidence_grounded` | 1.0 | 1.00 | 8/8 |
+| `risks_are_company_specific` | 0.8 | 0.88 | 8/8 |
+| `signals_not_primary_evidence` | 0.9 | 0.95 | 8/8 |
+
+**24/24 (100%)** — 16/24 → 19/24(1차) → 24/24(2차). 변경 (bull/bear system + user reminders, 스키마·추천 금지 규칙 불변):
+- hard rule #4 를 **`arguments`·`key_risks_to_thesis`·`summary` 전체**로 확장 — 회귀 7건 중 6건이 key_risks 에서의 z-score·TTM 인용이었음. composite/z-score 는 어디서도 인용 금지, TTM 배수는 *같은 배수*의 named peer 수치와 한 문장 안에서만 (like-for-like, "TTM"/"Screening" 라벨 금지).
+- hard rule #3 에 리스크 3요건 — 무효화 대상 argument 명시 / 입력 수치·named peer 에 앵커된 메커니즘 (입력에 없는 대차대조표·capex 등 추정 금지) / 밸류에이션·모멘텀 재진술·일반 매크로 금지, 동일 메커니즘 중복 금지.
+- `## Final self-check` 5항목 신설 (z-score 검색·배수 페어링·리스크 앵커·중복·**파생 수치 부호/크기 재검**) — 1차 잔여 실패 3/5 가 NVDA_bull 한 건의 "-120% 반전" 산술 오류에서 나옴.
+- 부수 관찰: 1차→2차 사이 통과 스냅샷도 전부 재생성됐으므로 24/24 는 프롬프트 효과 + 샘플 분산 포함. temperature 미전송(Sonnet 5)이라 재실행 분산은 상시 존재 — 운영 회귀 게이트는 §11 정책대로 criterion fail 발생 시 judge reasoning 검토.
 **관찰**:
 - `risks_are_company_specific` 가 가장 약한 차원 — 3건 (NVDA_bear, XOM_bear, XOM_bull) 이 임계값 정확히 동률. 공통 패턴 두 가지:
   - (a) 외부 정보 도입: `iPhone 17` (AAPL_bear), `Pioneer acquisition` (XOM 양쪽) — input 에 명시되지 않은 catalyst 를 risk 시나리오에 사용.

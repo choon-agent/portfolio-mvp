@@ -10,6 +10,7 @@ Reminders (the system prompt is authoritative — these are short pointers):
 - `arguments` length 3–5. Use lower `confidence` rather than padding.
 - `key_risks_to_thesis` length 1–3 — concrete scenarios under which your **{stance}** thesis fails. Specific to this company.
 - Do not recommend Buy / Hold / Sell, price targets, or position sizes.
-- The Screening Signals section is context for *why this stock was selected*, not evidence by itself. Derive your reasoning from Price Summary, Fundamentals, and Peer Context.
+- The Screening Signals section is context for *why this stock was selected*, not evidence — in `arguments`, `key_risks_to_thesis`, and `summary` alike. Never cite composite score or z-scores; a TTM multiple only alongside a named peer's figure in the same sentence. Derive your reasoning from Price Summary, Fundamentals, and Peer Context.
+- Each risk names the argument it would invalidate and anchors its mechanism to an input figure or named peer. No valuation/momentum restatements, no generic macro lines.
 
 Return only the JSON object matching the schema.

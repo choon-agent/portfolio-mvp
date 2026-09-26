@@ -3,55 +3,55 @@
     "symbol": "XOM",
     "stance": "bull",
     "as_of_date": "2026-04-27",
-    "summary": "XOM's strong FCF generation, resilient EPS growth, and pullback from highs suggest an attractive entry into a cash-generative energy leader.",
+    "summary": "XOM shows steady multi-quarter FCF and EPS growth, trades cheaper than CVX on P/E and EV/EBITDA, and sits well off its 52w low.",
     "arguments": [
       {
-        "claim": "Exxon generates substantial free cash flow relative to its market value, outperforming several peers.",
-        "evidence": "FCF Yield TTM of 8.50% exceeds CVX (7.50%) and is competitive with COP (9.00%) and PSX (9.50%) among integrated/refining peers.",
+        "claim": "Exxon's earnings multiple is cheaper than its closest integrated peer despite comparable scale.",
+        "evidence": "XOM P/E TTM 12.00 versus CVX P/E TTM 13.50, and EV/EBITDA 6.50 versus CVX 7.00",
         "confidence": "medium"
       },
       {
-        "claim": "Earnings have grown faster than revenue over the long term, indicating margin and capital efficiency improvement.",
-        "evidence": "5Y CAGR shows Revenue +4.00% but EPS +14.00% and FCF +9.00%, a multiple-fold gap favoring bottom-line growth.",
+        "claim": "Free cash flow generation has been consistently strong and rising over the past four quarters.",
+        "evidence": "FCF rose from $12.50B (Q2 2025) to $13.50B (Q3) to $16.00B (Q4) before $14.00B in Q1 2026, alongside a 5Y FCF CAGR of +9.00%",
         "confidence": "high"
       },
       {
-        "claim": "Quarterly fundamentals show consistent sequential FCF and EPS strength across the last four quarters.",
-        "evidence": "FCF rose from $12.50B (2025-06-30) to $16.00B (2025-12-31) before settling at $14.00B (2026-03-31); diluted EPS ranged $2.50–$2.85 over the same period.",
+        "claim": "Long-term earnings growth has substantially outpaced revenue growth, indicating margin and capital efficiency gains.",
+        "evidence": "5Y EPS CAGR of +14.00% versus 5Y Revenue CAGR of +4.00%",
         "confidence": "medium"
       },
       {
-        "claim": "The stock has pulled back from its 52-week high while maintaining positive multi-year momentum, suggesting room to recover without being extended.",
-        "evidence": "From 52w high -8.00% but 1Y return still +12.00% and from 52w low +18.00%.",
-        "confidence": "medium"
+        "claim": "Shares have recovered meaningfully from their 52-week low while remaining below their high, suggesting room within the recent trading range rather than an extended move.",
+        "evidence": "From 52w low +18.00% while still -8.00% from the 52w high, with 1Y return +12.00%",
+        "confidence": "low"
       },
       {
-        "claim": "Exxon trades at a discount on an earnings basis relative to its closest integrated peer, despite comparable scale.",
-        "evidence": "P/E TTM of 12.00 versus CVX's 13.50, while EV/EBITDA of 6.50 sits between COP (5.80) and CVX (7.00).",
+        "claim": "The stock's lower volatility profile versus the broad market supports a defensive-growth positioning within the current environment.",
+        "evidence": "Beta (1Y vs SPY) of 0.95",
         "confidence": "low"
       }
     ],
     "key_risks_to_thesis": [
-      "Revenue has slowed to a 5Y CAGR of just 4.00%, and the most recent quarter's revenue ($88.00B) and EPS ($2.60) both declined from the prior quarter ($92.00B, $2.85), suggesting the growth and FCF trend could be plateauing or reversing.",
-      "The 6M return of -3.00% and -8.00% pullback from 52-week highs could reflect deteriorating sentiment or commodity price weakness not visible in the trailing fundamentals shown, which would undercut the cash-flow durability thesis.",
-      "Peers like MPC (11.00% FCF yield, 8.50 P/E) and PSX (9.50% FCF yield) screen cheaper or higher-yielding on some metrics, meaning XOM's relative value edge is not uniform across the peer set and could compress if refining-heavy peers re-rate favorably."
+      "Undercuts argument 2 (FCF durability): FCF already declined from $16.00B in Q4 2025 to $14.00B in Q1 2026, a sequential drop that could continue and break the multi-quarter uptrend the bull case relies on.",
+      "Undercuts argument 3 (earnings growth quality): diluted EPS fell sequentially from 2.85 (Q4 2025) to 2.60 (Q1 2026), suggesting the +14% 5Y EPS CAGR may not persist quarter to quarter.",
+      "Undercuts argument 1 (relative valuation): peers like MPC (P/E 8.50, EV/EBITDA 5.20) and COP (P/E 11.00, EV/EBITDA 5.80) are cheaper than XOM on the same metrics, showing XOM is not the low-cost option across the full peer set."
     ],
     "model": "claude-sonnet-5",
-    "input_tokens": 2302,
-    "output_tokens": 1024,
-    "cost_usd": 0.014844
+    "input_tokens": 3323,
+    "output_tokens": 960,
+    "cost_usd": 0.016246
   },
   "attempts": [
     {
       "model": "claude-sonnet-5",
       "stage": "primary",
-      "input_tokens": 2302,
-      "output_tokens": 1024,
-      "cost_usd": 0.014844,
+      "input_tokens": 3323,
+      "output_tokens": 960,
+      "cost_usd": 0.016246,
       "succeeded": true,
       "error": null
     }
   ],
-  "prompt_user": "# XOM — Exxon Mobil Corporation\n- Sector: Energy / Integrated Oil & Gas\n- As-of: 2026-04-27\n\n## Screening Signals\n(통과 사유 컨텍스트 — 매수/매도 근거가 아니라 자체 데이터로 새로 추론할 것)\n- Composite score: 1.200\n- Momentum z-score: +0.40\n- Value z-score: +1.20\n- P/E TTM: 12.00\n- EV/EBITDA TTM: 6.50\n- FCF Yield TTM: 8.50%\n\n## Peer Context (sub_sector → sector 폴백, 최대 5개)\n| Symbol | P/E TTM | EV/EBITDA | FCF Yield |\n|---|---|---|---|\n| CVX | 13.50 | 7.00 | 7.50% |\n| COP | 11.00 | 5.80 | 9.00% |\n| MPC | 8.50 | 5.20 | 11.00% |\n| PSX | 10.00 | 6.00 | 9.50% |\n\n## Price Summary\n- 1Y return: +12.00%\n- 6M return: -3.00%\n- From 52w high: -8.00%\n- From 52w low: +18.00%\n- Beta (1Y vs SPY): 0.95\n\n## Fundamentals — Last 4 Quarters\n| Period end | Revenue | Diluted EPS | FCF |\n|---|---|---|---|\n| 2026-03-31 | $88.00B | 2.60 | $14.00B |\n| 2025-12-31 | $92.00B | 2.85 | $16.00B |\n| 2025-09-30 | $87.00B | 2.55 | $13.50B |\n| 2025-06-30 | $85.00B | 2.50 | $12.50B |\n\n5Y CAGR — Revenue +4.00%, EPS +14.00%, FCF +9.00%\n\n\n---\n\nTask: based strictly on the data above, write your **bull** opinion of **XOM** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Each `arguments[i].evidence` must cite a specific figure or comparison from the data above.\n- `arguments` length 3–5. Use lower `confidence` rather than padding.\n- `key_risks_to_thesis` length 1–3 — concrete scenarios under which your **bull** thesis fails. Specific to this company.\n- Do not recommend Buy / Hold / Sell, price targets, or position sizes.\n- The Screening Signals section is context for *why this stock was selected*, not evidence by itself. Derive your reasoning from Price Summary, Fundamentals, and Peer Context.\n\nReturn only the JSON object matching the schema.\n",
+  "prompt_user": "# XOM — Exxon Mobil Corporation\n- Sector: Energy / Integrated Oil & Gas\n- As-of: 2026-04-27\n\n## Screening Signals\n(통과 사유 컨텍스트 — 매수/매도 근거가 아니라 자체 데이터로 새로 추론할 것)\n- Composite score: 1.200\n- Momentum z-score: +0.40\n- Value z-score: +1.20\n- P/E TTM: 12.00\n- EV/EBITDA TTM: 6.50\n- FCF Yield TTM: 8.50%\n\n## Peer Context (sub_sector → sector 폴백, 최대 5개)\n| Symbol | P/E TTM | EV/EBITDA | FCF Yield |\n|---|---|---|---|\n| CVX | 13.50 | 7.00 | 7.50% |\n| COP | 11.00 | 5.80 | 9.00% |\n| MPC | 8.50 | 5.20 | 11.00% |\n| PSX | 10.00 | 6.00 | 9.50% |\n\n## Price Summary\n- 1Y return: +12.00%\n- 6M return: -3.00%\n- From 52w high: -8.00%\n- From 52w low: +18.00%\n- Beta (1Y vs SPY): 0.95\n\n## Fundamentals — Last 4 Quarters\n| Period end | Revenue | Diluted EPS | FCF |\n|---|---|---|---|\n| 2026-03-31 | $88.00B | 2.60 | $14.00B |\n| 2025-12-31 | $92.00B | 2.85 | $16.00B |\n| 2025-09-30 | $87.00B | 2.55 | $13.50B |\n| 2025-06-30 | $85.00B | 2.50 | $12.50B |\n\n5Y CAGR — Revenue +4.00%, EPS +14.00%, FCF +9.00%\n\n\n---\n\nTask: based strictly on the data above, write your **bull** opinion of **XOM** as of **2026-04-27**.\n\nReminders (the system prompt is authoritative — these are short pointers):\n\n- Each `arguments[i].evidence` must cite a specific figure or comparison from the data above.\n- `arguments` length 3–5. Use lower `confidence` rather than padding.\n- `key_risks_to_thesis` length 1–3 — concrete scenarios under which your **bull** thesis fails. Specific to this company.\n- Do not recommend Buy / Hold / Sell, price targets, or position sizes.\n- The Screening Signals section is context for *why this stock was selected*, not evidence — in `arguments`, `key_risks_to_thesis`, and `summary` alike. Never cite composite score or z-scores; a TTM multiple only alongside a named peer's figure in the same sentence. Derive your reasoning from Price Summary, Fundamentals, and Peer Context.\n- Each risk names the argument it would invalidate and anchors its mechanism to an input figure or named peer. No valuation/momentum restatements, no generic macro lines.\n\nReturn only the JSON object matching the schema.\n",
   "input_hash": "5dc80bacd9820a7af039497bcee678a695292b5f624f85c774726a6f9986303c"
 }

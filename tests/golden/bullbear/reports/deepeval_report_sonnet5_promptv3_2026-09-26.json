@@ -1,0 +1,214 @@
+{
+  "judge_model": "claude-sonnet-4-6",
+  "generated_at": "2026-09-26T07:03:02.133901+00:00",
+  "targets": [
+    "AAPL_bear",
+    "AAPL_bull",
+    "JPM_bear",
+    "JPM_bull",
+    "NVDA_bear",
+    "NVDA_bull",
+    "XOM_bear",
+    "XOM_bull"
+  ],
+  "results": [
+    {
+      "snapshot": "AAPL_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All four arguments contain fully traceable, numerically anchored evidence directly from the Input. Argument 1 cites exact revenue figures ($120.00B and $95.00B) and EPS figures (2.10 and 1.55) from Fundamentals. Argument 2 cites the 5Y CAGR figures (+10.00% EPS vs +6.00% FCF) from Fundamentals. Argument 3 compares AAPL's FCF Yield (3.80%) and P/E (29.50) against named peers META (5.00%, 26.00) and GOOGL (4.50%, 24.00) from Peer Context. Argument 4 again uses the 5Y CAGR figures. No vague language without numeric anchors, no fabricated numbers, and no citations from prohibited sections (composite score or z-scores). Key risks also anchor to specific figures and named peers without restating valuation or momentum generically."
+    },
+    {
+      "snapshot": "AAPL_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.9,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "All three risks are tightly anchored to company-specific data and directly named arguments. Risk 1 references the $95B/$120B/$89B quarterly pattern to challenge the deceleration claim. Risk 2 ties FCF yield convergence to specific quarterly FCF figures ($35B vs $21-25B) against named peers META (5.00%) and GOOGL (4.50%). Risk 3 uses ORCL's P/E (31.00) vs AAPL's (29.50) and the exact 10%/7.50% CAGR gap. No generic macro risks appear. Minor deduction because Risk 3's ORCL comparison is somewhat tangential—ORCL's tolerance for the EPS/revenue gap doesn't directly mechanistically invalidate the bear thesis on Apple's valuation premium."
+    },
+    {
+      "snapshot": "AAPL_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "The Actual Output correctly avoids citing composite_score or z-scores as evidence. All TTM multiples are used in peer-relative context: AAPL's P/E 29.50 is compared against GOOGL's 24.00 and META's 26.00, FCF Yield 3.80% against META's 5.00% and GOOGL's 4.50%, and ORCL's 31.00 P/E is referenced in the risks. Core reasoning traces back to Fundamentals (quarterly revenue/EPS figures, 5Y CAGRs) and Peer Context table. Key risks are anchored to specific input figures and named peers. Minor imperfection: argument 2 on EPS vs FCF CAGR gap is somewhat interpretive but still grounded in the Fundamentals section's stated CAGRs rather than Screening Signals."
+    },
+    {
+      "snapshot": "AAPL_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "Every evidence field in all 5 arguments is fully traceable to specific input figures. Argument 1 cites 5Y EPS CAGR +10.00% and revenue CAGR +7.50% from Fundamentals. Argument 2 cites exact revenue ($85.00B, $120.00B), EPS (2.10), and FCF ($35.00B) from the Fundamentals table. Argument 3 cites -3.00% from 52w high, +22.00% from 52w low, and +18.00% 1Y return from Price Summary. Argument 4 compares AAPL P/E 29.50 against MSFT 33.00, ORCL 31.00, GOOGL 17.00, META 15.50, and EV/EBITDA 22.00 vs MSFT 23.50 — all from Peer Context. Argument 5 cites FCF $25.00B and $35.00B from Fundamentals and FCF CAGR +6.00%. Risks each name the argument they invalidate and anchor to specific input figures (e.g., $120.00B/$35.00B drop, FCF Yield 3.80% vs META 5.00%/GOOGL 4.50%, EPS CAGR 10.00% vs FCF CAGR 6.00%). No fabricated numbers or vague statements detected."
+    },
+    {
+      "snapshot": "AAPL_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.9,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "All three risks are highly specific to AAPL's data: the first cites exact revenue ($120B→$95B) and FCF ($35B→$25B) drops to challenge argument 2's seasonal reliance claim; the second uses AAPL's 3.80% FCF yield versus META's 5.00% and GOOGL's 4.50% to challenge argument 4's valuation positioning; the third links the EPS CAGR of +10.00% to FCF CAGR of +6.00% discrepancy to challenge argument 1's durability claim. Each risk names the specific argument it invalidates and anchors to input figures or named peers. No vague macro language is used. Minor deduction because the third risk's mechanism (FCF-to-EPS divergence) is slightly inferential rather than directly supported by a named mechanism in the input, but it still uses concrete figures."
+    },
+    {
+      "snapshot": "AAPL_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "The Actual Output never cites composite_score, momentum z-score, or value z-score. Every TTM multiple is paired with a named peer (e.g., AAPL P/E 29.50 vs. MSFT 33.00 and ORCL 31.00), satisfying the peer-comparative requirement. All primary reasoning draws from Price Summary (52w high/low, 1Y return), Fundamentals (quarterly revenue, EPS, FCF, 5Y CAGRs), and Peer Context (peer multiples table). Risks are anchored to specific input figures and named arguments, with no generic macro lines or valuation/momentum restatements."
+    },
+    {
+      "snapshot": "JPM_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All four arguments contain numerically anchored evidence traceable to the input. Argument 1 cites $43.50B→$42.00B revenue and 5.20→4.80 EPS from Fundamentals. Argument 2 compares P/E 13.00 vs BAC 12.00 and WFC 11.50 from Peer Context alongside the EPS figures. Argument 3 anchors to +25.00% from 52w low and +20.00% 1Y return from Price Summary. Argument 4 uses the 5Y CAGR figures (EPS +10.00%, Revenue +6.00%) from Fundamentals. No fabricated numbers are present, no z-scores or composite scores are cited, and peer comparisons are named. Key risks also cite specific figures (GS P/E 14.50, -2.00% from 52w high, prior quarter revenue $41.00B→$43.50B) and name the arguments they invalidate."
+    },
+    {
+      "snapshot": "JPM_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.9,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "All three risks are highly specific to JPM's actual data. Risk 1 cites the $41.00B→$43.50B→$42.00B revenue sequence and 4.60→5.20→4.80 EPS pattern to challenge argument 1. Risk 2 names GS's actual P/E of 14.50 vs JPM's 13.00 to undercut the peer premium argument. Risk 3 anchors to the -2.00% from 52w high figure to challenge argument 3. Each risk names the specific argument it would invalidate and ties the mechanism to a concrete figure or named peer from the input. No generic macro language is used. Minor deduction since risk 3 could be slightly stronger in explaining the precise mechanism by which the deceleration is 'priced in,' but overall the risks meet the specificity standard well."
+    },
+    {
+      "snapshot": "JPM_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All four arguments draw evidence from Price Summary, Fundamentals, or Peer Context. No argument cites composite_score, momentum z-score, or value z-score. Every TTM multiple is paired with a named peer figure (e.g., JPM P/E 13.00 vs BAC 12.00 and WFC 11.50; GS at 14.50 in the risk section), never stated in isolation. The key_risks_to_thesis each name a specific argument they would invalidate and anchor to input figures (e.g., $41.00B→$43.50B rebound sequence, GS P/E 14.50, -2.00% from 52w high). The summary references peer valuation and sequential deceleration without invoking screening metadata."
+    },
+    {
+      "snapshot": "JPM_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All 5 arguments contain evidence directly traceable to Input data: Argument 1 cites exact 5Y CAGR figures (Revenue +6.00%, EPS +10.00%); Argument 2 quotes all four EPS figures (4.55, 4.60, 5.20, 4.80) from the Fundamentals table; Argument 3 compares JPM's P/E of 13.00 against named peers GS (14.50), BAC (12.00), WFC (11.50), and C (10.00) from Peer Context; Argument 4 cites Price Summary figures (-2.00% from 52w high, +20.00% 1Y return, +5.00% 6M return); Argument 5 references the revenue range ($40.50B–$43.50B) from the Fundamentals table. No fabricated numbers or vague qualitative statements without numeric anchors were found. Composite scores and z-scores were not cited. All three risks name specific arguments and anchor to input figures."
+    },
+    {
+      "snapshot": "JPM_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.8,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "The risks are largely company-specific and mechanistically grounded. Risk 1 references the actual EPS drop from 5.20 to 4.80 and directly invalidates argument 2. Risk 2 cites the specific $43.50B to $42.00B sequential revenue decline (~3.4%) and directly invalidates argument 5. Risk 3 references Citigroup's 10.00 P/E and GS's 14.50 specifically and directly invalidates argument 3. However, Risk 3 is somewhat weaker — multiple compression toward C's level is plausible but the mechanism driving that compression is not specified (e.g., no mention of what JPM-specific factor, such as EPS deterioration or credit loss increase, would cause the re-rating). Still, all three risks are tied to named figures or named peers from the input, none are generic macro risks, and each clearly names the argument it would invalidate, satisfying the evaluation criteria well."
+    },
+    {
+      "snapshot": "JPM_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All five arguments are grounded in Price Summary, Fundamentals, or Peer Context. No composite score or z-scores are cited anywhere. TTM multiples (P/E 13.00) are always paired with named peer figures (GS at 14.50, BAC at 12.00, WFC at 11.50, C at 10.00) rather than used in isolation. Risks are specific, each naming the argument invalidated and anchoring to input figures (e.g., EPS drop from 5.20 to 4.80, revenue drop from $43.50B to $42.00B, C's P/E of 10.00 vs GS's 14.50)."
+    },
+    {
+      "snapshot": "NVDA_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "Every evidence field is directly traceable to explicit figures in the input. Argument 1 cites P/E TTM 65 vs AMD 42, AVGO 38, QCOM 22, INTC 28 — all present in Peer Context. Argument 2 cites FCF Yield 1.50% vs AMD 2.00%, AVGO 3.00%, QCOM 4.50%, INTC 2.50% — all from Peer Context. Argument 3 cites -5.00% from 52w high, +120.00% from 52w low, 1Y return +85.00%, 6M return +30.00% — all from Price Summary. Argument 4 cites EV/EBITDA 50 vs AMD 30, AVGO 25, QCOM 15, INTC 12 — all from Peer Context. Argument 5 cites Beta 1.45 and 6M return +30.00% — both from Price Summary. No fabricated numbers or unverifiable statistics are present."
+    },
+    {
+      "snapshot": "NVDA_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.9,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "All three risks in 'key_risks_to_thesis' are highly specific to NVDA. Each names the argument it would invalidate and anchors the mechanism to concrete input figures: the first cites the 5Y revenue CAGR of +45% and sequential EPS growth from $3.80 to $5.20 against AMD's 42x P/E; the second references FCF growth from $14B to $20B and the 5Y FCF CAGR of +50% against AVGO's 3.00% yield; the third uses the -5.00% from 52w high figure to reframe proximity as conviction. None of the risks are generic macro lines, and all directly threaten a specific bear argument using named peers or quantitative data from the input. The only minor gap is that the third risk is somewhat interpretive rather than tied to a forward financial mechanism, but it still uses a specific figure and named argument."
+    },
+    {
+      "snapshot": "NVDA_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All arguments derive evidence from Price Summary, Fundamentals, and Peer Context. TTM multiples (P/E 65, EV/EBITDA 50, FCF Yield 1.50%) are always cited alongside named peer figures (AMD, AVGO, QCOM, INTC) in the same sentence, never in isolation. No composite score or z-scores are referenced anywhere. Key risks are anchored to specific input figures like quarterly EPS progression ($3.80 to $5.20), FCF growth ($14B to $20B), 5Y CAGRs, and the -5% from 52w high, each naming the argument it would invalidate."
+    },
+    {
+      "snapshot": "NVDA_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All five evidence strings are directly anchored to specific figures from the input. Argument 1 cites exact quarterly revenue ($28B→$38B) and EPS figures. Argument 2 cites exact FCF figures ($14B→$20B) and the 5Y FCF CAGR of +50%. Argument 3 cites the 5Y CAGRs (+45% revenue, +60% EPS) against the 1Y price return of +85%. Argument 4 cites the +120% from 52w low and -5% from 52w high. Argument 5 compares NVDA's FCF Yield of 1.50% directly against all four named peers (AMD 2.00%, AVGO 3.00%, QCOM 4.50%, INTC 2.50%) from Peer Context. No fabricated or paraphrased figures are present, and no z-scores or composite scores are cited."
+    },
+    {
+      "snapshot": "NVDA_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.8,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "Most risks are well-grounded in company-specific figures. Risk 1 directly references the shrinking sequential increments ($30B→$35B→$38B, a $5B then $3B increment) tied to argument 1. Risk 3 anchors to NVDA's specific FCF yield of 1.50% versus named peers (AMD 2.00%, AVGO 3.00%, QCOM 4.50%, INTC 2.50%) and the FCF trajectory ($14B→$20B), directly undermining argument 5. However, Risk 2 is weaker — it references the +120% move and -5% from 52w high but the mechanism (a 'retracement toward that low') is essentially a momentum/price reversal statement without connecting to any operational or fundamental trigger specific to NVDA, making it closer to a generic market risk. Overall, two of three risks are strongly company-grounded with specific metrics and peer comparisons, while one is more of a valuation/momentum restatement dressed in company-specific numbers."
+    },
+    {
+      "snapshot": "NVDA_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "The Actual Output largely complies with the evaluation criteria. No composite_score or z-scores are cited anywhere. TTM multiples are used in peer-comparative context: FCF Yield of 1.50% is cited alongside AMD 2.00%, AVGO 3.00%, QCOM 4.50%, and INTC 2.50% in both argument 5 and risk 3, which is accepted. Core reasoning draws from Fundamentals (quarterly revenue, EPS, FCF figures, and 5Y CAGRs) and Price Summary (1Y return +85%, from 52w high -5%, from 52w low +120%). The only minor concern is that the summary mentions shares '5% below their 52-week high,' which is a Price Summary reference and acceptable. All risks name the argument they invalidate and anchor to specific input figures. The output is well-grounded and compliant."
+    },
+    {
+      "snapshot": "XOM_bear",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "All 4 arguments cite specific, verifiable numeric figures directly traceable to the input. Argument 1 cites exact quarterly revenue ($92.00B→$88.00B), EPS (2.85→2.60), and FCF ($16.00B→$14.00B) from the Fundamentals table. Argument 2 cites XOM FCF Yield 8.50% vs MPC 11.00% and PSX 9.50%, and XOM P/E 12.00 vs COP 11.00 and MPC 8.50 from Peer Context. Argument 3 cites the 5Y CAGRs (Revenue +4.00%, EPS +14.00%, FCF +9.00%) from Fundamentals. Argument 4 cites -3.00% 6M return, -8.00% from 52w high, and +18.00% from 52w low from Price Summary. No vague qualitative evidence is used without numeric anchors, and no fabricated figures are present. Key risks also properly reference named peers and specific input figures."
+    },
+    {
+      "snapshot": "XOM_bear",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.9,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "All three risks are tightly anchored to specific figures from the input and directly counterpoint named arguments. Risk 1 cites the $16.00B→$14.00B FCF drop and the 5Y FCF CAGR of +9.00% to challenge argument 1. Risk 2 names COP and MPC with their exact FCF yields (9.00%, 11.00%) and links the gap to a structural business-mix difference, undermining argument 2. Risk 3 references the 14.00% EPS CAGR and 9.00% FCF CAGR to challenge argument 3's sustainability concern. No vague macro language is used, and each risk is XOM-specific. A minor deduction is warranted because the business-mix mechanism in Risk 2 (refining-cycle tailwinds) is partially inferential rather than directly drawn from the input data, but it still references named peers and specific figures."
+    },
+    {
+      "snapshot": "XOM_bear",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "The Actual Output avoids citing composite_score or z-scores entirely. TTM multiples are consistently used in peer-relative comparisons (e.g., XOM FCF Yield 8.50% vs MPC 11.00% and PSX 9.50%; XOM P/E 12.00 vs COP 11.00 and MPC 8.50), never in isolation. All arguments draw evidence from Price Summary (6M return -3.00%, 52w high/low figures), Fundamentals (quarterly revenue, EPS, FCF figures, 5Y CAGRs), and Peer Context (named peer multiples). Key risks each name a specific argument and anchor to input figures or named peers. Minor deduction: the summary vaguely references 'higher-FCF-yield peers' without naming them, but this is a minor issue in a non-evidence field."
+    },
+    {
+      "snapshot": "XOM_bull",
+      "criteria": "evidence_grounded (GEval)",
+      "score": 1.0,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "Every argument's evidence is directly traceable to input data: Argument 1 cites XOM P/E 12.00 vs CVX 13.50 and EV/EBITDA 6.50 vs 7.00; Argument 2 cites all four FCF quarters ($12.50B, $13.50B, $16.00B, $14.00B) and 5Y FCF CAGR of +9.00%; Argument 3 cites 5Y EPS CAGR +14.00% vs Revenue CAGR +4.00%; Argument 4 cites +18.00% from 52w low, -8.00% from 52w high, and +12.00% 1Y return; Argument 5 cites Beta of 0.95. All three risks name specific arguments they invalidate and anchor to input figures (e.g., FCF drop from $16.00B to $14.00B, EPS drop from 2.85 to 2.60, MPC P/E 8.50 and COP P/E 11.00). No fabricated or vague evidence found."
+    },
+    {
+      "snapshot": "XOM_bull",
+      "criteria": "risks_are_company_specific (GEval)",
+      "score": 0.9,
+      "threshold": 0.7,
+      "passed": true,
+      "reason": "All three risks are company-specific and directly tied to input figures. Risk 1 cites the specific FCF drop from $16.00B to $14.00B and names argument 2. Risk 2 cites EPS declining from 2.85 to 2.60 sequentially and names argument 3. Risk 3 names specific peers MPC (P/E 8.50, EV/EBITDA 5.20) and COP (P/E 11.00, EV/EBITDA 5.80) to challenge argument 1's relative valuation claim. No generic macro language like 'recession' or 'inflation' is used. Each risk explains a concrete mechanism. Minor deduction because Risk 2 is somewhat overlapping with Risk 1 (both reflect sequential quarterly weakness), but it does reference a distinct metric and argument."
+    },
+    {
+      "snapshot": "XOM_bull",
+      "criteria": "signals_not_primary_evidence (GEval)",
+      "score": 0.9,
+      "threshold": 0.8,
+      "passed": true,
+      "reason": "The Actual Output consistently derives evidence from Price Summary, Fundamentals, and Peer Context rather than Screening Signals. No composite score or z-scores are cited. TTM multiples (P/E 12.00, EV/EBITDA 6.50) are always paired with named peer figures (CVX 13.50/7.00, MPC 8.50/5.20, COP 11.00/5.80), satisfying peer-comparison requirements. FCF and EPS arguments trace directly to the quarterly fundamentals table and 5Y CAGR figures. The Price Summary figures (52w low/high, 1Y return, Beta) are used appropriately. Risks are specific, named, and anchored to input figures. The only minor concern is that Beta (0.95) in argument 5 is used in slight isolation without peer comparison, but given the low confidence assigned and its secondary nature, the penalty is minimal."
+    }
+  ],
+  "summary": {
+    "total": 24,
+    "passed": 24,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}
