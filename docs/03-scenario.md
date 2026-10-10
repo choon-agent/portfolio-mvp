@@ -4,8 +4,15 @@
 > **상위 문서**: [`CHARTER.md`](../CHARTER.md), [`CLAUDE.md`](../CLAUDE.md)
 > **선행 문서**: [`docs/02-bull-bear.md`](02-bull-bear.md) — 본 단계 입력원, M2 운영 중
 > **후행 문서**: `docs/04-optimizer.md` — 본 단계 출력(`ExpectedReturn`)을 입력으로 받음
-> **버전**: v0.17 (2026-08-04)
-> **상태**: 구현 #1~#12 완료 + #13 로컬 PoC (잔여: 자동화·#14 DeepEval) · 4주 운영 회고 완료 · 자동 운영 중 (유효 regime 2026-07-14~)
+> **버전**: v0.18 (2026-10-10) — **M3 말 12주 판정 박제** (retro §0.9). v0.17 (2026-08-04)
+> **상태**: **M3 종료 — 옵션 C 판정 완료 (불합격 → 재설계 결정, 구현은 v2)**. 운영은 2026-10-20 MVP 종료까지 코드 변경 없이 지속. 재설계안: `docs/06-v2-design.md`
+>
+> **v0.18 변경 (판정 — 유효 regime 2026-07-14~10-05, 11주 실행, scenarios 220 / Bull-Bear 440)**:
+> ① **§1.4.2 판정**: #1 Brier **0.636** (n=60, 합격 <0.25) **불합격** / #2 트리거 적중률 **판정 불가 → 제외** (문서 예시 해석 5.3% vs 무효화 해석 94.7% — 후자는 bear 미실현 base rate 95% 와 동일, 정보 없음; v2 에서 "base rate 대비 lift" 로 재정의) / #3 옵션 C vs B **동등** (실계좌 7주 −7.29% vs −7.49%, 백테스트 8주 +2.41% vs +1.43%). 판단 분기 "전환 검토" 구간.
+> ② **근본 원인**: LLM 확률이 격자 상수 (bull mean 0.291 sd 0.035, 값 0.25/0.28/0.30/0.32 — 모델 교체 Sonnet 4.6→5·프롬프트 보강·재호출 분산 측정 sd≤0.024 로 전부 확인). 옵션 C 의 전제 "LLM 확률이 정보를 더한다" 가 데이터로 기각됨. ER 은 사실상 `p_bull × 52주고점 여력` (후보 7/8~7/9 가 bear=base=현재가 퇴화, retro §0.8 백테스트).
+> ③ **결정 (B1 = d)**: 옵션 C 의 narrative·트리거는 유지하되 **ER 확률 leg 를 LLM 에서 분리** (1차 균등 1/3 → calibration 누적 후 base rate) 하는 재설계를 **v2 로 박제**, 10-20 까지 코드 변경 없음 (검증 주차 2회뿐·12주 데이터 단절 회피). 함께 v2: base cap 0→10% (v0.18 config 후보 — 백테스트 퇴화 0.78→0), 1↔3단계 방향 충돌 (52주고점 핑퐁 왕복 4건) 해소.
+> ④ **§12.3 데이터 게이트 종결**: `peer_announcement` 12주 0건 → enum 제거 (v2) / `_validate_price_order` 위반 19.1% → 유지 / narrative 500 충분 (max 410) 확정 / 확률 cap·floor → 확률 leg 분리로 무의미 / TTM EPS·(d) 극소 EPS 가드 → v2. **§5.2 실측**: 재시도 0/660, 비용 $1.05/주 (scenario $0.35 + Bull/Bear $0.70).
+> ⑤ CHARTER §4.1: TE 17.9% > 15% → **페이퍼 유지** (CHARTER v0.3).
 >
 > **v0.17 변경 (`bear_price_cap_pct=0.0` primary 승격 — §12.3 bear semantics 결정)**:
 > ① 증거 4주 일관 (retro §0.5): 시뮬 07-20 위반 7→1 / 실운영 07-27 7→1 / 08-03 6→0. cap 은 정확히 bear>current 유형만 제거, 다른 종목 ER Δ=0. 잔여 base<bear 유형(ADM/TKO)은 주당 ≤1건 — §12.3 별도 관찰 항목으로 유지.
@@ -761,7 +768,7 @@ Sonnet 5 단가 (2026-09 기준): 입력 $2/1M, 출력 $10/1M (Sonnet 4.6 시절
 **합계 (2단계 Bull/Bear + 3단계 시나리오)**:
 - Bull/Bear $2.76 + 시나리오 $1.45 = **월 ~$4.20** (hard cap $200 의 2.1%)
 
-> **재시도 +20% 는 보수 ceiling** (v0.7) — M2 운영 4주 160 invoke 중 **retry/fallback 0건** ([02 §9](02-bull-bear.md)). golden 1회 retry 도 max_tokens 1024 잘림이 원인 → 2048 상향 후 0. 시나리오는 2048 + 출력 ~500 이라 잘림 위험 없음. 검증이 더 엄격(3 label·prob합·enum)하나 Sonnet 4.6 JSON 신뢰성 입증됨 → **실측: M3 4주 운영 재시도 0%** (v0.15, narrative 300→500 완화 후. 첫 수동 실행의 narrative 초과 재시도만 제외하면 정규 운영 0%).
+> **재시도 +20% 는 보수 ceiling** (v0.7) — M2 운영 4주 160 invoke 중 **retry/fallback 0건** ([02 §9](02-bull-bear.md)). golden 1회 retry 도 max_tokens 1024 잘림이 원인 → 2048 상향 후 0. 시나리오는 2048 + 출력 ~500 이라 잘림 위험 없음. 검증이 더 엄격(3 label·prob합·enum)하나 Sonnet 4.6 JSON 신뢰성 입증됨 → **실측: M3 4주 운영 재시도 0%** (v0.15, narrative 300→500 완화 후. 첫 수동 실행의 narrative 초과 재시도만 제외하면 정규 운영 0%). **12주 최종 실측 (v0.18)**: scenario 0/220 · Bull/Bear 0/440 재시도 0, 주간 LLM $1.05 (scenario $0.35 + Bull/Bear $0.70; 09-26 프롬프트 보강 후 $1.01~1.02), 월 ≈ $4.5 — 상한 $200 의 2.3%.
 >
 > **S3 result cache 의 비용 의미** (v0.7) — cache (§6.2 lambda_core hit/miss) 는 *재실행(디버깅·Lambda retry·Step Functions 재실행) 폭주 방어* 용이지 steady-state 절감 아님. 주간 정규 배치는 매주 새 데이터라 cache-miss 가 정상 → 위 표의 **80 calls 풀 카운트가 정확**. (M2 dry-run 의 87.5% cache hit 은 같은 종목 재호출 테스트 효과)
 
@@ -1130,23 +1137,23 @@ CLAUDE.md `golden` 마커 = *실제 LLM 호출 없이* 저장 스냅샷 검증. 
 
 ### 12.3 🔴 데이터·운영 게이트 (M3 운영 데이터 필요 — 지금 결정 불가)
 
-- [~] **`ScenarioPricingConfig` 기본값 조정** — 4주 회고(v0.15): 음수 skew 82.5% 확인(원인 base_cap=0.0 → §0.7 정정: epsDiluted 버그). 즉시 변경 대신 **#12 sensitivity 활성화**(A/B 누적) → optimizer 거동 보고 config 확정. `_validate_price_order` 는 완화 대비 안전망으로 유지. **v0.17+ 갱신**: bear cap 승격 완료, **4단계 가동(08-17)으로 config 4종 대안 → 포트폴리오 백테스트 실행 가능 상태** — 유효 A/B 수 주 더 누적 후 실행 (04 §9 연동)
+- [x] **`ScenarioPricingConfig` 기본값 조정** — 4주 회고(v0.15): 음수 skew 82.5% 확인(원인 base_cap=0.0 → §0.7 정정: epsDiluted 버그). 즉시 변경 대신 **#12 sensitivity 활성화**(A/B 누적) → optimizer 거동 보고 config 확정. `_validate_price_order` 는 완화 대비 안전망으로 유지. **v0.17+ 갱신**: bear cap 승격 완료, **4단계 가동(08-17)으로 config 4종 대안 → 포트폴리오 백테스트 실행 가능 상태** — 유효 A/B 수 주 더 누적 후 실행 (04 §9 연동) → **v0.18 종결**: 백테스트(retro §0.8 A)로 base cap 10% 를 v2 후보 확정, 운영 변경 없음
 - [x] **`peer_announcement` 트리거 정책** — **유지 확정** (2026-08-10): #13 배치 9주 489 트리거 중 사용 **0건** (정성 metric 은 guidance_change 14건뿐) — 남용 우려 기각, enum 유지 무해. 참고: 사용 분포 fcf_yoy 206(42%)/revenue_yoy 84/revenue_qoq 80/earnings_surprise 57/eps_yoy 29/op_margin 19 — **fcf_yoy 편중 + 좁은 threshold 로 발동 남발**이 실제 이슈 (프롬프트 가이드 후보, DeepEval 게이트 대상)
-- [ ] **`_validate_price_order` 위반 빈도** (v0.3 §4.1) — 4주 후 위반 0 이면 검증 제거 검토. `aggressive`/`base_price_cap_pct=None` 도입 시 재측정. **v0.16 갱신**: epsDiluted 수정 후 위반 7/20 × 2주 연속 발생 (retro §0.5) — 제거 논의 폐기, 안전망 확정
+- [x] **`_validate_price_order` 위반 빈도** (v0.3 §4.1) — 4주 후 위반 0 이면 검증 제거 검토. `aggressive`/`base_price_cap_pct=None` 도입 시 재측정. **v0.16 갱신**: epsDiluted 수정 후 위반 7/20 × 2주 연속 발생 (retro §0.5) — 제거 논의 폐기, 안전망 확정 → **v0.18 종결**: 12주 위반 19.1% — **유지** (제거 불가)
 - [x] **bear 가격 semantics — `bear_capped` primary 승격** (v0.16 신설 → **v0.17 승격 완료, 2026-08-04**) — bear>bull 역전이 양수 ER 상위를 점유 (07-20: 6/7) → optimizer·§7.2 calibration 오염. 증거 4주 일관 (시뮬 07-20 역전 7→1 / 실운영 07-27 7→1 / 08-03 6→0, 영향은 역전 종목에 국한) → 기본값 0.0 승격, "bear_uncapped" 를 counterfactual 대안으로 유지. **잔여 관찰 항목**: (a) base<bear 유형 (ADM/TKO — peer base ≪ historical bear, 주당 ≤1건) 빈도 추적, (b) ALL 형 퇴화 (bear=base=bull=current → ER=0·variance=0) 발생 시 optimizer 처리, (c) 근본 재설계(bear historical 단독 등)는 §12.4 v2 후보 유지, (d) **극소 양수 TTM EPS 유형** (08-10 DD — 일회성 손실로 TTM EPS 0.45·P/E ~317 → peer 목표가 붕괴, ER -88.5%. `ttm_eps>0` 가드 사각지대. 가드 후보: `current/ttm_eps` 극단(예: P/E>100) 시 peer 갈래를 결측 취급 — 빈도 보고 결정). **빈도 데이터 (09-12 갱신)**: DD 가 08-10~09-07 **5주 연속 스크리닝 rank 1**(momentum_z 5.3~5.5 — 분사 아티팩트) → 매주 G1 제외, 주당 LLM 콜 2건($0.037)·rank 1 자리 고정 소모. 분기 재무 갱신(11월경)까지 자동 해소 안 됨. **가드 도입 결정은 M3 말 재검토 안건** (retro §0.8) — 3단계 가드만으로는 1단계 rank 1 점유는 못 막으므로 1단계 모멘텀 산식의 코퍼레이트 액션 처리와 함께 검토)
-- [ ] **TTM EPS 결측 종목 정책** — historical-only fallback 은 §9 확정, *정확도 영향* 은 첫 운영 결측 분포 후. **관찰 데이터** (v0.17 시점): 유효 regime 4주간 음수 TTM(=peer 갈래 의도적 차단) 4~6/20 매주 — 딥밸류 유니버스 특성상 상시 존재. 극소 *양수* TTM 유형(DD, P/E ~317)은 §12.3 bear semantics 잔여 (d) 참조
-- [ ] **확률 cap 재평가** (v0.3 §4.2) — `bull/bear_probability_cap` 은 calibration 측정 전 임시 가드. M3 말 Brier 결과로 유지/제거. bull bias 발견 시 활성화
-- [ ] **확률 floor (`min_scenario_probability`)** (v0.6 §4.2 거부) — tail 과소평가 왜곡 우려나 옵션 C 는 LLM 신뢰 기본. calibration 이 tail 계통 과소평가 보일 때만 도입. M3 말
+- [x] **TTM EPS 결측 종목 정책** — historical-only fallback 은 §9 확정, *정확도 영향* 은 첫 운영 결측 분포 후. **관찰 데이터** (v0.17 시점): 유효 regime 4주간 음수 TTM(=peer 갈래 의도적 차단) 4~6/20 매주 — 딥밸류 유니버스 특성상 상시 존재. 극소 *양수* TTM 유형(DD, P/E ~317)은 §12.3 bear semantics 잔여 (d) 참조 → **v0.18 종결**: 음수 EPS 4~6/20 상시 + DD 극소 양수 9주 연속 — (d) 가드는 v2 (06-v2-design)
+- [x] **확률 cap 재평가** (v0.3 §4.2) — `bull/bear_probability_cap` 은 calibration 측정 전 임시 가드. M3 말 Brier 결과로 유지/제거. bull bias 발견 시 활성화 → **v0.18 종결**: Brier 0.636 불합격 — cap/floor 로 고칠 문제 아님 (격자 상수). 확률 leg 분리(v2)로 대체
+- [x] **확률 floor (`min_scenario_probability`)** (v0.6 §4.2 거부) — tail 과소평가 왜곡 우려나 옵션 C 는 LLM 신뢰 기본. calibration 이 tail 계통 과소평가 보일 때만 도입. M3 말 → **v0.18 종결**: 동상 — v2 확률 leg 분리로 무의미
 - [x] **B 트리거 시간 조인** (v0.10 §7 — #13) — **v1 규칙 확정·실증** (2026-08-08): `filingDate > as_of_date` 인 최초 발표 매칭 + `rows_up_to` 로 채점 분기 고정 (`income[0]` 가정 문제 해소 — 늦은 평가 시 후속 발표 혼입 방지). 발표 분산 6/25~8/7 실데이터로 검증
 - [x] **F 트리거 배치 FMP 신선도** (v0.10 §7 — #13, M2 §12) — **v1 해결** (2026-08-08): batch 가 `--max-cache-age-days`(기본 3) 로 90일 TTL 을 우회해 캐시 계층 경유 재수집 — 발표 직후 신선 statement 확보 + 캐시 갱신 (주간 파이프라인도 새 분기 데이터 승계). M2 "이벤트 기반 캐시 무효화" 일반화는 M2 §10 잔존 항목으로 유지
-- [ ] **시나리오 sensitivity 의 portfolio 영향** — 같은 LLM 출력 다른 config → 4단계 결과 차이. ExpectedReturnsBundle 로 측정
+- [x] **시나리오 sensitivity 의 portfolio 영향** — 같은 LLM 출력 다른 config → 4단계 결과 차이. ExpectedReturnsBundle 로 측정 → **v0.18 종결**: 측정 완료 — `scripts/run_config_backtest.py` 6 config × 8주 (retro §0.8 A)
 - [ ] **§2.4 enum 거부 후보 5개 재검토** (v0.4 — 4주 이후/v2):
   - `valuation_multiple`: peer_pe 입력·출력 자기 참조 (bull 실현=트리거 자동 충족). 의미 명확화 후 v2
   - `analyst_estimate_revision`: 후행 지표 + snapshot 시계열 캐시 필요 → M3 범위 외
   - `dividend_yield_change`/`buyback_yield`: income 종목 점유율 제한적. universe 분석 후
   - `sector_specific`: sub_sector×metric 매트릭스 (M2 §10 "sector-specific factor" 통합, v2)
   - `macroeconomic`: 종목별 schema 에 전 시장 metric 부적합 → 별도 macro_trigger/sector overlay (v2)
-- [ ] **옵션 C 성공 기준 측정** (§1.4.2 — M3 말 12주 회고):
+- [x] **옵션 C 성공 기준 측정** (§1.4.2 — M3 말 12주 회고): → **v0.18 종결**: **판정 완료 (retro §0.9 A1~A3)**: 불합격/제외/동등 → 재설계 (v2)
   - (1) calibration Brier < 0.25 — `trigger_evaluator`(#13) 자동 누적 (방법은 §12.1 확정)
   - (2) 트리거 적중률 ≥ 60% — 자동 측정 metric 한정
   - (3) Portfolio outcome vs 옵션 B baseline 동등/우월 — `ExpectedReturnsBundle.alternatives` (추가 비용 0)
