@@ -110,10 +110,10 @@ portfolio-mvp/
 ## 참고 문서
 
 - 프로젝트 헌장: `CHARTER.md`
-- 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (5단계 전부 확정·운영) + `docs/03-scenario-retro.md` (운영 로그·M3 말 안건)
+- 단계별 설계: `docs/01-screening.md` ~ `docs/05-rebalancing.md` (5단계 전부 확정·운영) + `docs/03-scenario-retro.md` (운영 로그·12주 판정 §0.9) + `docs/06-v2-design.md` (재설계안)
 - 외부: FMP API 문서, Anthropic API 문서, AWS Lambda 문서
 
-## 현재 단계 (M3 후반 + 4·5단계 운영 — 2026-09-12 기준)
+## 현재 단계 (M3 종료 · MVP 마감 단계 — 2026-10-10 기준)
 
 - [x] M0 기반 (Charter / Repo / CLAUDE.md / README / 스캐폴딩 / FMP 캐싱 계층)
 - [x] **M1 — 1단계 스크리닝 (코드 기반) — 완료·운영 중**
@@ -121,19 +121,15 @@ portfolio-mvp/
     EventBridge (Mon 06:00 ET). universe ~503 → selected 20. 설계: `docs/01-screening.md`
 - [x] **M2 — 2단계 Bull/Bear — 완료·운영 중**
   - `agents/bull_bear/` + `agent_bullbear_{bull,bear}` Lambda. 설계: `docs/02-bull-bear.md`
-- [~] **M3 — 3단계 시나리오 모델링 (옵션 C) — 구현 #1~#13(PoC) 완료·자동 운영 중**
-  - 설계 `docs/03-scenario.md` **v0.17** / 4주 운영 회고 합격 (`03-scenario-retro.md §0.6`)
-  - 코드 `agents/scenario/` + `agent_scenario` Lambda + ASL ScenarioMap.
-    LLM 은 확률·narrative·트리거만, 가격은 결정적 산식 + base·bear 현재가 cap (v0.17)
-  - 주요 이력 (상세 retro §0.5/§0.7): 6/29~7/6 2주 결번(pyarrow 배포 사고, 302f3cb 복구) /
-    epsDiluted 필드 버그로 07-13 이전 데이터 구 regime (90afd8b 수정 — **유효 데이터는
-    2026-07-14 부터**, 12주 판정 ~10월 초) / bear cap v0.16→v0.17 primary 승격 (4b9ca19)
-  - #13 트리거 자동검증: 로컬 배치 가동 (`scripts/run_trigger_batch.py` — 주 1회 수동
-    실행, `--upload`. S3 `trigger_evaluations/` 누적, observe-only)
-  - **남은 작업** (retro §0.8 로 일원화): #13 Lambda 자동화 결정 (§12.2 D) / #14 DeepEval
-    baseline / §12.3 (d) 극소 EPS 가드 (DD 5주 연속 rank 1→제외, 빈도 답 나옴) /
-    **Anthropic SDK 1.x 이행** (09-07 사고, 현재 `<0.50` 핀 — temperature 제거는 09-14 Sonnet 5 이행으로 선행 완료) /
-    ER 산식 퇴화·1↔3단계 방향 충돌 백테스트 (08-24/08-31 관찰)
+- [x] **M3 — 3단계 시나리오 모델링 (옵션 C) — 12주 판정 완료 (2026-10-10), 재설계 v2**
+  - 설계 `docs/03-scenario.md` **v0.18** (판정 박제) / 판정 원본 `03-scenario-retro.md §0.9`
+  - **판정**: §1.4.2 #1 Brier 0.636 불합격 / #2 판정 불가(제외) / #3 옵션 B 와 동등.
+    근본 원인 = LLM 확률 격자 상수 (모델·프롬프트·재호출 무관). 운영 health 는 전 항목 합격
+    (성공률 92.3%, 재시도 0/660, $1.05/주)
+  - **결정 (B1=d)**: 10-20 까지 코드 변경 없이 운영 지속, 재설계는 `docs/06-v2-design.md`
+    (ER 확률 leg 분리·base cap 10%·1↔3단계 충돌·cap 10%·lift 지표·lockfile/SDK 1.x 선행)
+  - 이력: 6/29~7/6 결번(pyarrow) / 07-14 유효 regime 시작(epsDiluted) / 08-04 v0.17 bear cap /
+    09-07 결번(SDK 1.x) / 09-14 Sonnet 5 이행 / 09-26 프롬프트 보강 (DeepEval 24/24)
 - [x] **4단계 최적화 — 구현 완료·자동 운영 편입 (2026-08-17)**
   - `docs/04-optimizer.md` v0.3 / `src/optimizer/` 5모듈 + `run_optimizer` **컨테이너
     Lambda** (ECR, 컨테이너 방침 첫 적용) / ASL RunOptimizer state (2026-08-17
@@ -146,7 +142,10 @@ portfolio-mvp/
     09-07 첫 자동 체인: 3단계 결번(SDK 사고)에도 보유 유지 스냅샷 정상 — 실패 설계 검증.
     **전 구간 첫 완전 성공은 09-14 확인 예정**
 
-미해결 디자인 채무: M1 은 `docs/01-screening.md §10`, M3 은 `docs/03-scenario.md
-§12` (12.2 잔여 1 [~D] / 12.3 데이터 게이트 잔여 / 12.4 v2 3) 참조.
-**M3 말 재검토 안건(~10월 초)은 `docs/03-scenario-retro.md §0.8` 로 일원화** —
-12주 판정 + Charter 감사 이월(백테스트 엔진·블로그·패턴 비교표·Athena 정리) 포함.
+- [x] **M3 말 재검토 (2026-10-10)** — CHARTER v0.3: §4.1 **페이퍼 유지** (TE 17.9% > 15%),
+  Athena 제거. 5단계 band 면제 허용오차 0.5%p 배포 (05 v0.4)
+- [ ] **MVP 마감 (~10-20)**: 블로그 1편 초고 / 패턴 비교표(Orchestrator·Self-Verification 완료,
+  Debate 설계만) / README·회고 최종화. 정기 실행 10-12·10-19 는 결과 확인만
+
+**v2 백로그·재설계는 `docs/06-v2-design.md` 로 일원화.** 잔여 디자인 채무: M1 `docs/01-screening.md §10`,
+M3 `docs/03-scenario.md §12.4`. **S3 versioning 은 admin 권한 필요 (06 §2.7 명령)**.

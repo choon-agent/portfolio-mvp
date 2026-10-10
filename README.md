@@ -4,7 +4,7 @@
 > S&P 500 유니버스, 주 1회 리밸런싱, Bull/Bear 에이전트 기반 종목 리서치.
 
 **기간**: 2026-04-20 ~ 2026-10-20 (6개월 MVP)
-**현재 단계**: **1~5단계 자동 운영 (스크리닝 → Bull/Bear → 시나리오 → 최적화 → 리밸런싱, 2026-09-07 체인 편입). 페이퍼 계좌 2개(primary/option_b) 운용 중. 다음 체크포인트: M3 말 재검토 (~2026-10-06)**
+**현재 단계**: **M3 말 12주 판정 완료 (2026-10-10) — 옵션 C 불합격 → 재설계 v2 박제, 실전 전환은 페이퍼 유지.** 1~5단계 자동 운영은 MVP 종료(10-20)까지 지속. 결론·재설계: [`docs/03-scenario-retro.md §0.9`](docs/03-scenario-retro.md) · [`docs/06-v2-design.md`](docs/06-v2-design.md)
 
 ---
 
@@ -47,7 +47,7 @@
 - 옵션 C: LLM ≠ 가격 산정 분리 — LLM 은 확률·narrative·무효화 트리거만, 가격은 결정적 산식 + base·bear 현재가 cap (v0.17). 옵션 B baseline 포트폴리오 병렬 산출로 A/B 측정 중
 - `run_optimizer` 는 **컨테이너 이미지 Lambda** (ECR — numpy/scipy 계열이 zip 50MB 한계 초과)
 - 트리거 자동 검증(#13) 로컬 배치 가동 — 분기 발표 후 tripwire 채점 + 확률 calibration 을 S3 `trigger_evaluations/` 에 누적 (observe-only)
-- 다음: **M3 말 재검토 (~2026-10-06)** — 유효 12주 판정(Brier·트리거 적중률·옵션 C vs B 실현수익률) + Charter 재검토 + 실전 전환 판단 (`docs/03-scenario-retro.md §0.8`)
+- **12주 판정 (2026-10-10)**: Brier 0.636 불합격 / 트리거 적중률 판정 불가 / 옵션 C vs B 동등 / TE 17.9% > 15% → **페이퍼 유지**. 파이프라인은 합격(성공률 92.3%, 재시도 0/660, $1.05/주), 실패한 것은 "LLM 확률이 정보를 더한다"는 전제. 재설계안 `docs/06-v2-design.md`
 
 ---
 
@@ -275,7 +275,8 @@ portfolio-mvp/
 - CLAUDE.md (개발 규칙): 코딩 규칙, 커밋 컨벤션, 비용 상한
 - [docs/01-screening.md](docs/01-screening.md): 1단계 설계 (M1 운영 중)
 - [docs/02-bull-bear.md](docs/02-bull-bear.md) **v0.8**: 2단계 설계 (M2 운영 중) — 운영 모니터링 정책 §11 + 4주 누적 평가 포함
-- [docs/03-scenario.md](docs/03-scenario.md) **v0.17**: 3단계 설계 (M3 운영 중) — 옵션 C, 검토 박제 §2.4~§12
+- [docs/03-scenario.md](docs/03-scenario.md) **v0.18**: 3단계 설계 — 옵션 C, 12주 판정 박제
+- [docs/06-v2-design.md](docs/06-v2-design.md) **v0.1**: v2 재설계안 (판정 후속 — 확률 leg 분리·산식·집중도·지표·인프라)
 - [docs/03-scenario-retro.md](docs/03-scenario-retro.md): M3 운영 로그(주차별)·4주 회고 결과·**M3 말 재검토 안건 §0.8**
 - [docs/04-optimizer.md](docs/04-optimizer.md) **v0.4**: 4단계 설계 (운영 중) — MV·현금 규칙·게이트 G1~G5
 - [docs/05-rebalancing.md](docs/05-rebalancing.md) **v0.3**: 5단계 설계 (운영 중) — 체결 모델·band·계좌 2개·TE 정의
@@ -298,7 +299,7 @@ portfolio-mvp/
 6. ✅ **#12 sensitivity 로깅 / #13 트리거 배치(로컬 PoC)** — 운영 중. ⏳ #13 Lambda 자동화 결정 / #14 DeepEval baseline
 7. ✅ **4~5단계 연결** — 08-17 RunOptimizer, 09-07 RunRebalancer 체인 편입
 8. ✅ **페이퍼 트레이딩 첫 주간 실행** — 09-03 백필 씨딩 + 09-07 첫 자동 체인 (3단계 결번이었으나 5단계 보유 유지 정상). 5단계 전 구간 첫 완전 성공은 **09-14 실행에서 확인**
-9. ⏳ **M3 말 재검토 (~2026-10-06)** — 유효 12주 판정(§1.4.2 #1~#3) + [CHARTER.md §4.1](CHARTER.md) 4기준(성공률 3개월은 10월 중순 충족 가능) + Charter 감사 이월 — 안건은 [retro §0.8](docs/03-scenario-retro.md)
+9. ✅ **M3 말 재검토 (2026-10-10)** — 12주 판정 불합격 → v2 재설계 박제, CHARTER v0.3 페이퍼 유지 ([retro §0.9](docs/03-scenario-retro.md))
 10. ⏳ **Charter 성공 기준 트랙 착수** (미착수 — §4): 백테스트 엔진 + 모멘텀 vs 밸류 비교 / **블로그 1편 초고** / 에이전트 3패턴 비교표 (Debate 패턴 v2)
 
 ### 운영 안정화 항목 (4주 누적 시점 평가)
@@ -557,4 +558,7 @@ git push origin main
 | 2026-09-03 | **5단계 리밸런싱 설계 v0.2 확정·구현·배포** (`src/rebalancer/`, 전용 컨테이너, ASL RunRebalancer) + 08-17 백필 씨딩 |
 | 2026-09-07 | **1~5단계 첫 자동 체인** — ⚠ anthropic SDK 1.x 번들로 Bull/Bear 40/40 실패(3단계 결번), 5단계 보유 유지 정상 |
 | 2026-09-12 | 복구: SDK 핀 `<0.50` + 3 zip 재배포, optimizer G5 게이트, 컨테이너 Lambda 로그 권한 수정 (8/11~ 로그 0건 발견) |
-| — | 다음: 09-14 전 구간 첫 완전 성공 확인 → M3 말 재검토(~10-06) → CHARTER §4.1 실전 전환 판단(10월 중순~) |
+| 2026-09-14 | 1~5단계 첫 완전 성공 · Sonnet 4.6 → 5 이행 |
+| 2026-09-26 | Bull/Bear 프롬프트 보강 (DeepEval 16/24 → 24/24) · 확률 재호출 분산 측정 (sd≤0.024) |
+| 2026-10-10 | **M3 말 12주 판정** — Brier 0.636 불합격 / #2 판정 불가 / C vs B 동등 / TE 17.9% → 페이퍼 유지. CHARTER v0.3, 03 v0.18, `06-v2-design.md` |
+| — | 다음: 10-12·10-19 정기 실행 확인 → 10-20 MVP 종료 (블로그 초고·회고 최종화) |
