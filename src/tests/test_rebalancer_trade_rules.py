@@ -69,6 +69,18 @@ def test_band_exempt_when_over_cap() -> None:
     assert aaa[0].notional == pytest.approx(100.0, abs=0.2)  # 16% → 15%
 
 
+def test_band_exempt_tolerance_prevents_dust_trade() -> None:
+    # cap 을 0.05%p 만 넘은 포지션 (10-05 APA 실측 유형) — 허용오차 안이면 band 적용 → 스킵
+    prices = {"AAA": 150.5, "BBB": 10.0}
+    st = _state(cash=0.0, positions={
+        "AAA": Position(shares=10.0, avg_cost=100.0),    # 1505 / 10005 = 15.04%
+        "BBB": Position(shares=850.0, avg_cost=10.0),
+    })
+    plan, _ = _run(st, {"AAA": 0.15, "BBB": 0.85}, prices)
+    assert not [t for t in plan.trades if t.symbol == "AAA"]
+    assert "AAA" in plan.skipped_by_band
+
+
 def test_band_exempt_when_below_min() -> None:
     # 드리프트로 2% 보유 (< 3% 하한), 목표 3% (Δ 1%p < band) — 면제로 증액 강제
     prices = {"AAA": 20.0, "BBB": 100.0}

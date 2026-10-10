@@ -53,11 +53,18 @@ def account_nav(state: AccountState, prices: dict[str, float]) -> float:
     )
 
 
+EXEMPT_TOLERANCE = 0.005  # §3.5 v0.4 — 면제 허용오차 0.5%p (dust trade 방지, retro §0.9 C2)
+
+
 def _band_exempt(current_w: float) -> bool:
-    """§3.5 범위 밖 드리프트 band 면제 — CHARTER 3~15% 가 band 보다 우선."""
-    if current_w > MAX_POSITION_WEIGHT:
+    """§3.5 범위 밖 드리프트 band 면제 — CHARTER 3~15% 가 band 보다 우선.
+
+    허용오차 없이는 cap 을 0.05%p 넘은 포지션이 $5~13 매도를 유발 (09-28 NEM,
+    10-05 APA 실측). 범위를 EXEMPT_TOLERANCE 이상 벗어날 때만 면제.
+    """
+    if current_w > MAX_POSITION_WEIGHT + EXEMPT_TOLERANCE:
         return True
-    return 0.0 < current_w < MIN_POSITION_WEIGHT
+    return 0.0 < current_w < MIN_POSITION_WEIGHT - EXEMPT_TOLERANCE
 
 
 def compute_trades(
